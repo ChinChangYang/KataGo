@@ -280,13 +280,11 @@ final class InspectorInfoViewController: NSViewController {
 
         // Black
         formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
+            ConfigFormBuilder.rankMenuRow(
                 title: "Black profile",
-                options: HumanSLModel.allProfiles,
-                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: HumanSLModel.canonicalProfile(config.humanProfileForBlack)) ?? 0,
-                onChange: { [weak self] index in
+                current: HumanSLModel.canonicalProfile(config.humanProfileForBlack),
+                onChange: { [weak self] profile in
                     guard let self else { return }
-                    let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setBlackHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
@@ -325,13 +323,11 @@ final class InspectorInfoViewController: NSViewController {
 
         // White
         formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
+            ConfigFormBuilder.rankMenuRow(
                 title: "White profile",
-                options: HumanSLModel.allProfiles,
-                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: HumanSLModel.canonicalProfile(config.humanProfileForWhite)) ?? 0,
-                onChange: { [weak self] index in
+                current: HumanSLModel.canonicalProfile(config.humanProfileForWhite),
+                onChange: { [weak self] profile in
                     guard let self else { return }
-                    let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setWhiteHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }

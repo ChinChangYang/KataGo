@@ -210,6 +210,49 @@ public enum ConfigEngineSync {
         }
     }
 
+    // MARK: Rank chooser (the player label's long press)
+
+    /// Applies a rank picked from the player label's menu (`RankMenuContent`)
+    /// to one side. The profile is written; a side played by a person becomes
+    /// the AI at the quick-toggle time (a person long-pressing "Human" and
+    /// picking 5d means "play me a 5d" — the `TVNewGameForm.apply` precedent);
+    /// and the engine is brought up to date NOW rather than at the next turn
+    /// change — unless it is mid-think for anyone, in which case only the
+    /// writes are made and `GobanState.handleTurnChange` picks the new profile
+    /// and budget up at the next turn, so an in-flight search is never
+    /// cancelled and restarted.
+    ///
+    /// Deliberately its own body: `set*MaxTime` no-ops when the time is
+    /// unchanged (an AI side already at 0.5 s) and `set*HumanProfile` skips
+    /// the side to move, and either would swallow exactly the case this menu
+    /// exists for. The two helpers below are the same ones `set*MaxTime` runs,
+    /// so the sticky `maxVisits` reset rides `getRequestAnalysisCommands` as
+    /// it always has.
+    public static func chooseRank(_ profile: String,
+                                  for color: PlayerColor,
+                                  config: Config,
+                                  gobanState: GobanState,
+                                  player: Turn,
+                                  messageList: MessageList) {
+        // Evaluated BEFORE the writes: a Human side's zero time makes this
+        // false for it, and an AI side's running think is what must not be
+        // disturbed.
+        let engineIsThinking = gobanState.shouldGenMove(config: config, player: player)
+        switch color {
+        case .black:
+            config.humanProfileForBlack = profile
+            if config.blackMaxTime == 0 { config.blackMaxTime = Config.toggleAIThinkingTime }
+        case .white:
+            config.humanProfileForWhite = profile
+            if config.whiteMaxTime == 0 { config.whiteMaxTime = Config.toggleAIThinkingTime }
+        case .unknown:
+            return
+        }
+        guard !engineIsThinking else { return }
+        resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
+        rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
+    }
+
     // MARK: Per-color max time
     //
     // iOS `ConfigView.swift` lines 460-461 (Black) / 492-493 (White): no GTP

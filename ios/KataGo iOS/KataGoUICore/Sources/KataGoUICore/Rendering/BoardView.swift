@@ -162,7 +162,12 @@ public struct BoardView: View {
                         isDrawingCapturedStones: showsCapturedStones,
                         blackPlayerName: showsCapturedStones ? config.playerLabel(for: .black) : nil,
                         whitePlayerName: showsCapturedStones ? config.playerLabel(for: .white) : nil,
-                        onToggleAI: interactive ? { toggleAI(for: $0) } : nil
+                        onToggleAI: interactive ? { toggleAI(for: $0) } : nil,
+                        blackRankProfile: showsCapturedStones
+                            ? HumanSLModel.canonicalProfile(config.humanProfileForBlack) : nil,
+                        whiteRankProfile: showsCapturedStones
+                            ? HumanSLModel.canonicalProfile(config.humanProfileForWhite) : nil,
+                        onChooseRank: interactive ? { chooseRank($1, for: $0) } : nil
                     )
 
                     if showsCapturedStones {
@@ -370,6 +375,18 @@ public struct BoardView: View {
         case .unknown:
             break
         }
+    }
+
+    /// Apply a rank picked from the player label's long-press menu
+    /// (`RankMenuContent`) to that side. `ConfigEngineSync.chooseRank` owns
+    /// the semantics: a Human side becomes the AI at that rank, and the engine
+    /// is brought up to date now unless it is mid-think.
+    private func chooseRank(_ profile: String, for color: PlayerColor) {
+        ConfigEngineSync.chooseRank(profile, for: color,
+                                    config: config,
+                                    gobanState: gobanState,
+                                    player: player,
+                                    messageList: messageList)
     }
 
     private func drawNextMove(dimensions: Dimensions, verticalFlip: Bool, showPass: Bool) -> some View {

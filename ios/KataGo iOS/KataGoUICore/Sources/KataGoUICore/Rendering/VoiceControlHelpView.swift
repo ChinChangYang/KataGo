@@ -42,18 +42,24 @@ public struct VoiceControlPhrasebook: Sendable, Equatable {
     public let enablePath: String
     /// Where the complete, user-editable command list lives.
     public let commandListPath: String
+    /// The verb that long-presses a named element, or nil where the board
+    /// has no long press to offer: the Mac's player capsules sit under the
+    /// board's interaction layer and the rank menu lives in its Inspector.
+    public let longPress: String?
 
     public static let iOS = VoiceControlPhrasebook(
         activate: "Tap",
         listCommands: "Show me what to say",
         enablePath: "Settings ▸ Accessibility ▸ Voice Control",
-        commandListPath: "Settings ▸ Accessibility ▸ Voice Control ▸ Customize Commands")
+        commandListPath: "Settings ▸ Accessibility ▸ Voice Control ▸ Customize Commands",
+        longPress: "Long press")
 
     public static let macOS = VoiceControlPhrasebook(
         activate: "Click",
         listCommands: "Show commands",
         enablePath: "System Settings ▸ Accessibility ▸ Voice Control",
-        commandListPath: "System Settings ▸ Accessibility ▸ Voice Control ▸ Commands")
+        commandListPath: "System Settings ▸ Accessibility ▸ Voice Control ▸ Commands",
+        longPress: nil)
 
     /// The phrasebook for the platform this build runs on. The only `#if` in
     /// the feature, deliberately kept out of the view and off the data.
@@ -165,6 +171,12 @@ public struct VoiceControlHelpView: View {
                        cornerDetail)
                 phrase(phrasebook.command("Pass"),
                        "Passes the turn. The pass tile has to be on screen — Show pass, under Board.")
+                phrase("\(phrasebook.command("Black Player"))  ·  \(phrasebook.command("White Player"))",
+                       "Flips that side between Human and AI. The capsules above the board answer to these names whatever rank they display.")
+                if let longPress = phrasebook.longPress {
+                    phrase("\(longPress) White Player",
+                           "Opens that side's rank menu: Full Strength, Dan, Kyu, or Pro by decade. Picking a rank for a side a person plays hands it to KataGo at that rank.")
+                }
             } header: {
                 Text("Playing on the Board")
             } footer: {

@@ -456,13 +456,11 @@ final class ConfigEditorViewController: NSViewController {
         formStack.addArrangedSubview(ConfigFormBuilder.sectionHeader("Black AI"))
 
         formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
+            ConfigFormBuilder.rankMenuRow(
                 title: "Human profile",
-                options: HumanSLModel.allProfiles,
-                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: HumanSLModel.canonicalProfile(config.humanProfileForBlack)) ?? 0,
-                onChange: { [weak self] index in
+                current: HumanSLModel.canonicalProfile(config.humanProfileForBlack),
+                onChange: { [weak self] profile in
                     guard let self else { return }
-                    let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setBlackHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
                     // Defer the rebuild so the popup's own action completes before
@@ -505,13 +503,11 @@ final class ConfigEditorViewController: NSViewController {
         formStack.addArrangedSubview(ConfigFormBuilder.sectionHeader("White AI"))
 
         formStack.addArrangedSubview(
-            ConfigFormBuilder.popupRow(
+            ConfigFormBuilder.rankMenuRow(
                 title: "Human profile",
-                options: HumanSLModel.allProfiles,
-                selectedIndex: HumanSLModel.allProfiles.firstIndex(of: HumanSLModel.canonicalProfile(config.humanProfileForWhite)) ?? 0,
-                onChange: { [weak self] index in
+                current: HumanSLModel.canonicalProfile(config.humanProfileForWhite),
+                onChange: { [weak self] profile in
                     guard let self else { return }
-                    let profile = HumanSLModel.allProfiles[index]
                     ConfigEngineSync.setWhiteHumanProfile(profile, config: config,
                                                           player: self.player, messageList: self.messageList)
                     // Defer the rebuild so the popup's own action completes before

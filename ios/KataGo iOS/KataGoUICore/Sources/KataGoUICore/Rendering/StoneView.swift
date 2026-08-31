@@ -24,6 +24,14 @@ public struct StoneView: View {
     /// button that calls this with the tapped color. When nil (game-list
     /// thumbnail / previews) the name is plain, non-interactive text.
     var onToggleAI: ((PlayerColor) -> Void)? = nil
+    /// Each side's current rank profile, already canonical
+    /// (`HumanSLModel.canonicalProfile`), for the checkmark in the long-press
+    /// rank menu. nil when the label is not interactive.
+    var blackRankProfile: String? = nil
+    var whiteRankProfile: String? = nil
+    /// The long-press rank chooser (iOS): called with the side and the picked
+    /// profile. nil hides the menu.
+    var onChooseRank: ((PlayerColor, String) -> Void)? = nil
 
     public init(dimensions: Dimensions,
                 isClassicStoneStyle: Bool,
@@ -31,7 +39,10 @@ public struct StoneView: View {
                 isDrawingCapturedStones: Bool = true,
                 blackPlayerName: String? = nil,
                 whitePlayerName: String? = nil,
-                onToggleAI: ((PlayerColor) -> Void)? = nil) {
+                onToggleAI: ((PlayerColor) -> Void)? = nil,
+                blackRankProfile: String? = nil,
+                whiteRankProfile: String? = nil,
+                onChooseRank: ((PlayerColor, String) -> Void)? = nil) {
         self.dimensions = dimensions
         self.isClassicStoneStyle = isClassicStoneStyle
         self.verticalFlip = verticalFlip
@@ -39,6 +50,9 @@ public struct StoneView: View {
         self.blackPlayerName = blackPlayerName
         self.whitePlayerName = whitePlayerName
         self.onToggleAI = onToggleAI
+        self.blackRankProfile = blackRankProfile
+        self.whiteRankProfile = whiteRankProfile
+        self.onChooseRank = onChooseRank
     }
 
     public var body: some View {
@@ -104,6 +118,7 @@ public struct StoneView: View {
         if let onToggleAI {
             glassNameButton(name: name,
                             playerColor: playerColor,
+                            rankProfile: playerColor == .black ? blackRankProfile : whiteRankProfile,
                             onToggleAI: onToggleAI,
                             dimensions: dimensions)
                 .accessibilityIdentifier(nameAccessibilityID)
@@ -125,6 +140,7 @@ public struct StoneView: View {
     // StatusToolbarItems), so it falls back to `.bordered` there.
     private func glassNameButton(name: String,
                                  playerColor: PlayerColor,
+                                 rankProfile: String?,
                                  onToggleAI: @escaping (PlayerColor) -> Void,
                                  dimensions: Dimensions) -> some View {
         let button = Button {
@@ -138,13 +154,39 @@ public struct StoneView: View {
         .controlSize(.mini)
         // A stable speakable name for Voice Control: the visible label is the
         // dynamic player name ("AI" / a rank profile / "Human"), which the
-        // user may not know to say.
+        // user may not know to say. The same names carry the long press
+        // ("Long press White Player" opens the rank menu).
         .accessibilityInputLabels([name, playerColor == .black ? "Black Player" : "White Player"])
 
 #if os(visionOS) || os(tvOS)
-        return button.buttonStyle(.bordered)
+        let styled = button.buttonStyle(.bordered)
 #else
-        return button.buttonStyle(.glass)
+        let styled = button.buttonStyle(.glass)
+#endif
+        return rankMenu(styled, rankProfile: rankProfile, playerColor: playerColor)
+    }
+
+    /// Feedback 2026-08-31: "choose rank when I long press the 'rank' button
+    /// above the board". A context menu — long press IS iOS's context-menu
+    /// gesture, and SwiftUI exposes the items to VoiceOver's actions rotor —
+    /// carrying the ladder grouped by `RankCatalog`. iOS only: the Mac
+    /// capsule sits under `MacBoardInteractionLayer`, which owns every click
+    /// over the board (its rank menu lives in the Inspector), tvOS hides the
+    /// strip, and the visionOS chips are the ornament's.
+    @ViewBuilder
+    private func rankMenu<Content: View>(_ content: Content,
+                                         rankProfile: String?,
+                                         playerColor: PlayerColor) -> some View {
+#if os(iOS)
+        if let onChooseRank, let rankProfile {
+            content.contextMenu {
+                RankMenuContent(current: rankProfile) { onChooseRank(playerColor, $0) }
+            }
+        } else {
+            content
+        }
+#else
+        content
 #endif
     }
 

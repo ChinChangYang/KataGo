@@ -72,7 +72,7 @@ The board comes up first, on every launch. Your last game's stones, the move num
 ### Playing and Reviewing
 
 - **Place a move** by tapping an intersection (the engine validates legality first). To **pass**, tap the dedicated pass cell.
-- **Tap a player's capsule** (the label showing "AI", a rank, or "Human" beside the captured-stone count) to toggle that side between Human and AI play.
+- **Tap a player's capsule** (the label showing "AI", a rank, or "Human" beside the captured-stone count) to toggle that side between Human and AI play. **Long-press it** to pick that side's rank from a menu — Full Strength, Dan, Kyu, or Pro by decade; picking a rank for a Human side hands it to KataGo at that rank, and a pick takes effect at once unless the engine is mid-think, in which case it applies from its next move.
 - Below the board, a control strip has eight buttons: **Backward to End**, **Backward** (10 moves), **Backward Frame** (1 move), **Toggle Analysis** (the sparkle button cycles run → pause → clear), **Toggle Visibility** (the eye button cycles the analysis overlay: opened → book, when an opening book applies → closed), **Forward Frame**, **Forward** (10 moves), and **Forward to End**.
 - The toolbar carries a **Lock/Unlock** button that guards the saved game against accidental edits; while a branch is active its place is taken by the red **Deactivate Branch** button.
 - Win-rate bar, ownership shading, candidate moves, and the score chart draw over and under the board according to your settings; the chart supports tap/drag navigation and an auto-play button.

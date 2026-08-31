@@ -456,46 +456,22 @@ private enum TVNewGameRankGroup: Int, CaseIterable, Identifiable {
     }
 }
 
-private struct TVNewGameProEntry: Identifiable, Sendable {
-    let year: Int
-    let profile: String
+/// The pro-era entry the chooser's grid cells bind to: `RankCatalog.ProEntry`,
+/// whose `label` is already the verbatim year string.
+private typealias TVNewGameProEntry = RankCatalog.ProEntry
 
-    var id: Int { year }
-    /// `String(year)` on purpose: `Text("\(year)")` would take the
-    /// LocalizedStringKey path and render "1,997".
-    var label: String { String(year) }
-}
-
-/// Splits the flat 259-entry profile list into the three families the chooser
-/// presents. Derived from `TVNewGameForm.rankChoices` at runtime rather than
-/// hardcoded, so a change to the ladder (or a new pro year) flows through with
-/// no edit here.
+/// The three-way presentation this screen puts on top of the shared
+/// `RankCatalog` partition (Full Strength / Human Rank / Pro Era). The
+/// grouping itself — dan, kyu, pro years by decade — is the catalog's, shared
+/// with the iOS long-press menu and the Mac rank menu.
 private enum TVNewGameRankCatalog {
-    static let all: [String] = TVNewGameForm.rankChoices
-
-    static let aiProfile: String = all.first { $0 == "AI" } ?? all.first ?? "AI"
-
-    static let dan: [String] = all.filter { isRank($0, suffix: "d") }
-    static let kyu: [String] = all.filter { isRank($0, suffix: "k") }
-
-    static let pro: [TVNewGameProEntry] = all.compactMap { profile in
-        guard profile.hasPrefix("Pro "),
-              let year = Int(profile.dropFirst(4)) else { return nil }
-        return TVNewGameProEntry(year: year, profile: profile)
-    }
-    .sorted { $0.year < $1.year }
-
-    static let decades: [Int] = {
-        var seen = Set<Int>()
-        var ordered: [Int] = []
-        for entry in pro where seen.insert(decade(of: entry.year)).inserted {
-            ordered.append(decade(of: entry.year))
-        }
-        return ordered.sorted()
-    }()
+    static var aiProfile: String { RankCatalog.aiProfile }
+    static var dan: [String] { RankCatalog.dan }
+    static var kyu: [String] { RankCatalog.kyu }
+    static var decades: [Int] { RankCatalog.decades }
 
     static func entries(inDecade start: Int) -> [TVNewGameProEntry] {
-        pro.filter { decade(of: $0.year) == start }
+        RankCatalog.entries(inDecade: start)
     }
 
     static func group(for profile: String) -> TVNewGameRankGroup {
@@ -511,14 +487,7 @@ private enum TVNewGameRankCatalog {
     }
 
     static func decade(containing profile: String) -> Int? {
-        pro.first { $0.profile == profile }.map { decade(of: $0.year) }
-    }
-
-    private static func decade(of year: Int) -> Int { (year / 10) * 10 }
-
-    private static func isRank(_ profile: String, suffix: Character) -> Bool {
-        guard profile.last == suffix else { return false }
-        return Int(profile.dropLast()) != nil
+        RankCatalog.decade(containing: profile)
     }
 }
 

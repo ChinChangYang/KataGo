@@ -108,7 +108,59 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         waitForLabel(app, "blackPlayerName", equals: humanLabel)
     }
 
+    /// Long-presses the WHITE capsule and picks a rank from its context menu:
+    /// the side becomes the AI at that rank and the label reads the rank.
+    /// Restores through the same menu (Full Strength keeps the side AI) and a
+    /// tap (back to Human): once a rank is set the "Time per move" stepper is
+    /// replaced by the "Engine plays this side" toggle, so the config path
+    /// used by the other tests cannot restore the baseline here.
+    @MainActor
+    func testLongPressingWhiteLabelPicksARank() throws {
+        let app = makeApp()
+        launchToBoard(app)
+
+        openAIConfig(app)
+        adjustStepper(app, "blackTimePerMove", decrements: 4)
+        adjustStepper(app, "whiteTimePerMove", decrements: 4)
+        dismissConfig(app)
+        waitForLabel(app, "whitePlayerName", equals: humanLabel)
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)
+
+        let white = app.buttons["whitePlayerName"]
+        XCTAssertTrue(white.waitForExistence(timeout: 10), "White capsule button not found")
+        white.press(forDuration: 1.0)
+        tapMenuItem(app, "Dan")
+        tapMenuItem(app, "5d")
+        // The pick both sets the rank and hands White to the AI, in one step.
+        waitForLabel(app, "whitePlayerName", equals: "5d")
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "WhiteRankPicked"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        // Restore: Full Strength keeps White as the AI ("AI"), then a tap
+        // makes it Human again, the baseline the other tests start from.
+        white.press(forDuration: 1.0)
+        tapMenuItem(app, "Full Strength (AI)")
+        waitForLabel(app, "whitePlayerName", equals: "AI")
+        white.tap()
+        waitForLabel(app, "whitePlayerName", equals: humanLabel)
+    }
+
     // MARK: - Navigation helpers
+
+    /// Taps a context-menu item once it is stably present: an open SwiftUI
+    /// menu collapses when an ancestor re-renders under engine churn, and a
+    /// tap on a flickering element aborts the test.
+    @MainActor
+    private func tapMenuItem(_ app: XCUIApplication, _ title: String) {
+        let item = app.buttons[title].firstMatch
+        XCTAssertTrue(item.waitForExistence(timeout: 10), "Menu item '\(title)' not found")
+        for _ in 0..<10 where !isStablyPresent(item) { usleep(200_000) }
+        item.tap()
+    }
 
     @MainActor
     private func launchToBoard(_ app: XCUIApplication) {

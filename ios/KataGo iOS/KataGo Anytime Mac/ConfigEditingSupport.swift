@@ -85,6 +85,19 @@ enum ConfigFormBuilder {
                  onChange: onChange)
     }
 
+    // MARK: Rank menu row (pull-down NSPopUpButton with submenus)
+
+    /// A labeled rank chooser: the 259 profiles grouped by `RankCatalog`
+    /// (Full Strength, Dan, Kyu, Pro by decade) behind a pull-down whose title
+    /// is the current profile. `onChange(profile)` fires with the picked
+    /// profile; the owner rebuilds the form to refresh the title, as it
+    /// already does after a profile change.
+    static func rankMenuRow(title: String,
+                            current: String,
+                            onChange: @escaping (String) -> Void) -> RankMenuRow {
+        RankMenuRow(title: title, current: current, onChange: onChange)
+    }
+
     // MARK: Checkbox row (NSButton .switch)
 
     /// A labeled boolean row backed by a checkbox `NSButton`. `onChange(isOn)`
@@ -312,6 +325,89 @@ final class PopupRow: NSStackView {
 
     @objc private func popupChanged() {
         onChange(popup.indexOfSelectedItem)
+    }
+}
+
+/// Labeled rank chooser backed by a PULL-DOWN `NSPopUpButton` with submenus.
+///
+/// Pull-down, not pop-up: a pop-up-mode `NSPopUpButton` cannot select from a
+/// submenu — choosing a leaf fires its action but never updates the selection
+/// or the title — so the flat 259-item popup it replaces could never have
+/// been grouped. A pull-down shows its item 0 as the title and leaves the
+/// rest to us: leaves carry the profile in `representedObject`, the current
+/// one wears a checkmark (the Board/Book View submenu idiom in AppDelegate).
+@MainActor
+final class RankMenuRow: NSStackView {
+    private let popup = NSPopUpButton(frame: .zero, pullsDown: true)
+    private let onChange: (String) -> Void
+
+    init(title: String, current: String, onChange: @escaping (String) -> Void) {
+        self.onChange = onChange
+        super.init(frame: .zero)
+
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.widthAnchor.constraint(equalToConstant: ConfigFormBuilder.labelWidth).isActive = true
+
+        popup.translatesAutoresizingMaskIntoConstraints = false
+        popup.menu = makeMenu(current: current)
+
+        orientation = .horizontal
+        alignment = .centerY
+        spacing = 8
+        addArrangedSubview(titleLabel)
+        addArrangedSubview(NSView())  // flexible spacer
+        addArrangedSubview(popup)
+    }
+
+    @available(*, unavailable)
+    required init?(coder: NSCoder) { fatalError("not used") }
+
+    private func makeMenu(current: String) -> NSMenu {
+        let menu = NSMenu(title: "Rank")
+        // Item 0 is the pull-down's title, never shown in the list.
+        menu.addItem(NSMenuItem(title: RankCatalog.title(for: current), action: nil, keyEquivalent: ""))
+        menu.addItem(leaf(RankCatalog.aiProfile, title: RankCatalog.aiTitle, current: current))
+        menu.addItem(submenu("Dan", RankCatalog.dan.map { ($0, $0) }, current: current))
+        menu.addItem(submenu("Kyu", RankCatalog.kyu.map { ($0, $0) }, current: current))
+        let pro = NSMenuItem(title: "Pro", action: nil, keyEquivalent: "")
+        let proMenu = NSMenu(title: "Pro")
+        for decade in RankCatalog.decades {
+            proMenu.addItem(submenu(RankCatalog.decadeLabel(decade),
+                                    RankCatalog.entries(inDecade: decade).map { ($0.profile, $0.label) },
+                                    current: current))
+        }
+        pro.submenu = proMenu
+        menu.addItem(pro)
+        return menu
+    }
+
+    private func submenu(_ title: String,
+                         _ entries: [(profile: String, label: String)],
+                         current: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
+        let menu = NSMenu(title: title)
+        for entry in entries {
+            menu.addItem(leaf(entry.profile, title: entry.label, current: current))
+        }
+        item.submenu = menu
+        // A checkmark on the group that holds the current pick, so the
+        // closed menu already says where to look.
+        item.state = entries.contains { $0.profile == current } ? .on : .off
+        return item
+    }
+
+    private func leaf(_ profile: String, title: String, current: String) -> NSMenuItem {
+        let item = NSMenuItem(title: title, action: #selector(leafPicked(_:)), keyEquivalent: "")
+        item.target = self
+        item.representedObject = profile
+        item.state = profile == current ? .on : .off
+        return item
+    }
+
+    @objc private func leafPicked(_ sender: NSMenuItem) {
+        guard let profile = sender.representedObject as? String else { return }
+        onChange(profile)
     }
 }
 
