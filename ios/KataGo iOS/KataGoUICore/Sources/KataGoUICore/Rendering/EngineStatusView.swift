@@ -113,15 +113,10 @@ public struct EngineStatusView: View {
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, style == .inline ? 12 : 0)
         .padding(.vertical, style == .inline ? 8 : 0)
-        .background {
-            if style == .inline {
-                // A rounded rect rather than a true capsule: a capsule clips its
-                // own corners as soon as the content is more than one line, and
-                // a failure reason at an accessibility size always is.
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.thinMaterial)
-            }
-        }
+        // Only `.inline` wears chrome of its own: the visionOS ornament card
+        // supplies `glassBackgroundEffect()` around `.ornament`, and the tvOS
+        // side panel carries its own material around `.tvLine`.
+        .boardOverlayChrome(enabled: style == .inline)
 
         content
         .accessibilityElement(children: .contain)
@@ -168,10 +163,45 @@ public struct UnreadableRecordView: View {
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
-            .background {
-                RoundedRectangle(cornerRadius: 14, style: .continuous)
-                    .fill(.thinMaterial)
-            }
+            .boardOverlayChrome(enabled: true)
             .accessibilityIdentifier("Board.unreadableRecord")
+    }
+}
+
+// MARK: - Board-overlay chrome
+
+/// The one chrome the board ever wears over itself. The launch pill and the
+/// unreadable-record line share it, so the two never mismatch when both are
+/// up (they stack 6 pt apart in `BoardView`).
+///
+/// Liquid Glass, the app's style for floating chrome, in a 14 pt continuous
+/// rounded rect rather than a true capsule: a capsule clips its own corners
+/// as soon as the content is more than one line, and the compile caption or
+/// an accessibility text size always makes it one. `.regular`, not `.clear`:
+/// the pill sits over the wood texture, and `.clear` is meant for media the
+/// user must keep seeing through, with a dimming layer of its own. Inert
+/// glass, no `.interactive()`: ADR 0010 made the pill a narration, not a
+/// control, and `BoardView` keeps it out of hit testing.
+///
+/// `#if os(visionOS)` and NOT the `|| os(tvOS)` this package uses elsewhere
+/// for glass button styles: in the 26 SDKs `glassEffect` is
+/// `@available(iOS 26, macOS 26, tvOS 26, watchOS 26, *)` with
+/// `@available(visionOS, unavailable)`, so visionOS is the only platform that
+/// cannot compile it (DeepReportView records the same reasoning). visionOS
+/// never mounts the `.inline` pill, so its branch exists to keep the package
+/// building and keeps the material the pill wore before.
+private extension View {
+    @ViewBuilder
+    func boardOverlayChrome(enabled: Bool) -> some View {
+        if enabled {
+            let shape = RoundedRectangle(cornerRadius: 14, style: .continuous)
+#if os(visionOS)
+            self.background(shape.fill(.thinMaterial))
+#else
+            self.glassEffect(.regular, in: shape)
+#endif
+        } else {
+            self
+        }
     }
 }
