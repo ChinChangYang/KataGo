@@ -88,6 +88,13 @@ ios/KataGo\ iOS/ci_scripts/*.bin.gz
 ios/KataGo\ iOS/KataGoUICore/Sources/KataGoUICore/Resources/book9x9jp-20260226.kbook.gz
 ios/KataGo\ iOS/Libraries/
 ios/KataGo\ iOS/.derived-data-log-*
+# README screenshots: the raw, unframed captures are a build product, and
+# Apple's product bezels may not be redistributed (Apple Design Resources
+# License 2023-06-21 sections 2.B/2.C) — see Screenshots/bezels/README.md.
+# Only the COMPOSITED results in docs/screenshots/ are committed.
+ios/KataGo\ iOS/Screenshots/raw/
+ios/KataGo\ iOS/Screenshots/bezels/*
+!ios/KataGo\ iOS/Screenshots/bezels/README.md
 
 # misc
 cpp/external/httplib/cpp-httplib/

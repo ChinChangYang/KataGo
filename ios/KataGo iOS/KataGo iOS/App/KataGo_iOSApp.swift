@@ -54,7 +54,8 @@ struct KataGo_iOSApp: App {
         BackendSettingsResetUITestSupport.resetIfNeeded()
 
         // DEBUG-only, and a no-op without its launch argument: seed a short
-        // committed game for the Export GIF test. HERE, in init(), and not in a
+        // committed game for the Export GIF test — or the README-screenshot
+        // game (`--screenshot-seed`). HERE, in init(), and not in a
         // `.task` — the seed refreshes its own `lastModificationDate` so it wins
         // the recency race and becomes the game the launch auto-selects (the
         // game list pre-fills its search filter with the SELECTED game's name,
@@ -150,6 +151,11 @@ struct KataGo_iOSApp: App {
                 // no-op under `--uitest-disable-downloads`.
                 DownloadCenter.shared.restoreOnLaunch()
             }
+            // README screenshots are captured in light mode on every platform
+            // that has one, so the six images read as one product. `nil` is
+            // "no preference", which is what every normal launch gets —
+            // `ScreenshotSeed.isActive` is hard-wired false outside DEBUG.
+            .preferredColorScheme(ScreenshotSeed.isActive ? .light : nil)
     }
 
     // This (old, cross-platform SwiftUI) app target now builds for iOS only:

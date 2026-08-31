@@ -184,8 +184,9 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         // "Engine plays this side" toggle) and both sides are Human (maxTime 0),
         // so the board never auto-plays into an uncommitted branch that would
         // hide the "More" menu. State persists across local runs, and a persisted
-        // AI-vs-AI game breaks this test — same recovery as
-        // KataGo_iOSUITests.testCaptureReadmeScreens.
+        // AI-vs-AI game breaks this test — the same recovery the retired
+        // KataGo_iOSUITests.testCaptureReadmeScreens used, before
+        // Screenshots/capture_screenshots.sh took over the README images.
         let back = app.navigationBars.buttons.element(boundBy: 0)  // leading = Back ("Games")
         if back.waitForExistence(timeout: 5) { back.tap() }
         let more = app.buttons["More"].firstMatch

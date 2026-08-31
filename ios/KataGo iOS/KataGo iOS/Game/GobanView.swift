@@ -96,6 +96,18 @@ struct GobanView: View {
         .onChange(of: horizontalSizeClass) { _, _ in
             toolbarUuid = UUID()
         }
+        // README screenshots: the iPad image is the FULL-SCREEN board, so a
+        // seeded launch on a regular-width layout puts itself there. Guarded
+        // on `isBoardFullScreen` rather than a one-shot flag because
+        // `.onAppear` runs again on a scene transition, and a second toggle
+        // would bring the sidebar back. No-op without `--screenshot-seed`,
+        // and outside DEBUG (`ScreenshotSeed.isActive`).
+        .onAppear {
+            guard ScreenshotSeed.isActive,
+                  horizontalSizeClass == .regular,
+                  !gobanState.isBoardFullScreen else { return }
+            toggleBoardFullScreen()
+        }
     }
 
     /// iPad full-screen board mode: hides the chart/comments pane (PlayView

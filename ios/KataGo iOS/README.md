@@ -2,6 +2,11 @@
 
 *KataGo Anytime* is a suite of native Apple apps that wraps the [KataGo](https://github.com/ChinChangYang/KataGo/tree/ios-dev) engine, giving you a friendly graphical interface for Go analysis and play across Apple devices. The apps talk to the embedded C++ engine over [GTP](https://github.com/ChinChangYang/KataGo/blob/ios-dev/docs/GTP_Extensions.md) and render an interactive Go board.
 
+<!-- screenshot:iphone-board -->
+![The KataGo Anytime board on iPhone, showing move 127 of Shusaku's Ear-Reddening Game with live analysis](docs/screenshots/iphone-board.png)
+
+*Captured with build 307 on 2026-08-31; regenerate with `Screenshots/capture_screenshots.sh`.*
+
 It runs on **iPhone and iPad, Apple Vision Pro, Mac, Apple TV, and Apple Watch** (all on OS 26+), with your game library synced between devices via iCloud. Inference is optimized for Apple silicon: the engine runs the neural network on Apple's [Neural Engine](https://machinelearning.apple.com/research/neural-engine-transformers) via Core ML, on the GPU via [MLX](https://github.com/ml-explore/mlx), or on both in parallel.
 
 ## The Apps at a Glance
@@ -68,6 +73,11 @@ The app uses a [`NavigationSplitView`](https://developer.apple.com/documentation
 - The **detail** view shows the Go board for the selected game.
 
 The board comes up first, on every launch. Your last game's stones, the move numbers and every navigation control are there immediately; the engine loads in the background, with a "Loading engine…" line over the board (and "Compiling Core ML model…" underneath while a compile is genuinely running) that disappears once it is ready. If the engine fails, or a board is larger than the launched Max Board Size, the analysis sparkle button wears a warning badge; tapping it opens the model picker, whose status header names the problem and offers the remedy — **Retry**, raise Max Board Size, or switch networks. Debug builds present the **model picker** as a sheet over that already-mounted board; release builds restore your last network, or launch the built-in one. On **iPad** a Full-Screen button hides the info pane and sidebar so the board fills the display.
+
+<!-- screenshot:ipad-board -->
+![The same board on iPad in full-screen board mode](docs/screenshots/ipad-board.png)
+
+*Captured with build 307 on 2026-08-31; regenerate with `Screenshots/capture_screenshots.sh`.*
 
 ### Playing and Reviewing
 
@@ -160,6 +170,11 @@ Per-game settings in six sub-screens:
 
 ## KataGo Anytime on Apple Vision Pro
 
+<!-- screenshot:vision-volume -->
+![The volumetric 3D goban in a Vision Pro window](docs/screenshots/vision-volume.png)
+
+*Captured with build 307 on 2026-08-31; regenerate with `Screenshots/capture_screenshots.sh`.*
+
 The Vision Pro app is a separate target (`KataGo Anytime Vision`) — not the iPhone app in a window. It opens a **volumetric window** containing a real-scale 3D goban built in RealityKit (about 0.46 x 0.50 m for a 19x19), with stones, candidate-move markers, and ownership squares placed in the scene:
 
 - **A game controller plays the moves.** The left stick or D-pad glides a ghost stone across the board, **A** plays it, **Y** passes, **B** shows/hides the analysis overlay, **X**/**L1** step back and **R1** steps forward (hold **L1** or **R1** to repeat), and **L2**/**R2** jump to the start and end of the game. Until a controller connects the app says **Connect a controller to play**; a mapping legend appears automatically the first time one does. Pinch works on the flat ornaments — menus, the game list, settings — but not on the board itself.
@@ -170,6 +185,11 @@ The Vision Pro app is a separate target (`KataGo Anytime Vision`) — not the iP
 The Saved Game widget and `katago-anytime://` deep links work here too.
 
 ## KataGo Anytime on the Mac
+
+<!-- screenshot:mac-window -->
+![The Mac window: the board with its inspector (the library sidebar collapsed)](docs/screenshots/mac-window.png)
+
+*Captured with build 307 on 2026-08-31; regenerate with `Screenshots/capture_screenshots.sh`.*
 
 The Mac app is native AppKit with a three-pane window:
 
@@ -191,6 +211,11 @@ Under the hood the Mac app runs the engine in the sandboxed `katago-engine` subp
 
 ## KataGo Anytime on Apple TV
 
+<!-- screenshot:tv-play -->
+![The Apple TV Play screen, with the board and its side panel](docs/screenshots/tv-play.png)
+
+*Captured with build 307 on 2026-08-31; regenerate with `Screenshots/capture_screenshots.sh`.*
+
 The Apple TV app reviews, spectates, **and plays ranked games against KataGo**:
 
 - **Library** — your iCloud-synced games in a grid (with sync-aware empty states while iCloud is catching up), plus **Search** and **Settings** tabs. A permanent **Play KataGo** card opens **New Game**. Unfinished human-vs-AI games — including ones started on iPhone, iPad, or Mac — show a **Continue** badge and reopen for play; finished or symmetric (AI-vs-AI) games open the read-only review as usual.
@@ -205,6 +230,11 @@ The library appears immediately on launch — browsing, Search, Settings and New
 The TV app runs the built-in 18-block network and the human-SL network (for ranked play) through Core ML pinned to the CPU and GPU — Apple TV's Neural Engine never takes these networks — and limits downloadable nets to 100 MB or less.
 
 ## KataGo Anytime on Apple Watch
+
+<!-- screenshot:watch-board -->
+![A saved game's board page on Apple Watch](docs/screenshots/watch-board.png)
+
+*Captured with build 307 on 2026-08-31; regenerate with `Screenshots/capture_screenshots.sh`.*
 
 The Watch app is a standalone reader for your game library:
 
@@ -312,6 +342,26 @@ xcodebuild test -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -de
 ```
 
 The Mac scheme carries its own **KataGo Anytime MacTests** target (`xcodebuild test` with the `KataGo Anytime Mac` scheme), and the `KataGoUICore` package has standalone test targets (`GoRulesKitTests`, `KataGoAnalysisKitTests`, `GobanRecogNativeTests`) that run with `swift test` from `KataGoUICore/`.
+
+### Regenerating the screenshots
+
+The images in this README are generated, not hand-taken: one scripted
+pipeline seeds the same position on six platforms, captures each screen, and
+composites it into Apple's product bezel.
+
+```
+cd ios/KataGo\ iOS
+Screenshots/capture_screenshots.sh          # build, capture, frame, verify, caption
+swift Screenshots/frame_screenshots.swift frame Screenshots/raw Screenshots/bezels docs/screenshots
+python3 Screenshots/verify_screenshots.py   # hard assertions on the committed PNGs
+```
+
+The first command runs the other two; they are listed because re-framing or
+re-checking is often all you need. Apple's bezel files are **not** in this
+repository — the Apple Design Resources License forbids redistributing them —
+so download them first. [`Screenshots/README.md`](Screenshots/README.md) lists
+which packages, the Screen Recording permission the Mac capture needs, and why
+the simulators must be signed out of iCloud.
 
 ### iCloud and App Group Identifiers
 

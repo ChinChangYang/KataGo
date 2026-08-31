@@ -78,4 +78,39 @@ enum TVSampleGameStore {
     static func discard(_ record: GameRecord) {
         container?.mainContext.delete(record)
     }
+
+    #if DEBUG
+    /// The README-screenshot game, for the Play screen.
+    ///
+    /// A VARIANT of the shared seed rather than the seed itself:
+    /// `TVPlayability` routes the plain record — finished (`RE[B+2]`), both
+    /// sides human — to the read-only REVIEW screen, and the README image is of
+    /// PLAY. So `ScreenshotSeed.playVariantSgf` strips the result tag and drops
+    /// the last move, leaving Black (the human) on the ear-reddening move, and
+    /// White is handed to the engine here.
+    ///
+    /// Into the SAME private in-memory container as the demo, for this file's
+    /// header reason: opening a game mutates its record, and those writes must
+    /// never reach the user's CloudKit-synced library.
+    static func screenshotSeedGame() -> GameRecord? {
+        guard let container else { return nil }
+        let index = ScreenshotSeed.playVariantDisplayIndex
+        let record = GameRecord.createGameRecord(
+            sgf: ScreenshotSeed.playVariantSgf,
+            currentIndex: index,
+            name: ScreenshotSeed.recordName,
+            // The offline-computed leads the sample already carries, trimmed to
+            // the truncated game, so the panel and the score chart show real
+            // numbers instead of em-dashes.
+            scoreLeads: SampleGames.earReddeningScoreLeads.filter { $0.key <= index })
+        record.uuid = ScreenshotSeed.uuid
+        let config = record.concreteConfig
+        // The asymmetry `TVPlayability.isHumanVsAI` reads: Black is the person
+        // on move, White is the engine.
+        config.blackMaxTime = 0
+        config.whiteMaxTime = Config.toggleAIThinkingTime
+        container.mainContext.insert(record)
+        return record
+    }
+    #endif
 }

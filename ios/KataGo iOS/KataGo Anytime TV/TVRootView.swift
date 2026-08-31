@@ -290,6 +290,20 @@ struct TVRootView: View {
         }
         .onAppear(perform: startEngineIfNeeded)
         .task {
+            // README screenshots: `--screenshot-seed` opens the Play screen on
+            // the shared position. Pushed exactly the way New Game hands off
+            // (`libraryPath.append`), so `TVGameDestinationView`'s classifier
+            // routes it to `TVPlayScreen`. The record lives in the PRIVATE
+            // in-memory container — it must never reach the synced store.
+            #if DEBUG
+            guard ScreenshotSeed.isActive, !isRunningInPreview else { return }
+            ScreenshotSeed.resetReadinessMarker()
+            guard let record = TVSampleGameStore.screenshotSeedGame() else { return }
+            selectedTab = .library
+            libraryPath.append(record)
+            #endif
+        }
+        .task {
             // tvOS draws the standard diagram orientation (GTP row 1 at the
             // bottom), matching the WidgetBoardView card thumbnails.
             // GlobalPreferenceSync never runs on TV, so nothing overwrites it.

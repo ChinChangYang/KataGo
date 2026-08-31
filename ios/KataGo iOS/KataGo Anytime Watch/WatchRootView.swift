@@ -52,6 +52,17 @@ struct WatchRootView: View {
             }
             library.refresh()
             library.startObservingRemoteChanges()
+            #if DEBUG
+            // README screenshots: open the seeded game the way a complication
+            // tap would, by latching its id here rather than through a URL.
+            // `simctl openurl` cannot deliver the scheme to the watch
+            // simulator (LaunchServices refuses with error 115), and the seed
+            // was written before this store was built, so the row is already
+            // there for `applyPendingDeepLink` to find.
+            if ScreenshotSeed.isActive {
+                pendingDeepLinkID = ScreenshotSeed.uuid.uuidString
+            }
+            #endif
 
             try? await Task.sleep(for: Self.deepLinkResolutionGrace)
             graceExpired = true

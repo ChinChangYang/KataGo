@@ -142,7 +142,13 @@ struct ModelRunnerView: View {
         switch RecoveryDecision.decide(
             pendingLoadModelTitle: controller.pendingLoadTitle,
             selectedModelTitle: controller.persistedSelectionTitle,
-            isDebug: isDebug,
+            // A screenshot run must not stop at the picker, so
+            // `--screenshot-seed` makes the launch take the RELEASE path:
+            // auto-restore the last-good net (or the built-in one) and boot
+            // the engine with no tap. ONLY this call site changes —
+            // `RecoveryDecision.decide` stays the pure function
+            // `RecoveryDecisionTests` pins.
+            isDebug: isDebug && !ScreenshotSeed.isActive,
             builtInTitle: NeuralNetworkModel.builtInModel?.title ?? ""
         ) {
         case .autoRestore(let title):

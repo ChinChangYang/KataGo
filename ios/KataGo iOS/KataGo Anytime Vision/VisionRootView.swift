@@ -44,7 +44,26 @@ struct VisionRootView: View {
         // Independently type-checked pieces — the combined ~380-line
         // modifier chain blew the compiler's expression budget once the
         // stone-animation hooks landed.
-        captureSoundHooks(engineEventHooks(bootChrome))
+        screenshotHooks(captureSoundHooks(engineEventHooks(bootChrome)))
+    }
+
+    /// README screenshots: the capture script polls for a marker rather than
+    /// sleeping, because a cold simulator spends MINUTES compiling the Core ML
+    /// model. The volume having mounted the board (`shell.phase == .ready`) and
+    /// a first analysis line having landed is the frame the image wants.
+    ///
+    /// Its own wrapper rather than one more `.onChange` inside
+    /// `engineEventHooks`, for the reason `body` gives: these chains are
+    /// already at the type-checker's budget. No-op without `--screenshot-seed`,
+    /// and outside DEBUG.
+    private func screenshotHooks(_ content: some View) -> some View {
+        content
+            .onChange(of: session.analysis.info.count) { _, count in
+                guard ScreenshotSeed.isActive,
+                      shell.phase == .ready,
+                      count > 0 else { return }
+                ScreenshotSeed.touchReadinessMarker()
+            }
     }
 
     /// What the volume draws and what it lets the user drive, at this engine
@@ -297,8 +316,9 @@ struct VisionRootView: View {
         .onChange(of: controllerInput.isConnected) { _, connected in
             if !connected {
                 ghost.reset()
-            } else if !shell.hasAutoShownControllerHelp {
-                // First controller of this run: teach the mapping once.
+            } else if !shell.hasAutoShownControllerHelp, !ScreenshotSeed.isActive {
+                // First controller of this run: teach the mapping once — but
+                // not over a README screenshot (see the boot-time twin below).
                 shell.hasAutoShownControllerHelp = true
                 shell.presentControllerHelp()
             }
@@ -1195,7 +1215,11 @@ struct VisionRootView: View {
 
         // onChange(of: isConnected) never fires for a controller that was
         // already paired before launch (the common simulator case).
-        if controllerInput.isConnected, !shell.hasAutoShownControllerHelp {
+        // Not for a README screenshot: the legend card would sit over the
+        // volume the image is of. (`ScreenshotSeed.isActive` is false outside
+        // DEBUG and without the launch argument.)
+        if controllerInput.isConnected, !shell.hasAutoShownControllerHelp,
+           !ScreenshotSeed.isActive {
             shell.hasAutoShownControllerHelp = true
             shell.presentControllerHelp()
         }
@@ -1222,6 +1246,17 @@ struct VisionRootView: View {
         // launch) overrides the default selection. Consume unconditionally:
         // a stale latch must never re-fire on a later Max-Board-Size or
         // model-swap restart, which re-enters this resolver.
+        #if DEBUG
+        // README screenshots: mount the seeded game by latching its id here,
+        // exactly as a widget tap would have, rather than through a URL the
+        // capture script would have to deliver from outside (LaunchServices
+        // refuses `simctl openurl` on the watch simulator, and this keeps both
+        // roots on one mechanism). Re-latching on a later re-entry is
+        // harmless: it names the same game.
+        if ScreenshotSeed.isActive, deepLinkRouter.pendingGameID == nil {
+            deepLinkRouter.pendingGameID = ScreenshotSeed.uuid
+        }
+        #endif
         let pendingID = deepLinkRouter.pendingGameID
         deepLinkRouter.pendingGameID = nil
 

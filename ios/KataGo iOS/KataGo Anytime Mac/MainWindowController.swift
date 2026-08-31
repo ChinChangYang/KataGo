@@ -457,6 +457,7 @@ final class MainWindowController: NSWindowController {
         scheduleAutoPlayTestIfRequested()
         scheduleRelaunchTestIfRequested()
         scheduleAIPlayTestIfRequested()
+        scheduleScreenshotSeedIfRequested()
         #endif
     }
 
@@ -3905,6 +3906,86 @@ final class MainWindowController: NSWindowController {
             print("KATAGO_SNAPSHOT_DIR=\(dirURL.path)")
             fflush(stdout)
             NSApp.terminate(nil)
+        }
+    }
+
+    // MARK: - README screenshot seed (DEBUG only)
+    //
+    // `--screenshot-seed` (ScreenshotSeed.launchArgument — one spelling for
+    // every platform) puts the Ear-Reddening Game at move 127 on the board, so
+    // the Mac README image shows the SAME position as the iPhone, iPad, Apple
+    // TV, Watch and Vision Pro ones.
+    //
+    // It goes through the ⌘N DRAFT path (see `LibraryActions.newGame`), never
+    // `modelContext.insert`: this app opens the user's REAL iCloud library, and
+    // a screenshot run must not leave a record in it. An untitled draft has no
+    // library row until it is saved, and nothing here saves.
+    //
+    // The window is resized to the display because Apple's Mac product bezels
+    // frame a WHOLE DISPLAY — a small window composited into one would sit in a
+    // sea of empty desktop. Deferred one run-loop turn (the
+    // `restoreWindowStateOnLaunch` idiom) because the window is not on screen
+    // yet while `init` runs.
+    private func scheduleScreenshotSeedIfRequested() {
+        guard ScreenshotSeed.isActive else { return }
+        // Before anything else: a marker left by a previous capture run would
+        // let the script photograph the launch.
+        ScreenshotSeed.resetReadinessMarker()
+        DispatchQueue.main.async { [weak self] in
+            self?.runScreenshotSeed()
+        }
+    }
+
+    private func runScreenshotSeed() {
+        if let screen = window?.screen ?? NSScreen.main {
+            window?.setFrame(screen.visibleFrame, display: true)
+        }
+        // Collapse the library sidebar: it lists the user's REAL games by
+        // name, and a README image must show neither their titles nor anything
+        // that is not the seeded position. The sidebar is split item 0
+        // (`MainSplitViewController` builds `[sidebar, board, inspector]`).
+        (contentViewController as? MainSplitViewController)?
+            .splitViewItems.first?.isCollapsed = true
+
+        let previous = navigationContext.selectedGameRecord
+        let untitled = GameRecord.createGameRecord(sgf: ScreenshotSeed.sgf,
+                                                   currentIndex: ScreenshotSeed.displayIndex,
+                                                   name: ScreenshotSeed.recordName)
+        untitled.uuid = ScreenshotSeed.uuid
+        let record = draftController.openUntitled(untitled)
+        navigationContext.selectedGameRecord = record
+        // Unlock BEFORE the load, exactly as `newGame` does:
+        // `loadDeferringUntilReady` re-derives the flag, and a board that is
+        // not the default 19x19 / komi-7 game would otherwise come back LOCKED,
+        // close the draft, and take the never-inserted record with it.
+        session.gobanState.isEditing = true
+        loadDeferringUntilReady(record, previous: previous)
+        libraryStore.refetch()
+        refreshDraftChrome()
+
+        waitForScreenshotReadiness()
+    }
+
+    /// Touch the marker the capture script polls for, once the engine is ready
+    /// AND the first analysis has landed.
+    ///
+    /// Re-arms on every change rather than waiting once — the same
+    /// self-rescheduling `withObservationTracking` shape
+    /// `waitForEngineReadyThenRunAutoPlayTest` uses, and for the same reason:
+    /// availability is not a one-way flag (a launch, a Held board and a helper
+    /// crash all move it).
+    private func waitForScreenshotReadiness() {
+        if session.engineStatus.isReady, !session.analysis.info.isEmpty {
+            ScreenshotSeed.touchReadinessMarker()
+            return
+        }
+        withObservationTracking {
+            _ = session.engineStatus.availability
+            _ = session.analysis.info.count
+        } onChange: { [weak self] in
+            Task { @MainActor in
+                self?.waitForScreenshotReadiness()
+            }
         }
     }
 

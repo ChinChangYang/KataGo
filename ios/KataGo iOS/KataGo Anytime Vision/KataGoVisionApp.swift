@@ -27,6 +27,17 @@ struct KataGoVisionApp: App {
         registerCoreMLBridge()
 
         registerEngineLaunchStatusUpdater(status)
+
+        // README screenshots: seed the shared position HERE, in init(), for
+        // the reason the iOS app seeds here — `VisionRootView` resolves the
+        // game to mount in its own boot task, which a sibling `.task` on the
+        // App is not ordered against, so the record has to exist before any
+        // view does. The capture script then deep-links to it by id. No-op
+        // without `--screenshot-seed`, and outside DEBUG.
+        if ScreenshotSeed.isActive {
+            ScreenshotSeed.resetReadinessMarker()
+            ScreenshotSeed.seed(into: SharedModelContainer.shared.mainContext)
+        }
     }
 
     var body: some Scene {

@@ -232,6 +232,23 @@ struct TVPlayScreen: View {
         // reload or a variation teardown is in flight, and following it would
         // blank a board the user is still looking at.
         .recordPositionSync(session: session, gameRecord: game)
+        // README screenshots: the capture script polls for this marker instead
+        // of sleeping — a cold Apple TV simulator spends MINUTES compiling the
+        // Core ML model.
+        //
+        // The gate is `stones.isReady` ALONE, deliberately. This screen keeps
+        // the eye closed, and with a human on move in a human-vs-AI game
+        // `GobanState.isAnalysisHiddenForPowerSaving` suppresses continuous
+        // analysis entirely — so also waiting for an analysis line (as iOS and
+        // macOS do) would wait forever. An in-sync board is what this screen
+        // has to offer, and it is what the image shows.
+        .onChange(of: stones.isReady, initial: true) { _, isReady in
+            #if DEBUG
+            if ScreenshotSeed.isActive, isReady {
+                ScreenshotSeed.touchReadinessMarker()
+            }
+            #endif
+        }
         .onAppear {
             loadIfNeeded()
             controllerInput.pushHandler(controllerToken) { event in

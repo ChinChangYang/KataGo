@@ -31,6 +31,16 @@ struct KataGoAnytimeWatchApp: App {
             }
             .task {
                 guard library == nil else { return }
+                // README screenshots: seed BEFORE the library store is built,
+                // so its first fetch already sees the record the capture
+                // script deep-links to. `ScreenshotSeed` lives in
+                // KataGoGameStore — the only store package this app links —
+                // for exactly this call. No-op without `--screenshot-seed`,
+                // and outside DEBUG.
+                if ScreenshotSeed.isActive {
+                    ScreenshotSeed.resetReadinessMarker()
+                    ScreenshotSeed.seed(into: SharedModelContainer.shared.mainContext)
+                }
                 widgetMirror = WatchWidgetMirror()
                 library = WatchLibraryStore(container: SharedModelContainer.shared,
                                             storeMode: SharedModelContainer.watchStoreMode)

@@ -11,6 +11,10 @@
 //  never inserts duplicates across the simulator's persisted store. The whole
 //  file is compiled out of Release.
 //
+//  It is also where the README-screenshot seed is run from — see
+//  `seedIfNeeded()`. That one's identity and SGF live in `ScreenshotSeed`
+//  (KataGoGameStore), not here, because five other targets seed the same game.
+//
 
 #if DEBUG
 import Foundation
@@ -54,6 +58,18 @@ enum UITestSeed {
         }
         if arguments.contains(rectGameLaunchArg) {
             seed(uuid: rectGameUUID, name: rectGameName, sgf: rectGameSgf)
+        }
+        // The README-screenshot game (`--screenshot-seed`). Its identity,
+        // SGF, display index AND the find-or-create itself live in
+        // `ScreenshotSeed` (KataGoGameStore) rather than here: the watch app
+        // links only that package and has to seed the very same record — one
+        // position across six devices is the whole point of it.
+        if ScreenshotSeed.isActive {
+            // Clear a marker left by a previous capture run BEFORE the board
+            // exists. The capture script polls for that file, so a stale one
+            // would let it photograph the launch screen.
+            ScreenshotSeed.resetReadinessMarker()
+            ScreenshotSeed.seed(into: SharedModelContainer.shared.mainContext)
         }
     }
 

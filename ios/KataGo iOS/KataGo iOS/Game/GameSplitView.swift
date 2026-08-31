@@ -778,6 +778,18 @@ struct GameSplitView: View {
 
     private func processChange(oldWaitingForAnalysis: Bool,
                                newWaitingForAnalysis: Bool) {
+        // README screenshots: the capture script polls for this marker instead
+        // of sleeping, because a cold simulator spends MINUTES compiling the
+        // Core ML model and a fixed sleep would photograph the
+        // "Loading engine…" line. An in-sync board with an analysis on it is
+        // exactly the frame the hero image wants. `touchReadinessMarker` is
+        // stateless and idempotent (it checks the file), so running it on
+        // every analysis tick costs nothing and needs no latch. No-op without
+        // `--screenshot-seed`, and outside DEBUG.
+        if ScreenshotSeed.isActive, stones.isReady, !analysis.info.isEmpty {
+            ScreenshotSeed.touchReadinessMarker()
+        }
+
         // Deep Report probes own the engine stream; while a report is active
         // this handler must not send its own "stop"/re-arm — a stray command
         // ack would desync the probe collector's FIFO. maybeCollectAnalysis is

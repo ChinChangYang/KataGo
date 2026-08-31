@@ -60,6 +60,13 @@ struct WatchGameView: View {
             let opened = WatchBrowseModel(row: row, container: container)
             crownIndex = Double(opened.index)
             model = opened
+            // README screenshots: the watch runs no engine, so "the board page
+            // is up and readable" is the readiness this platform can offer —
+            // there is no analysis to wait for. No-op without
+            // `--screenshot-seed`, and outside DEBUG.
+            if opened.isReadable {
+                ScreenshotSeed.touchReadinessMarker()
+            }
         }
     }
 
