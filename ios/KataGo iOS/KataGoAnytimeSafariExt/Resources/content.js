@@ -291,6 +291,9 @@
             this.showOwnership = true;    // app parity: defaultShowOwnership
             this.mode = "all";            // app parity: defaultAnalysisInformation = All
             this.theme = null;            // "light"|"dark", from the page's surface
+            // Where the adapter wants the panel to sit (ADR 0016). Read BEFORE
+            // buildPanel(), which is the only thing that consumes it.
+            this.anchor = info.anchor || null;
             this.buildPanel();
             browser.storage.local.get("kgaMode").then(({ kgaMode }) => {
                 if (["winrate", "score", "all"].includes(kgaMode)) {
@@ -307,9 +310,26 @@
         buildPanel() {
             const host = document.createElement("katago-anytime-panel");
             host.style.display = "block";
-            // Prefer sitting right under the player; fall back to body-end.
-            const anchor = document.querySelector(".wgo-player-main") || document.body;
-            (anchor.parentNode || document.body).insertBefore(host, anchor.nextSibling);
+            if (this.anchor === "floating") {
+                // Some viewers leave no flow to insert into: cyberoro's
+                // giboviewer is position:fixed from <body> down, so the branch
+                // below would drop the panel underneath a full-viewport white
+                // surface. Dock into the viewport instead — the site's own
+                // right rail, above its transport controls, never over the
+                // board. The z-index clears the rail (100), the board (110)
+                // and the info strip (120).
+                host.style.position = "fixed";
+                host.style.right = "13px";
+                host.style.bottom = "44px";
+                host.style.width = "274px";
+                host.style.maxWidth = "calc(100vw - 26px)";
+                host.style.zIndex = "130";
+                document.body.appendChild(host);
+            } else {
+                // Prefer sitting right under the player; fall back to body-end.
+                const anchor = document.querySelector(".wgo-player-main") || document.body;
+                (anchor.parentNode || document.body).insertBefore(host, anchor.nextSibling);
+            }
             this.host = host;
 
             const root = host.attachShadow({ mode: "closed" });
@@ -361,9 +381,20 @@
 }
 .kga-msg { margin-top: 8px; color: var(--kga-ink-muted); }
 .kga-msg.kga-error { color: var(--kga-badge); }
+/* A site-anchored ("floating") panel: docked into the viewport because the page
+   left no flow to insert into. Bounded and scrollable so it can never outgrow
+   the site's own rail, and collapsible to a single bar. */
+.kga-root.kga-floating { max-height: min(46vh, 420px); overflow: auto;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.20); }
+.kga-root.kga-floating.kga-collapsed { max-height: none; overflow: visible; }
+.kga-root.kga-floating.kga-collapsed > *:not(.kga-bar) { display: none; }
+.kga-collapse { display: none; }
+.kga-root.kga-floating .kga-collapse { display: inline-flex; }
 </style>
 <div class="kga-root">
   <div class="kga-bar">
+    <button class="kga-collapse" type="button" aria-expanded="true"
+            aria-label="Collapse the KataGo panel">▾</button>
     <span class="kga-logo">◉ KataGo</span>
     <button class="kga-analyze kga-primary">Analyze</button>
     <span class="kga-progress" hidden></span>
@@ -393,6 +424,7 @@
 </div>`;
             this.el = {
                 rootEl: root.querySelector(".kga-root"),
+                collapse: root.querySelector(".kga-collapse"),
                 analyze: root.querySelector(".kga-analyze"),
                 progress: root.querySelector(".kga-progress"),
                 candsToggle: root.querySelector(".kga-cands"),
@@ -414,6 +446,10 @@
             new ResizeObserver(() => this.chart.draw()).observe(this.el.canvas);
             this.applyTheme();
             themeListeners.add(() => this.applyTheme());
+            if (this.anchor === "floating") {
+                this.el.rootEl.classList.add("kga-floating");
+                this.el.collapse.addEventListener("click", () => this.toggleCollapsed());
+            }
 
             this.el.analyze.addEventListener("click", () => {
                 if (this.state === "sweeping" || this.state === "starting") { this.stop(); }
@@ -433,6 +469,15 @@
                 browser.storage.local.set({ kgaMode: this.mode }).catch(() => {});
                 this.pushOverlays();
             });
+        }
+
+        /// A floating panel sits OVER the page, so it has to be dismissable
+        /// without losing the session: collapse to the bar, keep whatever is
+        /// running running, expand again from the same button.
+        toggleCollapsed() {
+            const collapsed = this.el.rootEl.classList.toggle("kga-collapsed");
+            this.el.collapse.textContent = collapsed ? "▸" : "▾";
+            this.el.collapse.setAttribute("aria-expanded", collapsed ? "false" : "true");
         }
 
         /// Re-point the palette at whatever the panel is currently sitting on.

@@ -854,6 +854,7 @@
 		E1D7D3AE2AA897C000556DFB /* Shaders.metal in Sources */ = {isa = PBXBuildFile; fileRef = E1D7D3AF2AA897C000556DFB /* Shaders.metal */; };
 		E1E1717E2AB9DAED004DCC3C /* ConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E1717D2AB9DAED004DCC3C /* ConfigView.swift */; };
 		E20BAE9FCD75EBF8599BB965 /* WatchWidgetRecordTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C7C43327657E996C9F3B931 /* WatchWidgetRecordTests.swift */; };
+		E2BAC051166850768B02258E /* SafariExtensionResourceParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44B0E4E72BDCD87F7465CC2A /* SafariExtensionResourceParityTests.swift */; };
 		E316F37DF64A96CFB010EC7B /* BoardAssets in Resources */ = {isa = PBXBuildFile; fileRef = 679F57E31260E5DA9F83608A /* BoardAssets */; };
 		E31A39DD1252C4C693C5B85D /* WidgetBoardGeometryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2FC922DC88C354DCE7ACFBF /* WidgetBoardGeometryTests.swift */; };
 		E34A0E0DEDB1EEDC837C7F4A /* cord_rep_crc.cc in Sources */ = {isa = PBXBuildFile; fileRef = C59E370B52103A7CB5DB2A96 /* cord_rep_crc.cc */; };
@@ -1344,6 +1345,7 @@
 		440B4A1FEEF7AFD91450B582 /* SharedModelContainerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SharedModelContainerTests.swift; sourceTree = "<group>"; };
 		441832CA01954D9736462744 /* arena.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = arena.cc; path = "../../cpp/external/protobuf-34.1/src/google/protobuf/arena.cc"; sourceTree = SOURCE_ROOT; };
 		443359A03212D5FAD2383192 /* raw_hash_set.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = raw_hash_set.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/container/internal/raw_hash_set.cc"; sourceTree = SOURCE_ROOT; };
+		44B0E4E72BDCD87F7465CC2A /* SafariExtensionResourceParityTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = SafariExtensionResourceParityTests.swift; sourceTree = "<group>"; };
 		456F5F34CDF1E8607EAD47EC /* TVEngineController.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TVEngineController.swift; sourceTree = "<group>"; };
 		45EED6DBE2F7E29398B91D66 /* GameDraft.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GameDraft.swift; sourceTree = "<group>"; };
 		461725C1A7DD40207C5F20D6 /* GobanStateFullScreenTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GobanStateFullScreenTests.swift; sourceTree = "<group>"; };
@@ -3460,6 +3462,7 @@
 				CB6F7BF7FA501C901CA58F04 /* ScreenWakePolicyTests.swift */,
 				7FE3FD43B616223565FF1800 /* RankCatalogTests.swift */,
 				B2D0754A210A45DA564DFFDC /* GobanStateStoneIntentTests.swift */,
+				44B0E4E72BDCD87F7465CC2A /* SafariExtensionResourceParityTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = SOURCE_ROOT;
@@ -5047,6 +5050,7 @@
 				7248A9DE987A555C1A750FC3 /* ScreenWakePolicyTests.swift in Sources */,
 				842CD3F3CB8BF344802AF4BE /* RankCatalogTests.swift in Sources */,
 				EA9711374785F30B5A4959B0 /* GobanStateStoneIntentTests.swift in Sources */,
+				E2BAC051166850768B02258E /* SafariExtensionResourceParityTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

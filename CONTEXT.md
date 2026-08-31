@@ -121,3 +121,7 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 ## Siri
 
 - **Siri Phrasebook** — the app's own, per-platform catalog of the spoken phrases its App Shortcuts answer to (the Mac has no Listen shortcuts). What Siri accepts is registered at build time and cannot be read back at runtime, so the phrasebook mirrors the registration by hand, and the two are kept in step deliberately.
+
+## Safari
+
+- **Site adapter** — the code that knows how one kifu viewer exposes its record, its current move and its board geometry. The extension binds to viewers, never to URLs.

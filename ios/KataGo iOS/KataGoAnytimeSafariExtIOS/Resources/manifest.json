@@ -2,7 +2,7 @@
     "manifest_version": 3,
     "name": "KataGo Anytime for Safari",
     "version": "1.0",
-    "description": "Blends KataGo winrate analysis into WGo.js game viewers.",
+    "description": "Blends KataGo winrate analysis into Go game viewers on the web.",
     "icons": {
         "48": "images/icon-48.png",
         "64": "images/icon-64.png",

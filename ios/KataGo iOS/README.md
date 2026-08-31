@@ -249,7 +249,12 @@ The Watch app does not connect to your iPhone and cannot change a game. Games ar
 
 **KataGo Anytime for Safari** is a web extension that blends KataGo analysis into Go games you find on the web. It ships as two appexes — `KataGoAnytimeSafariExt`, embedded in the Mac app, and `KataGoAnytimeSafariExtIOS`, embedded in the iOS app — and you enable it in Safari's Extensions settings.
 
-It is **not tied to particular sites**: the content script runs on all URLs and attaches to any page that embeds a **WGo.js** kifu player. When it finds one, it injects a shadow-DOM panel with:
+It is **not tied to particular URLs**: the content script runs on every URL and decides what a page is by what the page exposes, through a small **site adapter** seam ([ADR 0016](../../docs/adr/0016-the-safari-extension-binds-to-viewers-through-site-adapters.md)). Supported viewers:
+
+- any page that embeds a **WGo.js** kifu player;
+- **cyberoro**'s `giboviewer` — its records are a private `.gibo` dialect the adapter rewrites into SGF, and its bare canvas board gets a KataGo overlay.
+
+When it finds a viewer, it injects a shadow-DOM panel with:
 
 - **Analyze / Stop / Re-analyze**, with `n / total` progress as the sweep runs.
 - A whole-game **win rate and score chart**, and a per-move tooltip (`Move N - Black 57.3% - B+4.2 - 1234 visits`).
