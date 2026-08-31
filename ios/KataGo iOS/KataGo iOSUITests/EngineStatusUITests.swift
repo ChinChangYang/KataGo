@@ -31,7 +31,10 @@
 //      the entire tree when `runGtp` returned, which is what
 //      `AppEngineController` replaces);
 //    • the navigation buttons act with no engine (`isFunctional` used to include
-//      `showBoardCount == 0`, and an absent engine acknowledges nothing).
+//      `showBoardCount == 0`, and an absent engine acknowledges nothing);
+//    • a stone can be PLAYED with no engine (ADR 0018): legality and the record
+//      write are Swift's, and the stone survives the engine arriving later —
+//      the tap gate used to require an in-sync engine.
 //
 
 import XCTest
@@ -189,6 +192,107 @@ final class EngineStatusUITests: PortraitUITestCase {
         waitForBoardInSync(app)
     }
 
+    // MARK: - Play with no engine
+
+    @MainActor
+    func testPlayWorksWithNoEngine() throws {
+        let app = makeApp()
+        app.launch()
+
+        dismissModelPicker(app)
+        startFreshGame(app)
+
+        // Absent: the board is up, nothing has acknowledged it.
+        let sync = app.otherElements["Board.sync"]
+        XCTAssertTrue(sync.waitForExistence(timeout: 30),
+                      "The board did not mount with no model chosen")
+        XCTAssertEqual(sync.value as? String, "syncing")
+
+        // Play K 10 through the same named target Voice Control uses. Black to
+        // move on a fresh Human-vs-Human game; the record — not an engine —
+        // decides that, and the record is what the stone is written to.
+        let k10 = app.buttons["K 10"]
+        XCTAssertTrue(k10.waitForExistence(timeout: 15), "K 10 not exposed")
+        XCTAssertEqual(k10.value as? String, "Empty", "Fresh board should report K 10 as Empty")
+        k10.tap()
+        let placed = NSPredicate(format: "value == %@", "Black stone")
+        wait(for: [expectation(for: placed, evaluatedWith: k10)], timeout: 15)
+        XCTAssertEqual(sync.value as? String, "syncing",
+                       "A stone played with no engine must not claim the engine is in sync")
+
+        // Then the engine arrives, is fed the record it never saw being
+        // written, and the stone is still there once it has caught up.
+        let sparkle = app.buttons["Toggle Analysis"].firstMatch
+        XCTAssertTrue(sparkle.waitForExistence(timeout: 10), "The analysis sparkle was not on screen")
+        sparkle.tap()
+        XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
+                      "Tapping the sparkle with no engine did not open the model picker")
+        launchBuiltInEngine(app)
+        waitForBoardInSync(app)
+        XCTAssertEqual(k10.value as? String, "Black stone",
+                       "The stone played before the engine arrived did not survive the resync")
+    }
+
+    // MARK: - The AI answers once the engine arrives
+
+    @MainActor
+    func testAIAnswersOnceTheEngineArrives() throws {
+        let app = makeApp()
+        app.launch()
+
+        dismissModelPicker(app)
+        startFreshGame(app)
+        XCTAssertTrue(app.otherElements["Board.sync"].waitForExistence(timeout: 30),
+                      "The board did not mount with no model chosen")
+
+        // Hand White to the AI with no engine to play it: the capsule flip is a
+        // config write, not an engine command, so it works in Absent too.
+        let white = app.buttons["whitePlayerName"]
+        XCTAssertTrue(white.waitForExistence(timeout: 15), "White capsule not found")
+        white.tap()
+        let deadline = Date().addingTimeInterval(10)
+        while white.label == "Human" && Date() < deadline { usleep(200_000) }
+        XCTAssertNotEqual(white.label, "Human", "White did not become the AI")
+
+        // The human plays Black with no engine.
+        let k10 = app.buttons["K 10"]
+        XCTAssertTrue(k10.waitForExistence(timeout: 15), "K 10 not exposed")
+        XCTAssertEqual(k10.value as? String, "Empty", "Fresh board should report K 10 as Empty")
+        k10.tap()
+        wait(for: [expectation(for: NSPredicate(format: "value == %@", "Black stone"),
+                               evaluatedWith: k10)], timeout: 15)
+
+        // (Whether a second human tap is refused on the AI's turn depends on
+        // the analysis preference — paused, the AI does not move and either
+        // colour may be played, and `startFreshGame`'s Back tap paused it via
+        // `BoardView.onDisappear` — so that gate is pinned by
+        // `GobanStateLocalPlayTests.aiSideBlocksTheGate`, not here.)
+
+        // The engine arrives — picked from the sparkle, which arms analysis
+        // back to run — is fed the record, and answers for White.
+        let sparkle = app.buttons["Toggle Analysis"].firstMatch
+        XCTAssertTrue(sparkle.waitForExistence(timeout: 10), "The analysis sparkle was not on screen")
+        sparkle.tap()
+        XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
+                      "Tapping the sparkle with no engine did not open the model picker")
+        launchBuiltInEngine(app)
+        waitForBoardInSync(app)
+
+        let whiteStones = app.buttons.matching(NSPredicate(format: "value == %@", "White stone"))
+        let answered = Date().addingTimeInterval(120)
+        while whiteStones.count == 0 && Date() < answered { usleep(500_000) }
+        XCTAssertGreaterThan(whiteStones.count, 0,
+                             "The AI did not answer the move played before it arrived")
+        XCTAssertEqual(k10.value as? String, "Black stone",
+                       "The stone played before the engine arrived did not survive")
+
+        // Restore the baseline for the suites that follow: White back to Human.
+        white.tap()
+        let restored = Date().addingTimeInterval(10)
+        while white.label != "Human" && Date() < restored { usleep(200_000) }
+        XCTAssertEqual(white.label, "Human", "White did not return to Human")
+    }
+
     // MARK: - Helpers
 
     /// The status line renders as a container element, so match by identifier
@@ -209,6 +313,33 @@ final class EngineStatusUITests: PortraitUITestCase {
         pickerBar.swipeDown(velocity: .fast)
         XCTAssertTrue(pickerBar.waitForNonExistence(timeout: 15),
                       "The model picker sheet did not dismiss")
+    }
+
+    /// More ▸ New Game ▸ Empty Board, with NO engine: a deterministic empty
+    /// Human-vs-Human 19x19 board (the auto-selected game persists whatever the
+    /// previous test left on it — a stone at K 10, an AI side). Creating a game
+    /// is a record write, so it works in Absent.
+    ///
+    /// From the BOARD's own More menu, deliberately not via Back to the list
+    /// as `BoardAccessibilityUITests.launchToFreshBoard` does: leaving the
+    /// board runs `BoardView.onDisappear` → `maybePauseAnalysis`, and a paused
+    /// preference is only ever un-paused by the sparkle — so the AI side of
+    /// the game created afterwards would never gen-move, and
+    /// `testAIAnswersOnceTheEngineArrives` would wait for a stone that cannot
+    /// come.
+    @MainActor
+    private func startFreshGame(_ app: XCUIApplication) {
+        let more = app.buttons["More"].firstMatch
+        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
+        more.tap()
+        let newGame = app.buttons["New Game"].firstMatch
+        XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
+        newGame.tap()
+        let emptyBoard = app.buttons["Empty Board"].firstMatch
+        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
+        emptyBoard.tap()
+        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
+                      "New game board did not appear (More button missing)")
     }
 
     /// Picks the built-in network in whatever model picker is currently up (the

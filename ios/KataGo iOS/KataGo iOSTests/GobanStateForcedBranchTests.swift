@@ -70,12 +70,14 @@ struct GobanStateForcedBranchTests {
         f.playPending()
 
         #expect(f.state.isBranchActive == true)
-        #expect(f.state.branchSgf == sgfBefore)
-        #expect(f.state.branchIndex == 0)
+        // The branch holds the pick, written in Swift (ADR 0018): the record's
+        // one move truncated away, the pick appended in its place.
+        #expect(f.state.branchIndex == 1)
+        #expect(SgfOperations(sgf: f.state.branchSgf).moveSize == 1)
         // The two writes the mainline shortcut would have made:
         #expect(f.record.currentIndex == 0)
         #expect(f.record.sgf == sgfBefore)
-        // The branch path plays and requests the branch SGF.
+        // The branch path plays and asks the live engine for its echo.
         #expect(f.sent("play b Q16"))
         #expect(f.sent("printsgf"))
         #expect(f.state.pendingMoveTurn == nil)

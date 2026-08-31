@@ -98,10 +98,30 @@ struct TVPlayScreen: View {
         // never told this board exists. `noteBoardMounted` (in `loadIfNeeded`,
         // BEFORE anything is sent) decides that and shuts the command gate.
         //
-        // Play stays refused there for a different reason: a move can only be
-        // submitted from an in-sync board (`stones.isReady`), which a held
-        // engine never grants.
+        // The human can still place stones there — and while the model is
+        // still loading: legality is decided in Swift against the record
+        // position and the move is written to the record (ADR 0018), so
+        // `canPlayHumanMove` waits for nothing once the command gate is shut.
+        // Only the AI's side stays silent, because no engine answers for it.
         playContent
+            // The "Play Anyway" decision for a ko / superko / multi-stone
+            // suicide the local legality check parked. tvOS never rendered
+            // this: the old engine reply latched `confirmingIllegalMove` with
+            // nothing on screen, and the parked move then refused every play.
+            .alert(illegalMoveReasonText, isPresented: illegalMoveBinding) {
+                Button("Play Anyway", role: .destructive) {
+                    gobanState.playPendingHumanMove(gameRecord: game,
+                                                    analysis: analysis,
+                                                    board: board,
+                                                    stones: stones,
+                                                    messageList: messageList,
+                                                    player: player,
+                                                    audioModel: audioModel)
+                }
+                Button("Cancel", role: .cancel) {
+                    gobanState.clearPendingMove()
+                }
+            }
     }
 
     // MARK: - Content
@@ -542,15 +562,17 @@ struct TVPlayScreen: View {
         }
     }
 
-    /// Where the game stands, and whose move it is as the ENGINE last reported
-    /// it. `.unknown` — parked between a position change and the `showboard`
-    /// that answers it, and for as long as there is no engine to answer at all
-    /// — says so instead of defaulting to White.
+    /// Where the game stands, and whose move it is per the RECORD. The record
+    /// knows the side to move from the first frame, engine or no engine, so
+    /// the old "waiting for the engine" line is gone: the human can play while
+    /// the model loads, and the panel says whose move it is. The default arm
+    /// is unreachable (`recordSideToMove` is never `.unknown`) and falls back
+    /// to Black, the empty board's answer.
     private var moveAndTurnText: String {
-        switch player.nextColorForPlayCommand {
+        switch gobanState.recordSideToMove {
         case .black: return "Move \(displayIndex) — Black to play"
         case .white: return "Move \(displayIndex) — White to play"
-        case .unknown: return "Move \(displayIndex) — waiting for the engine"
+        default: return "Move \(displayIndex) — Black to play"
         }
     }
 
@@ -638,11 +660,14 @@ struct TVPlayScreen: View {
     // MARK: - Moves
 
     /// Pure config check (the VisionRootView.isAITurn rule): a positive
-    /// per-move time marks the engine's side. `.unknown` — the engine has not
-    /// replied to showboard yet — counts as AI, so input is rejected until the
-    /// real turn lands.
+    /// per-move time marks the engine's side. Asked of the RECORD's side to
+    /// move, not the engine's `Turn`: the record knows whose turn it is before
+    /// the engine does — and with no engine loaded it is the only thing that
+    /// knows — so the human's turn is playable while the model is still
+    /// loading. `recordSideToMove` is never `.unknown`; the default arm is
+    /// unreachable and kept refusing, the safe answer should that ever change.
     private var isAITurn: Bool {
-        switch player.nextColorForPlayCommand {
+        switch gobanState.recordSideToMove {
         case .black: return config.blackMaxTime > 0
         case .white: return config.whiteMaxTime > 0
         default: return true
@@ -650,10 +675,11 @@ struct TVPlayScreen: View {
     }
 
     /// Play at the cursor's intersection (Select while the board is focused).
-    /// Occupied points are rejected here — the engine's occupied reply is
-    /// dropped silently, so without this a Select on a stone would do nothing
-    /// invisibly anyway. The ghost survives the submit: the AI answers, the
-    /// marker recolors, and the user plays on nearby without re-aiming.
+    /// Occupied points are rejected here — the local legality check refuses
+    /// them silently too (`.refused`), so this is only the cheap early-out
+    /// that keeps the cursor where it is. The ghost survives the submit: the
+    /// AI answers, the marker recolors, and the user plays on nearby without
+    /// re-aiming.
     private func playAtCursor() {
         guard let point = ghost.point,
               !stones.blackPoints.contains(point),
@@ -667,37 +693,84 @@ struct TVPlayScreen: View {
     /// on a settled analysis: between a re-request and its first reply,
     /// analysis.info still holds the PREVIOUS position's candidates, so an
     /// ungated pick could play a stale vertex. (The cursor needs no such gate —
-    /// kata-check-move validates against the engine's own position.)
+    /// it aims at the record position, which is what legality is decided
+    /// against.)
     private func pick(_ candidate: Analysis.CandidateMove) {
         guard !gobanState.waitingForAnalysis else { return }
         submit(vertex: candidate.vertex)
     }
 
-    /// The one write path for a human move. Legality stays engine-side: the
-    /// kata-check-move reply plays the move via playPendingHumanMove (the same
-    /// path an iOS board tap takes) and an illegal vertex is rejected there.
+    /// The one write path for a human move — the same call an iOS board tap
+    /// makes. Legality is decided in Swift against the record position and
+    /// the move is written to the record right here, no engine round-trip, so
+    /// the stone lands while the model is still loading; a live engine is
+    /// told afterwards (ADR 0018). `canPlayHumanMove` is the whole gate
+    /// (record position shown, no move parked, one play in flight while an
+    /// engine is live, not a side the engine plays); `!isAITurn` stays beside
+    /// it because it is a pure config check that holds with the sparkle off
+    /// too. A ko / superko / multi-stone suicide comes back `.confirming` and
+    /// the root's alert takes it from there; a refused vertex changed nothing.
     private func submit(vertex: String) {
         guard !isGameOver,
-              stones.isReady,
-              gobanState.pendingMoveTurn == nil,   // one play in flight at a time
               !isAITurn,                           // never on the engine's turn
-              let turn = player.nextColorSymbolForPlayCommand else { return }
-        gobanState.sendCheckMoveCommand(turn: turn, move: vertex,
-                                        messageList: messageList)
+              gobanState.canPlayHumanMove(config: config,
+                                          stones: stones,
+                                          messageList: messageList) else { return }
+        gobanState.playHumanMove(vertex: vertex,
+                                 gameRecord: game,
+                                 config: config,
+                                 analysis: analysis,
+                                 board: board,
+                                 stones: stones,
+                                 messageList: messageList,
+                                 player: player,
+                                 audioModel: audioModel,
+                                 bookLookup: bookLookup)
     }
 
     /// Pass (VisionRootView.playPass). A pass changes no stones, so the
-    /// board-diff sound never fires for it — click here instead; a pass is
-    /// always legal, so the kata-check-move round cannot retract it.
+    /// board-diff sound never fires for it — GobanState clicks it itself when
+    /// handed the `audioModel` (no click here, or it sounds twice). A pass is
+    /// always legal, so this never comes back `.confirming`.
     private func playPass() {
         guard !isGameOver,
-              stones.isReady,
-              gobanState.pendingMoveTurn == nil,
               !isAITurn,
-              let turn = player.nextColorSymbolForPlayCommand else { return }
-        audioModel.playPlaySound(soundEffect: gobanState.soundEffect)
-        gobanState.sendCheckMoveCommand(turn: turn, move: "pass",
-                                        messageList: messageList)
+              gobanState.canPlayHumanMove(config: config,
+                                          stones: stones,
+                                          messageList: messageList) else { return }
+        gobanState.playHumanMove(vertex: "pass",
+                                 gameRecord: game,
+                                 config: config,
+                                 analysis: analysis,
+                                 board: board,
+                                 stones: stones,
+                                 messageList: messageList,
+                                 player: player,
+                                 audioModel: audioModel,
+                                 bookLookup: bookLookup)
+    }
+
+    // MARK: - Illegal-move confirmation
+
+    /// `confirmingIllegalMove` as the alert's presentation binding. The two
+    /// buttons clear the parked move themselves ("Play Anyway" plays it,
+    /// Cancel drops it), and `canPlayHumanMove` gates on this flag rather than
+    /// on the parked move, so a dismissal no button handled cannot strand the
+    /// board.
+    private var illegalMoveBinding: Binding<Bool> {
+        Binding(get: { gobanState.confirmingIllegalMove },
+                set: { gobanState.confirmingIllegalMove = $0 })
+    }
+
+    /// The alert's one line, kept short: nothing on a tvOS screen may
+    /// truncate, and the reason is one of the three the local check parks.
+    private var illegalMoveReasonText: String {
+        switch gobanState.illegalMoveReason {
+        case "ko": return "That move violates the ko rule."
+        case "superko": return "That move repeats an earlier position."
+        case "suicide": return "That move is a self-capture."
+        default: return "That move is illegal here."
+        }
     }
 
     /// Step one move back. Deliberately NOT gated on `!isAITurn` (unlike every
@@ -735,10 +808,13 @@ struct TVPlayScreen: View {
                                            board: board,
                                            stones: stones,
                                            all: false)
-        // Drop presses while a previous batch's board refresh is in flight, and
-        // never step on top of a play awaiting its legality reply.
-        guard stones.isReady,
-              gobanState.pendingMoveTurn == nil,
+        // Never step on top of a move parked behind "Play Anyway". NOT gated on
+        // `stones.isReady`: the board is record-owned and `undoIndex` moves it
+        // at once, so the take-back works while the model is still loading —
+        // this screen's copy of that wait was what stopped the human from
+        // undoing before the engine had answered (the volumetric board never
+        // waited). With a live engine the `undo` below still queues in order.
+        guard gobanState.pendingMoveTurn == nil,
               // MANDATORY, not an optimization: this path sends the engine
               // `undo` itself, so it must stop at the branch floor / move 0
               // (GobanState.canStepBackward's own contract).

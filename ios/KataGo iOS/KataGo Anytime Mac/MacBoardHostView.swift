@@ -87,6 +87,12 @@ struct MacBoardHostView: View {
                         .environment(session.stones)
                         .environment(session.messageList)
                         .environment(session.analysis)
+                        // A click plays through `GobanState.playHumanMove`
+                        // (ADR 0018), which clicks a pass and advances the
+                        // opening book itself — so the layer needs the same
+                        // audio model and book the BoardView above reads.
+                        .environment(session.bookLookup)
+                        .environment(audioModel)
                         // No standdown any more (ADR 0010): the board never
                         // renders a tappable status, so this overlay owns
                         // every click unconditionally. (The old

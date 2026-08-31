@@ -77,7 +77,9 @@ struct GobanStateReviewLockTests {
 
         // Branch captured; the editing path (clearData + record writes) never ran.
         #expect(f.state.isBranchActive == true)
-        #expect(f.state.branchSgf == sgfBefore)
+        // The branch carries the pick (ADR 0018); the record does not.
+        #expect(f.state.branchIndex == 1)
+        #expect(SgfOperations(sgf: f.state.branchSgf).moveSize == 1)
         #expect(f.record.sgf == sgfBefore)
         #expect(f.record.currentIndex == 0)
         #expect(f.record.scoreLeads == leadsBefore)

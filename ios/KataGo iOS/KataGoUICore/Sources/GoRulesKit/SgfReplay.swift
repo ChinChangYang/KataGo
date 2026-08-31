@@ -21,6 +21,7 @@
 
 import Foundation
 import KataGoAnalysisKit
+import KataGoGameStore
 
 public struct SgfReplay: Sendable {
     /// One stone a move lifted off the board, with the colour it WAS. The
@@ -374,5 +375,68 @@ public struct SgfReplay: Sendable {
             result.append((vertex: vertex, order: offset + 1))
         }
         return result
+    }
+}
+
+// MARK: - Strict legality for a new move
+
+extension SgfReplay {
+    /// The strict-legality context for a new move played AFTER `index` moves
+    /// (clamped like `position(at:)`). Forces the replay to `index`.
+    ///
+    /// The board is the replay's own: `apply` clears the simple-ko point
+    /// BEFORE each recorded move (tolerance) and never after it, so `koLoc`
+    /// here is the ko point the last accepted move left — what
+    /// `Board::isKoBanned` would consult for the next one. The ko hashes are
+    /// rebuilt from index 0 with the same tolerant `apply`, so a recorded move
+    /// the replay refused is missing from the history exactly as it is missing
+    /// from the engine's: it was never played.
+    public mutating func legalityContext(at index: Int, koRule: KoRule,
+                                         multiStoneSuicideLegal: Bool) -> MoveLegalityContext {
+        let target = clamped(index)
+        let state = state(at: target)
+        // Simple ko never consults the history (BoardHistory::isLegal only
+        // reaches koHashHistory for positional/situational), so skip the walk.
+        let hashes: Set<UInt64> = koRule == .simple ? [] : koHashes(upTo: target, koRule: koRule)
+        return MoveLegalityContext(board: state.board,
+                                   toMove: state.toMove,
+                                   koRule: koRule,
+                                   multiStoneSuicideLegal: multiStoneSuicideLegal,
+                                   koHashes: hashes)
+    }
+
+    /// KataGo's `koHashHistory` for the line up to `target`, as the set the
+    /// superko check needs: the initial position, then the position after
+    /// every accepted move — passes included, because a pass in the main
+    /// phase clears the history only under simple ko
+    /// (BoardHistory::phaseHasSpightlikeEndingAndPassHistoryClearing).
+    ///
+    /// A colour repeat restarts the history: `Search::makeMove` calls
+    /// `setPlayerAndClearHistory` whenever the mover is not the side it
+    /// expects, and `BoardHistory::clear` reseeds the history with the
+    /// position BEFORE that move, the repeating mover to move. The replay
+    /// already mirrors the same reset for the move-number window.
+    private mutating func koHashes(upTo target: Int, koRule: KoRule) -> Set<UInt64> {
+        guard var walker = checkpoints[0] else {
+            preconditionFailure("no checkpoint at 0; it is seeded in init")
+        }
+        func hash(_ board: GoBoard, toMove: PlayerColor) -> UInt64 {
+            MoveLegalityContext.koHash(of: board, toMove: GoColor(stone: toMove), koRule: koRule)
+        }
+        var hashes: Set<UInt64> = [hash(walker.board, toMove: walker.toMove)]
+        var index = 0
+        while index < target {
+            let move = moves[index]
+            let before = walker
+            walker = apply(move, at: index, to: walker)
+            index += 1
+            // A refused move was never played: nothing to record.
+            guard walker.acceptedCount > before.acceptedCount else { continue }
+            if GoColor(stone: move.color) != GoColor(stone: before.toMove) {
+                hashes = [hash(before.board, toMove: move.color)]
+            }
+            hashes.insert(hash(walker.board, toMove: walker.toMove))
+        }
+        return hashes
     }
 }

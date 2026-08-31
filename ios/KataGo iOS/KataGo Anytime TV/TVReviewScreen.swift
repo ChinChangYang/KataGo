@@ -131,6 +131,24 @@ struct TVReviewScreen: View {
         // (in `loadIfNeeded`, BEFORE anything is sent) is what decides that and
         // shuts the command gate; `loadGame` refuses the feed on its own too.
         reviewContent
+            // A variation can still hit a ko: the local legality check parks
+            // such a move and this alert decides it. tvOS never rendered the
+            // dialog — the old engine reply latched `confirmingIllegalMove`
+            // with nothing on screen, and the parked move refused every play.
+            .alert(illegalMoveReasonText, isPresented: illegalMoveBinding) {
+                Button("Play Anyway", role: .destructive) {
+                    gobanState.playPendingHumanMove(gameRecord: game,
+                                                    analysis: analysis,
+                                                    board: board,
+                                                    stones: stones,
+                                                    messageList: messageList,
+                                                    player: player,
+                                                    audioModel: audioModel)
+                }
+                Button("Cancel", role: .cancel) {
+                    gobanState.clearPendingMove()
+                }
+            }
     }
 
     private var reviewContent: some View {
@@ -157,8 +175,9 @@ struct TVReviewScreen: View {
                     // handler fires, verified on device 2026-07-16), so a
                     // focusable board to the timeline's left would hijack its
                     // left-scrub presses. No analysis gate — the cursor plays
-                    // with the engine silent too; the kata-check-move submit
-                    // path never needed candidates. And never while replaying:
+                    // with the engine silent or absent (legality is decided in
+                    // Swift against the record; the submit path never needed
+                    // candidates). And never while replaying:
                     // the slide layer owns focus then, and a board focus would
                     // flip isAiming, which stops the replay (the self-play
                     // screen's isPaused gate, adapted).
@@ -817,7 +836,8 @@ struct TVReviewScreen: View {
     /// gated on a settled analysis: between a re-request and its first reply,
     /// analysis.info still holds the PREVIOUS position's candidates, so an
     /// ungated pick could play a stale vertex. (The cursor needs no such
-    /// gate — kata-check-move validates against the engine's own position.)
+    /// gate — it aims at the record position, which is what legality is
+    /// decided against.)
     private func pick(_ candidate: Analysis.CandidateMove) {
         // Must precede the guard below: the replay re-arms waitingForAnalysis
         // on every cycle (its report probes, then the next position's
@@ -831,10 +851,10 @@ struct TVReviewScreen: View {
     }
 
     /// Play at the cursor's intersection (remote Select while the board is
-    /// focused). Occupied points are rejected here — the engine's occupied
-    /// reply is dropped silently, so without this guard a Select on a stone
-    /// would just do nothing invisibly anyway; keeping the cursor in place
-    /// after a play relies on it. The ghost survives the submit (unlike
+    /// focused). Occupied points are rejected here — the local legality check
+    /// refuses them silently too (`.refused`), so this is only the cheap
+    /// early-out; keeping the cursor in place after a play relies on it. The
+    /// ghost survives the submit (unlike
     /// visionOS's playAtGhost): the turn flips, the marker recolors, and the
     /// user answers nearby without re-aiming from center.
     private func playAtCursor() {
@@ -846,40 +866,76 @@ struct TVReviewScreen: View {
         submit(vertex: vertex)
     }
 
-    /// Play a vertex as a variation. The kata-check-move legality round-trip
-    /// is the same path a board tap takes on iOS: its reply plays the move
-    /// via playPendingHumanMove, which (forced branch) captures the variation
-    /// before requesting printsgf — so with the record selected here, every
-    /// printsgf reply routes into branchSgf and the synced record is never
-    /// written (isEditing == false keeps maybeUpdateAnalysisData inert too).
-    /// Works with analysis on or off: on, the turn flip re-fires BoardView's
-    /// observer, the suppressed stream re-arms as plain kata-analyze for the
-    /// new position, and the list refills for the other color; off, the
-    /// engine plays quietly (the path never needed candidates — only the
-    /// Top Moves picks do, and their rows are placeholders when off). No
-    /// waitingForAnalysis gate here: it belongs to pick() alone — on the
-    /// cursor path it silently swallowed Select during the warmup after
-    /// every move, reading as "double-press required".
+    /// Play a vertex as a variation — the same call a board tap makes on iOS.
+    /// Legality is decided in Swift against the record position and the move
+    /// is written right here (forced branch: `commitMove` captures the
+    /// variation before the engine hears of it), so with the record selected
+    /// below every printsgf echo routes into branchSgf and the synced record
+    /// is never written (isEditing == false keeps maybeUpdateAnalysisData
+    /// inert too). A ko / superko / multi-stone suicide comes back
+    /// `.confirming` and the root's alert decides it. Works with analysis on
+    /// or off, and with no engine at all: on, the turn flip re-fires
+    /// BoardView's observer, the suppressed stream re-arms as plain
+    /// kata-analyze for the new position, and the list refills for the other
+    /// color; off or absent, the stone simply lands (the path never needed
+    /// candidates — only the Top Moves picks do, and their rows are
+    /// placeholders when off). No waitingForAnalysis gate here: it belongs
+    /// to pick() alone — on the cursor path it silently swallowed Select
+    /// during the warmup after every move, reading as "double-press required".
     private func submit(vertex: String) {
         // During the handoff beat the destination screen's entry is about to
         // re-arm a WRITABLE selection (isEditing == true, forcesBranchOnPlay
         // == false), unlike every other exit from this screen, which leaves
-        // the selection nil. A kata-check-move reply that lands after the
-        // push would therefore play this variation into — and let its
-        // printsgf overwrite — the fresh continuation record instead of
-        // discarding harmlessly.
+        // the selection nil. The printsgf echo of a variation played now
+        // would land after the push and overwrite the fresh continuation
+        // record, instead of routing into a branch that is being discarded.
         guard !isHandingOff else { return }
         // Playing a variation takes over from the replay.
         stopAutoPlay()
-        guard stones.isReady,
-              gobanState.pendingMoveTurn == nil,  // one play in flight at a time
-              let turn = player.nextColorSymbolForPlayCommand else { return }
+        // The whole gate: record position shown, no move parked behind "Play
+        // Anyway", one play in flight while an engine is live — and nothing
+        // waited for when there is none. Review suppresses gen-moves, so the
+        // "not a side the engine plays" term never bites here.
+        guard gobanState.canPlayHumanMove(config: config,
+                                          stones: stones,
+                                          messageList: messageList) else { return }
         // Selected lazily (not at load) so a stale printsgf reply from the
-        // previous screen can never find a writable selection here;
-        // maybeCollectCheckMove needs it set when the legality reply lands.
+        // previous screen can never find a writable selection here; the
+        // engine's echo of this move (and any reply) routes by it.
         navigationContext.selectedGameRecord = game
-        gobanState.sendCheckMoveCommand(turn: turn, move: vertex,
-                                        messageList: messageList)
+        gobanState.playHumanMove(vertex: vertex,
+                                 gameRecord: game,
+                                 config: config,
+                                 analysis: analysis,
+                                 board: board,
+                                 stones: stones,
+                                 messageList: messageList,
+                                 player: player,
+                                 audioModel: audioModel,
+                                 bookLookup: bookLookup)
+    }
+
+    // MARK: - Illegal-move confirmation
+
+    /// `confirmingIllegalMove` as the alert's presentation binding. The two
+    /// buttons clear the parked move themselves ("Play Anyway" plays it,
+    /// Cancel drops it), and `canPlayHumanMove` gates on this flag rather than
+    /// on the parked move, so a dismissal no button handled cannot strand the
+    /// board.
+    private var illegalMoveBinding: Binding<Bool> {
+        Binding(get: { gobanState.confirmingIllegalMove },
+                set: { gobanState.confirmingIllegalMove = $0 })
+    }
+
+    /// The alert's one line, kept short: nothing on a tvOS screen may
+    /// truncate, and the reason is one of the three the local check parks.
+    private var illegalMoveReasonText: String {
+        switch gobanState.illegalMoveReason {
+        case "ko": return "That move violates the ko rule."
+        case "superko": return "That move repeats an earlier position."
+        case "suicide": return "That move is a self-capture."
+        default: return "That move is illegal here."
+        }
     }
 
     /// The board's D-pad handler: one intersection per press, clamped at the
@@ -944,12 +1000,13 @@ struct TVReviewScreen: View {
         // calls advanceReplayMove() directly, so this can never stop the
         // broadcast it belongs to.
         stopAutoPlay()
-        // Drop ticks while a previous batch's board refresh is in flight
-        // (the visionOS undo/forward precedent) — a 10-move jump keeps the
-        // engine busy longer than a single step, and ungated flurries would
-        // pile GTP batches into the queue. No isAITurn term: review is a
-        // spectator (suppressesGenMove) and submit() trusts isReady alone.
-        guard stones.isReady else { return }
+        // NOT gated on `stones.isReady`: the board is record-owned and the
+        // cursor moves at once, so scrubbing works while the model is still
+        // loading (the volumetric board never waited; this screen's copy of
+        // that wait was what froze the D-pad until the engine answered). With
+        // a live engine the GTP batches still queue in order — an engine that
+        // falls behind a flurry catches up, it does not desync. No isAITurn
+        // term: review is a spectator (suppressesGenMove).
         if delta < 0 {
             gobanState.backwardMoves(limit: -delta, gameRecord: game, messageList: messageList,
                                      player: player, stones: stones)
@@ -982,14 +1039,14 @@ struct TVReviewScreen: View {
             stepBy(1)
         case .leftTrigger:
             stopAutoPlay()
-            guard stones.isReady else { return }
+            // No `stones.isReady` gate — see stepBy().
             gobanState.backwardMoves(limit: nil, gameRecord: game,
                                      messageList: messageList,
                                      player: player, stones: stones)
             reanalyze()
         case .rightTrigger:
             stopAutoPlay()
-            guard stones.isReady else { return }
+            // No `stones.isReady` gate — see stepBy().
             gobanState.forwardMoves(limit: nil, gameRecord: game, board: board,
                                     messageList: messageList, player: player,
                                     audioModel: audioModel, stones: stones)

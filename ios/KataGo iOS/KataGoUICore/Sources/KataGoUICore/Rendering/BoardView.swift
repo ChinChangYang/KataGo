@@ -18,6 +18,11 @@ public struct BoardView: View {
     @Environment(BookLookup.self) var bookLookup
     @Environment(Winrate.self) var rootWinrate
     @Environment(Score.self) var rootScore
+    /// Read non-optionally: `AnalysisView` below already requires it, so every
+    /// host that mounts this board injects `session.analysis`. A human move
+    /// hands it to `GobanState.playHumanMove` along with the rest of the
+    /// session objects.
+    @Environment(Analysis.self) var analysis
     /// Engine availability, read OPTIONALLY: a host that has not been converted
     /// injects nothing, and nil means "behave exactly as before" (ready).
     /// Deliberately not an `@Entry` environment key — a `@MainActor` default
@@ -206,13 +211,16 @@ public struct BoardView: View {
                     }
 
                     if let cursorPoint {
-                        // The play cursor: a ghost stone of the side to move
-                        // (recolors on turn flip via Observation) inside the
-                        // same white ring as highlightedPoint, so it stays
-                        // legible over empty wood, stones, and analysis marks.
+                        // The play cursor: a ghost stone of the RECORD's side
+                        // to move (`recordSideToMove`, recolored via
+                        // Observation as the record advances) inside the same
+                        // white ring as highlightedPoint, so it stays legible
+                        // over empty wood, stones, and analysis marks. Not the
+                        // engine's turn: with no engine loaded that is parked
+                        // `.unknown`, which used to paint this ghost white.
                         let cursorCenter = dimensions.screenCenter(for: cursorPoint, verticalFlip: gobanState.verticalFlip)
                         Circle()
-                            .fill(player.nextColorForPlayCommand == .black ? Color.black : Color(white: 1.0))
+                            .fill(gobanState.recordSideToMove == .black ? Color.black : Color(white: 1.0))
                             .opacity(0.55)
                             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
                             .position(cursorCenter)
@@ -284,13 +292,8 @@ public struct BoardView: View {
                     titleVisibility: .visible
                 ) {
                     Button("Overwrite", role: .destructive) {
-                        if let move = pendingCoordinate?.move,
-                           let turn = player.nextColorSymbolForPlayCommand {
-                            gobanState.sendCheckMoveCommand(
-                                turn: turn,
-                                move: move,
-                                messageList: messageList
-                            )
+                        if let move = pendingCoordinate?.move {
+                            playHumanMove(move)
                         }
                     }
 
@@ -475,13 +478,17 @@ public struct BoardView: View {
     /// The single gate for playing a human move at a resolved coordinate —
     /// shared by the tap gesture and `BoardAccessibilityOverlay`'s per-element
     /// accessibility action, so a spoken "Tap K ten" obeys the exact same
-    /// turn/lock/occupancy rules as a touch.
+    /// turn/lock/occupancy rules as a touch. The turn and lock rules are
+    /// `GobanState.canPlayHumanMove`, decided against the RECORD position, so
+    /// a stone can be played with no engine loaded (ADR 0018). The occupancy
+    /// check here is only the cheap early exit — `playHumanMove` re-checks it
+    /// with the rest of the legality rules.
     private func attemptHumanMove(at coordinate: Coordinate, showPass: Bool) {
         // Voice activation must dismiss the comment keyboard just like a touch.
         commentIsFocused = false
         pendingCoordinate = coordinate
 
-        if interactive && stones.isReady && !gobanState.isAutoPlaying && (gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale),
+        if interactive && gobanState.canPlayHumanMove(config: config, stones: stones, messageList: messageList),
            let point = coordinate.point,
            // Accept a pass ONLY when the visible pass tile is shown.
            // With Show Pass off the tile is hidden and its row is
@@ -491,24 +498,35 @@ public struct BoardView: View {
            // the macOS overlay's pass-tile guard.
            showPass || !point.isPass(width: Int(board.width), height: Int(board.height)),
            let move = coordinate.move,
-           let turn = player.nextColorSymbolForPlayCommand,
-           !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
-           !gobanState.shouldGenMove(config: config, player: player) {
-
-            if gobanState.isPendingMoveStale {
-                gobanState.clearPendingMove()
-            }
+           !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point) {
 
             if gobanState.isOverwriting(gameRecord: gameRecord) {
                 confirmingOverwrite = true
             } else {
-                gobanState.sendCheckMoveCommand(
-                    turn: turn,
-                    move: move,
-                    messageList: messageList
-                )
+                playHumanMove(move)
             }
         }
+    }
+
+    /// Plays a human move at a GTP vertex ("Q16" or "pass"). Legality is
+    /// decided in Swift against the record position and the move is written
+    /// to the record there; the engine is told afterwards, when one is live.
+    /// The record supplies the colour. A ko, superko or multi-stone suicide
+    /// comes back `.confirming` and waits behind
+    /// `gobanState.confirmingIllegalMove`, which the host's "Play Anyway"
+    /// dialog already presents; a refused move changed nothing. The opening
+    /// book advances with the record.
+    private func playHumanMove(_ move: String) {
+        gobanState.playHumanMove(vertex: move,
+                                 gameRecord: gameRecord,
+                                 config: config,
+                                 analysis: analysis,
+                                 board: board,
+                                 stones: stones,
+                                 messageList: messageList,
+                                 player: player,
+                                 audioModel: audioModel,
+                                 bookLookup: bookLookup)
     }
 #endif
 }

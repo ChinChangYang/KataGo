@@ -758,38 +758,6 @@ struct KataGoModelTests {
         #expect(stones.isReady == true)
     }
 
-    // MARK: - GobanState isPendingMoveStale Tests
-
-    @Test func testIsPendingMoveStaleWhenNoPendingMove() async throws {
-        let gobanState = GobanState()
-        #expect(gobanState.isPendingMoveStale == false)
-    }
-
-    @Test func testIsPendingMoveStaleImmediatelyAfterSend() async throws {
-        let gobanState = GobanState()
-        let messageList = MessageList.accepting()
-        gobanState.sendCheckMoveCommand(turn: "b", move: "D4", messageList: messageList)
-        #expect(gobanState.isPendingMoveStale == false)
-    }
-
-    @Test func testIsPendingMoveStaleAfterTimeout() async throws {
-        let gobanState = GobanState()
-        let messageList = MessageList.accepting()
-        gobanState.sendCheckMoveCommand(turn: "b", move: "D4", messageList: messageList)
-        // Artificially set timestamp beyond GobanState.pendingMoveTimeout
-        gobanState.pendingMoveTimestamp = Date().addingTimeInterval(-6.0)
-        #expect(gobanState.isPendingMoveStale == true)
-    }
-
-    @Test func testIsPendingMoveStaleAfterClear() async throws {
-        let gobanState = GobanState()
-        let messageList = MessageList.accepting()
-        gobanState.sendCheckMoveCommand(turn: "b", move: "D4", messageList: messageList)
-        gobanState.clearPendingMove()
-        #expect(gobanState.isPendingMoveStale == false)
-        #expect(gobanState.pendingMoveTimestamp == nil)
-    }
-
     // MARK: - Tests for Coordinate Struct Initialization
 
     @Test func testCoordinateInvalidInitialization() async throws {

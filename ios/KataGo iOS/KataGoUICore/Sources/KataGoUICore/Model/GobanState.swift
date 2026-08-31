@@ -136,6 +136,11 @@ public class GobanState {
     /// so its wrap-around is harmless. The iOS keep-awake window arms its
     /// tail on it.
     public var aiMoveLandingGeneration: Int = 0
+    /// The move waiting on the user's "Play Anyway": the local legality check
+    /// found a ko, a superko or a multi-stone suicide, and the host is showing
+    /// the confirmation. `playPendingHumanMove` plays it, `clearPendingMove`
+    /// drops it. While set, every host refuses another move — one decision at
+    /// a time.
     public var pendingMoveTurn: String? = nil
     public var pendingMoveVertex: String? = nil
     public var confirmingIllegalMove: Bool = false
@@ -143,7 +148,19 @@ public class GobanState {
     public var confirmingBranchReplace: Bool = false
     public var confirmingBranchDiscard: Bool = false
     public var illegalMoveReason: String? = nil
-    public var pendingMoveTimestamp: Date? = nil
+    /// The side to move at the RECORD position on screen, written by
+    /// `RecordPositionProjector` with every projection. This is the colour a
+    /// human move takes and the ghost stone wears: the record knows whose turn
+    /// it is before any engine does, and with no engine loaded it is the only
+    /// thing that knows. `Turn.nextColorForPlayCommand` stays engine-sourced —
+    /// its edge is what re-arms analysis — and is never read to play a stone.
+    public var recordSideToMove: PlayerColor = .black
+    /// The projector this board is drawn from, wired by `GameSession`. A human
+    /// move asks it for the replay at the live cursor — the same instance the
+    /// board was drawn from, checkpoints and refusals included — to decide
+    /// legality. Nil on a `GobanState` no session owns (`ReportBoardView`'s),
+    /// where nothing is ever played.
+    @ObservationIgnored public weak var recordProjector: RecordPositionProjector?
     public var soundEffect: Bool = false
     public var hapticFeedback: Bool = false
     public var showVisitsPerSecond: Bool = false
@@ -454,18 +471,22 @@ public class GobanState {
     }
 
     public func shouldGenMove(config: Config, player: Turn) -> Bool {
-        if (!isAutoPlaying) &&
+        shouldGenMove(config: config, color: player.nextColorForPlayCommand)
+    }
+
+    /// `shouldGenMove` for an explicit side. The move gates ask it with the
+    /// RECORD's side to move (`recordSideToMove`), which is defined with no
+    /// engine loaded; the analysis paths keep asking with the engine's `Turn`,
+    /// whose `.unknown` park must keep answering false here — a gen-move sent
+    /// before the feed's `showboard` resolves the turn would double up with
+    /// the one the turn edge sends.
+    public func shouldGenMove(config: Config, color: PlayerColor) -> Bool {
+        (!isAutoPlaying) &&
             (!suppressesGenMove) &&
             (analysisStatus == .run) &&
             (passCount < 2) &&
-            (((config.blackMaxTime > 0) && (player.nextColorForPlayCommand == .black)) ||
-             ((config.whiteMaxTime > 0) && (player.nextColorForPlayCommand == .white))) {
-            // One of black and white is enabled for AI play.
-            return true
-        } else {
-            // All of black and white are disabled for AI play.
-            return false
-        }
+            (((config.blackMaxTime > 0) && (color == .black)) ||
+             ((config.whiteMaxTime > 0) && (color == .white)))
     }
 
     public func sendPostExecutionCommands(
@@ -645,28 +666,12 @@ public class GobanState {
         maybeRequestClearAnalysisData(config: config, nextColorForPlayCommand: newColor)
     }
 
-    public func sendCheckMoveCommand(turn: String, move: String, messageList: MessageList) {
-        pendingMoveTurn = turn
-        pendingMoveVertex = move
-        pendingMoveTimestamp = Date()
-        messageList.appendAndSend(command: "kata-check-move \(turn) \(move)")
-    }
-
+    /// Drops the move waiting on "Play Anyway".
     public func clearPendingMove() {
         pendingMoveTurn = nil
         pendingMoveVertex = nil
-        pendingMoveTimestamp = nil
         confirmingIllegalMove = false
         illegalMoveReason = nil
-    }
-
-    private static let pendingMoveTimeout: TimeInterval = 5.0
-
-    public var isPendingMoveStale: Bool {
-        guard pendingMoveTurn != nil, let timestamp = pendingMoveTimestamp else {
-            return false
-        }
-        return Date().timeIntervalSince(timestamp) > GobanState.pendingMoveTimeout
     }
 
     public func resetPendingStatesOnError(stones: Stones) {
@@ -675,6 +680,133 @@ public class GobanState {
         stones.isReady = true
     }
 
+    // MARK: - Human moves (ADR 0018: legality and the record write are Swift's)
+
+    /// What `playHumanMove` did with a vertex.
+    public enum HumanMoveOutcome: Equatable {
+        /// The move is in the record — and on its way to the engine, if one
+        /// is listening.
+        case played
+        /// The move broke a rule the user may override — ko, superko, a
+        /// multi-stone suicide — and waits behind `confirmingIllegalMove`.
+        case confirming(MoveLegality)
+        /// The move is impossible here (occupied, off the board, a lone
+        /// stone's suicide) or the record cannot be written. Nothing changed.
+        case refused(MoveLegality?)
+    }
+
+    /// Whether a human move may be attempted right now. One rule for every
+    /// host's tap, click, focus cursor and pinch:
+    ///   • the record position is on screen — the board is record-owned, so
+    ///     this holds from the first frame, engine or no engine;
+    ///   • no "Play Anyway" confirmation is up. The flag, not the parked
+    ///     move: a dialog dismissed without either button would otherwise
+    ///     leave the payload behind and the board dead;
+    ///   • auto-play is not driving the cursor;
+    ///   • a LIVE engine has caught up with the position. With the command
+    ///     gate open, one move is in flight at a time exactly as before: the
+    ///     local write lands the stone at once, but the engine's `play` and
+    ///     its `printsgf` echo are still queued, and a second write before that
+    ///     echo lands would be overwritten by it. With the gate shut — Absent,
+    ///     Launching, Failed, Held — there is no echo to wait for;
+    ///   • the side to move is not a side the engine plays. The RECORD's side,
+    ///     not the engine's: with no engine the turn is parked `.unknown`, and
+    ///     `.unknown` must not read as "anyone may play" on an AI turn.
+    public func canPlayHumanMove(config: Config, stones: Stones, messageList: MessageList) -> Bool {
+        isShownBoard
+            && !isRecordUnreadable
+            && !confirmingIllegalMove
+            && !isAutoPlaying
+            && (!messageList.isAcceptingCommands || stones.isReady)
+            && !shouldGenMove(config: config, color: recordSideToMove)
+    }
+
+    /// The one entry for a human move on every host: decides legality in Swift
+    /// against the record position — KataGo's own reasons, in KataGo's order,
+    /// under the record's ko and suicide rules — and either commits the move or
+    /// parks it behind the "Play Anyway" confirmation. The engine is told
+    /// afterwards, if one is listening.
+    ///
+    /// - Parameters:
+    ///   - vertex: a GTP vertex ("Q16") or "pass".
+    ///   - bookLookup: advanced past the played move when given — the opening
+    ///     book follows the record, not the engine.
+    /// - Returns: what happened; a host shows its confirmation on `.confirming`.
+    @MainActor
+    @discardableResult
+    public func playHumanMove(vertex: String,
+                              gameRecord: GameRecord,
+                              config: Config,
+                              analysis: Analysis,
+                              board: BoardSize,
+                              stones: Stones,
+                              messageList: MessageList,
+                              player: Turn,
+                              audioModel: AudioModel?,
+                              bookLookup: BookLookup? = nil) -> HumanMoveOutcome {
+        guard let projector = recordProjector,
+              let sgf = getSgf(gameRecord: gameRecord),
+              let index = getCurrentIndex(gameRecord: gameRecord) else { return .refused(nil) }
+        let width = Int(board.width)
+        let height = Int(board.height)
+        let rules = gameRecord.concreteConfig
+        guard let context = projector.withReplay(for: sgf, { replay in
+            replay.legalityContext(at: index,
+                                   koRule: rules.koRule,
+                                   multiStoneSuicideLegal: rules.multiStoneSuicideLegal)
+        }) else { return .refused(nil) }
+
+        let point: GoPoint?
+        if vertex == "pass" {
+            point = nil
+        } else if let parsed = Self.goPoint(vertex: vertex, height: height) {
+            point = parsed
+        } else {
+            return .refused(.outOfBounds)
+        }
+        let stone: GoColor = context.toMove == .white ? .white : .black
+        let turn = stone == .white ? "w" : "b"
+        let legality = context.check(point: point, color: stone)
+
+        switch legality {
+        case .legal:
+            guard commitMove(turn: turn, move: vertex, gameRecord: gameRecord,
+                             analysis: analysis, board: board, stones: stones,
+                             messageList: messageList, player: player,
+                             audioModel: audioModel) else { return .refused(nil) }
+            if let bookLookup,
+               let bookPoint = BoardPoint(move: vertex, width: width, height: height) {
+                withAnimation {
+                    bookLookup.advanceMove(appPoint: bookPoint, boardWidth: width, boardHeight: height)
+                }
+            }
+            return .played
+        default:
+            guard legality.canPlayAnyway else { return .refused(legality) }
+            pendingMoveTurn = turn
+            pendingMoveVertex = vertex
+            illegalMoveReason = legality.reason
+            confirmingIllegalMove = true
+            return .confirming(legality)
+        }
+    }
+
+    /// `GoPoint` (0-based, origin top-left) for a GTP vertex on a board
+    /// `height` rows tall; nil for a label the board cannot hold. The column
+    /// is not range-checked here — `MoveLegalityContext.check` answers
+    /// `.outOfBounds` for it against the real board width.
+    static func goPoint(vertex: String, height: Int) -> GoPoint? {
+        let letters = vertex.prefix { $0.isLetter }
+        guard !letters.isEmpty,
+              let x = Coordinate.xMap[letters.uppercased()],
+              let row = Int(vertex.dropFirst(letters.count)),
+              (1...height).contains(row) else { return nil }
+        return GoPoint(x: x, y: height - row)
+    }
+
+    /// Plays the move parked behind "Play Anyway". The user overrode a ko, a
+    /// superko or a multi-stone suicide — all three of which the engine's
+    /// tolerant `play` accepts, so the record and the engine still agree.
     public func playPendingHumanMove(
         gameRecord: GameRecord,
         analysis: Analysis,
@@ -686,59 +818,117 @@ public class GobanState {
     ) {
         guard let turn = pendingMoveTurn,
               let move = pendingMoveVertex else { return }
+        commitMove(turn: turn, move: move, gameRecord: gameRecord, analysis: analysis,
+                   board: board, stones: stones, messageList: messageList,
+                   player: player, audioModel: audioModel)
+        clearPendingMove()
+    }
 
-        // Provenance for the board's motion layer (ADR 0015), declared BEFORE
-        // the command goes out and before the branching below: every exit
-        // lands this same stone — the editing path, a branch, the mainline
-        // shortcut — so the intent belongs here rather than in each of them.
-        // A pass moves no stone, so no diff will ever come: it clicks here, at
-        // the command site. Legality was already settled by `kata-check-move`,
-        // which is why this needs no retraction path.
-        if move == "pass" {
-            audioModel.playPlaySound(soundEffect: soundEffect)
-        } else if let point = motionPoint(vertex: move,
-                                          width: Int(board.width),
-                                          height: Int(board.height)) {
-            expectStoneMotion(.place(point))
-        }
+    /// Lands a move in the record and tells the engine, in that order — the
+    /// shared body of a human move (legal, or overridden) and of an AI reply.
+    ///
+    /// The record write is Swift's (`SgfAppend`), so the stone is on screen the
+    /// moment the projector runs, engine or no engine. A listening engine then
+    /// gets `play` + `printsgf` + `showboard`: `play` keeps it in step,
+    /// `printsgf` re-states the record in the engine's own spelling — the
+    /// normalisation every played game has always received, and the `RE[]`
+    /// the tvOS screens read off a finished one — and `showboard` is the
+    /// in-sync acknowledgement. With the gate shut all three are dropped and
+    /// the debt is noted for the handshake's resync, which re-feeds the live
+    /// record, this move included.
+    ///
+    /// Returns false, having changed nothing, when the record cannot be
+    /// written (the text has no root node). Nothing is sent then either: an
+    /// engine one move ahead of the record is the desync ADR 0008 exists to
+    /// prevent.
+    @discardableResult
+    func commitMove(turn: String,
+                    move: String,
+                    gameRecord: GameRecord,
+                    analysis: Analysis,
+                    board: BoardSize,
+                    stones: Stones,
+                    messageList: MessageList,
+                    player: Turn,
+                    audioModel: AudioModel?) -> Bool {
+        let width = Int(board.width)
+        let height = Int(board.height)
 
         // forcesBranchOnPlay outranks isEditing: the tvOS review screen must
-        // never take the editing path (it truncates the record and lets
-        // printsgf overwrite the synced SGF) even if a defaultSgf game
-        // slipped through loadGame unlocked.
-        if isEditing && !forcesBranchOnPlay {
+        // never take the editing path (it truncates the record) even if a
+        // defaultSgf game slipped through loadGame unlocked.
+        let editsRecord = isEditing && !forcesBranchOnPlay
+        // The mainline shortcut: a locked game whose next recorded move is the
+        // one just played steps the cursor instead of writing anything.
+        if !editsRecord, !isBranchActive, !forcesBranchOnPlay,
+           matchesNextRecordedMove(turn: turn, move: move, gameRecord: gameRecord, board: board) {
+            declareLanding(move: move, width: width, height: height, audioModel: audioModel)
+            playMainlineStep(turn: turn, move: move, gameRecord: gameRecord, stones: stones,
+                             messageList: messageList, player: player, audioModel: audioModel)
+            return true
+        }
+
+        // Where the move goes: the active branch, the branch this move starts
+        // (a locked game leaving the recorded line), or the record itself.
+        let writesBranch = isBranchActive || !editsRecord
+        let baseSgf = isBranchActive ? branchSgf : gameRecord.sgf
+        let baseIndex = isBranchActive ? branchIndex : gameRecord.currentIndex
+        guard let newSgf = SgfAppend.appending(color: turn, vertex: move, afterMoveCount: baseIndex,
+                                               to: baseSgf, width: width, height: height) else {
+            return false
+        }
+
+        declareLanding(move: move, width: width, height: height, audioModel: audioModel)
+
+        if editsRecord {
             gameRecord.clearData(after: gameRecord.currentIndex)
+            maybeUpdateAnalysisData(gameRecord: gameRecord, analysis: analysis,
+                                    board: board, stones: stones)
+        }
 
-            maybeUpdateAnalysisData(
-                gameRecord: gameRecord,
-                analysis: analysis,
-                board: board,
-                stones: stones
-            )
-        } else if !isBranchActive {
-            if !forcesBranchOnPlay,
-               matchesNextRecordedMove(turn: turn, move: move, gameRecord: gameRecord, board: board) {
-                playMainlineStep(turn: turn, move: move, gameRecord: gameRecord, stones: stones, messageList: messageList, player: player, audioModel: audioModel)
-                clearPendingMove()
-                return
-            }
-
-            branchSgf = gameRecord.sgf
-            branchIndex = gameRecord.currentIndex
+        if writesBranch {
+            branchSgf = newSgf
+            branchIndex = baseIndex + 1
+        } else {
+            // Assign only on a real change: SwiftData dirties (and CloudKit
+            // re-uploads) a record written even to its existing value.
+            if gameRecord.sgf != newSgf { gameRecord.sgf = newSgf }
+            gameRecord.currentIndex = baseIndex + 1
+            gameRecord.lastModificationDate = Date.now
+            maybeUpdateMoves(gameRecord: gameRecord, board: board)
         }
 
         play(turn: turn, move: move, messageList: messageList, stones: stones)
-        player.toggleNextColorForPlayCommand()
-        // `printsgf` BEFORE `showboard`: the record owns the board, so the
-        // reply that updates the record (and therefore puts the stone on
-        // screen) has to land before the sync ack that says the engine caught
-        // up. GTP replies are FIFO, so ordering the sends orders the replies.
-        messageList.appendAndSend(command: "printsgf")
-        sendShowBoardCommand(messageList: messageList)
-        // No click here any more: it rides the stone's landing in BoardView's
-        // motion layer (ADR 0015), a settle after the command went out.
+        // The engine's turn edge is what re-arms analysis and the AI reply, so
+        // it flips with the record when the engine has told us the turn.
+        // Parked `.unknown` — no engine has spoken — it stays parked: toggling
+        // would invent Black, and the resync's `showboard` resolves it.
+        if player.nextColorForPlayCommand != .unknown {
+            player.toggleNextColorForPlayCommand()
+        }
+        if messageList.isAcceptingCommands {
+            // `printsgf` BEFORE `showboard`: GTP replies are FIFO, so the record
+            // echo lands before the in-sync ack, and the engine never
+            // acknowledges a stone the record does not hold in its spelling.
+            messageList.appendAndSend(command: "printsgf")
+            sendShowBoardCommand(messageList: messageList)
+        } else {
+            noteEngineSendDropped(recordID: gameRecord.persistentModelID,
+                                  index: getCurrentIndex(gameRecord: gameRecord)
+                                      ?? gameRecord.currentIndex)
+        }
+        return true
+    }
 
-        clearPendingMove()
+    /// ADR 0015 provenance for the stone about to land, declared BEFORE the
+    /// record changes. A pass moves no stone, so no diff will ever come: it
+    /// clicks here, at the command site.
+    private func declareLanding(move: String, width: Int, height: Int, audioModel: AudioModel?) {
+        if move == "pass" {
+            audioModel?.playPlaySound(soundEffect: soundEffect)
+        } else if let point = motionPoint(vertex: move, width: width, height: height) {
+            expectStoneMotion(.place(point))
+        }
     }
 
     public func play(turn: String, move: String, messageList: MessageList, stones: Stones) {
@@ -768,47 +958,9 @@ public class GobanState {
         // mainline-step return included), and the landing is what counts.
         aiMoveLandingGeneration &+= 1
 
-        // The same provenance declaration as `playPendingHumanMove`, for the
-        // same reason: both exits land this stone. This is only reached for a
-        // reply that is actually being played — the overwrite case latches
-        // `confirmingAIOverwrite` instead of calling here — so no intent
-        // enqueued below is ever left unsatisfied.
-        if aiMove == "pass" {
-            audioModel.playPlaySound(soundEffect: soundEffect)
-        } else if let point = motionPoint(vertex: aiMove,
-                                          width: Int(board.width),
-                                          height: Int(board.height)) {
-            expectStoneMotion(.place(point))
-        }
-
-        // Same review guard as playPendingHumanMove: never the editing path
-        // while the spectator screen forces branches.
-        if isEditing && !forcesBranchOnPlay {
-            gameRecord.clearData(after: gameRecord.currentIndex)
-
-            maybeUpdateAnalysisData(
-                gameRecord: gameRecord,
-                analysis: analysis,
-                board: board,
-                stones: stones
-            )
-        } else if !isBranchActive {
-            if !forcesBranchOnPlay,
-               matchesNextRecordedMove(turn: turn, move: aiMove, gameRecord: gameRecord, board: board) {
-                playMainlineStep(turn: turn, move: aiMove, gameRecord: gameRecord, stones: stones, messageList: messageList, player: player, audioModel: audioModel)
-                return
-            }
-
-            branchSgf = gameRecord.sgf
-            branchIndex = gameRecord.currentIndex
-        }
-
-        play(turn: turn, move: aiMove, messageList: messageList, stones: stones)
-        player.toggleNextColorForPlayCommand()
-        // `printsgf` before `showboard` — see `playPendingHumanMove`.
-        messageList.appendAndSend(command: "printsgf")
-        sendShowBoardCommand(messageList: messageList)
-        // The click rides the landing — see `playPendingHumanMove`.
+        commitMove(turn: turn, move: aiMove, gameRecord: gameRecord, analysis: analysis,
+                   board: board, stones: stones, messageList: messageList,
+                   player: player, audioModel: audioModel)
     }
 
     public func undo(messageList: MessageList, stones: Stones) {
@@ -1140,11 +1292,10 @@ public class GobanState {
     /// ahead of the board it is meant to be analysing.
     ///
     /// `audioModel` is no longer read: the click rides the stone's landing in
-    /// BoardView's motion layer (ADR 0015), and both callers
-    /// (`playPendingHumanMove`, `playAIMove`) have already declared the intent
-    /// — or clicked, for a pass — before they get here. Kept on the signature
-    /// because two call sites and two suites pass it; dropping it is a
-    /// mechanical cleanup, like the unread `board:` on `forwardMoves`.
+    /// BoardView's motion layer (ADR 0015), and the one caller (`commitMove`)
+    /// has already declared the intent — or clicked, for a pass — before it
+    /// gets here. Kept on the signature because two suites pass it; dropping
+    /// it is a mechanical cleanup, like the unread `board:` on `forwardMoves`.
     public func playMainlineStep(
         turn: String,
         move: String,
@@ -1152,7 +1303,7 @@ public class GobanState {
         stones: Stones,
         messageList: MessageList,
         player: Turn,
-        audioModel: AudioModel
+        audioModel: AudioModel?
     ) {
         let index = gameRecord.currentIndex
         let fed = getSgf(gameRecord: gameRecord).map {
@@ -1160,10 +1311,19 @@ public class GobanState {
         } ?? true
         if fed {
             play(turn: turn, move: move, messageList: messageList, stones: stones)
-            player.toggleNextColorForPlayCommand()
+            // See `commitMove`: a turn no engine has resolved stays parked.
+            if player.nextColorForPlayCommand != .unknown {
+                player.toggleNextColorForPlayCommand()
+            }
         }
         gameRecord.currentIndex += 1
         sendShowBoardCommand(messageList: messageList)
+        // The cursor moved whether or not an engine could hear about it; the
+        // handshake's resync re-states where the board actually is.
+        if !messageList.isAcceptingCommands {
+            noteEngineSendDropped(recordID: gameRecord.persistentModelID,
+                                  index: gameRecord.currentIndex)
+        }
     }
 
     public func getNextMove(gameRecord: GameRecord) -> Move? {

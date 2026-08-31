@@ -253,6 +253,9 @@ public final class RecordPositionProjector {
         // inequality (the haptic trigger), never for order.
         stones.positionGeneration &+= 1
         gobanState.isShownBoard = true
+        // The record's side to move travels with the position: it is what a
+        // human move plays as, engine or no engine (ADR 0018).
+        gobanState.recordSideToMove = position.toMove
 
         hasProjected = true
         currentKey = key

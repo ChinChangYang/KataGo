@@ -89,7 +89,10 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Record position** — the board at the game's current index, replayed from the game record. The only thing the board ever shows.
 - **Engine position** — the position the engine has been fed. Never displayed; it exists so analysis has something to analyse.
 - **Feed** — telling the engine the record's moves one at a time. A move the engine would refuse is skipped, exactly as the replay skipped it.
-- **In sync** — the engine has acknowledged the record position. Analysis is collected, and stones may be played, only while in sync.
+- **In sync** — the engine has acknowledged the record position. Analysis is collected only while in sync; a live engine also has to be in sync before the next human move, so one move is in flight at a time.
+- **Side to move** — the colour the record says plays next: the opposite of the last accepted move, White after an all-Black setup. What a human move plays as, and the ghost stone's colour. Known from the record alone, engine or no engine.
+- **Local legality** — deciding, in the app and against the record position, whether a new move is legal under the record's rules — the engine's own reasons, in its order. The one legality path for human moves; the engine is never asked.
+- **Play Anyway** — the override offered for a move that breaks ko, superko or a multi-stone suicide rule. Never for an occupied point, a point off the board, or a lone stone's suicide.
 - **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off). A state; never a screen that replaces the board. Only the transient *Launching* overlays the board; the resting states surface through the *analysis control*.
 - **Player label** — the per-side capsule above the board naming who plays that side: Human, or the AI's rank. A tap flips the side between Human and AI; a long press picks the rank, and picking one for a Human side hands that side to the AI.
 - **Launch pill** — the only chrome that ever overlays the board: the *Launching* status and its compile caption, drawn over the top of the goban until the engine is ready. Never a control, never a resting state's home.

@@ -455,7 +455,10 @@ struct GameSplitView: View {
                 gobanState.deactivateBranch()
             }
 
-            Button("Cancel", role: .cancel) { }
+            // Drops the parked move. Nothing times it out any more (ADR 0018
+            // retired the check-move reply and its stale timeout), so the
+            // dialog's exits are the only thing that clears it.
+            Button("Cancel", role: .cancel) { gobanState.clearPendingMove() }
         }
     }
 

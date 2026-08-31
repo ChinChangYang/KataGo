@@ -447,9 +447,6 @@ struct VisionRootView: View {
         .onChange(of: session.gobanState.confirmingAIOverwrite) { _, confirming in
             autoDeclineAIOverwrite(confirming)
         }
-        .onChange(of: session.gobanState.confirmingIllegalMove) { _, confirming in
-            retractRejectedPlayIntent(confirming)
-        }
         // 2D boards clear stale candidates in AnalysisView.onAppear; the 3D
         // scene has no such lifecycle hook, so honor the request here.
         .onChange(of: session.gobanState.requestingClearAnalysis) { _, requesting in
@@ -591,9 +588,10 @@ struct VisionRootView: View {
     // MARK: - Controller events
 
     private func handleControllerEvent(_ event: ControllerEvent) {
-        // A mounted board is all this needs. Stepping, jumping and the ghost are
-        // record-owned; the two events that DO need an engine (play, pass) check
-        // `stones.isReady` for themselves.
+        // A mounted board is all this needs. Stepping, jumping, the ghost and
+        // — since ADR 0018 — playing are all record-owned; play and pass ask
+        // `canPlayHumanMove` for themselves, which waits on an engine only
+        // when a LIVE one is still catching up with the position.
         guard isBoardMounted else { return }
         let width = Int(session.board.width)
         let height = Int(session.board.height)
@@ -620,9 +618,15 @@ struct VisionRootView: View {
         }
     }
 
+    /// Whether the side to move is one the engine plays — the RECORD's side
+    /// (`recordSideToMove`), which is defined with no engine. The engine's
+    /// `Turn` is parked `.unknown` until a feed resolves it, and `.unknown`
+    /// read as "not an AI turn" — which would have let a human play the AI's
+    /// colour before the engine caught up, or with no engine at all.
     private var isAITurn: Bool {
         guard let config = navigationContext.selectedGameRecord?.concreteConfig else { return false }
-        return session.gobanState.shouldGenMove(config: config, player: session.player)
+        return session.gobanState.shouldGenMove(config: config,
+                                                color: session.gobanState.recordSideToMove)
     }
 
     private func playAtGhost() {
@@ -637,22 +641,41 @@ struct VisionRootView: View {
         #endif
         guard let point = ghost.point,
               let vertex = sceneModel.geometry?.vertex(for: point),
-              let turn = session.player.nextColorSymbolForPlayCommand,
-              session.stones.isReady,
-              session.gobanState.pendingMoveTurn == nil,   // one pick in flight
-              !isAITurn,
+              let record = navigationContext.selectedGameRecord,
+              // The whole gate — record position on screen, no pick waiting
+              // on Play Anyway, not auto-playing, a LIVE engine in sync, and
+              // not the AI's turn (by the record's side to move).
+              session.gobanState.canPlayHumanMove(config: record.concreteConfig,
+                                                  stones: session.stones,
+                                                  messageList: session.messageList),
               !session.stones.blackPoints.contains(point),
               !session.stones.whitePoints.contains(point)
         else { return }
-        // The stone about to land flies in; an illegal-move rejection leaves
-        // a stale intent that the planner scavenges on the next real diff.
-        sceneModel.expectStoneAnimation(.place(point))
-        // Legality + play flow through the engine's kata-check-move reply
-        // (GameSession.maybeCollectCheckMove → playPendingHumanMove), the same
-        // path the 2D board tap and TVReviewScreen.pick use.
-        session.gobanState.sendCheckMoveCommand(turn: turn,
-                                                move: vertex,
-                                                messageList: session.messageList)
+        // Legality is decided right here, synchronously in Swift against the
+        // record position, and a legal move is written to the record before
+        // this returns (ADR 0018) — the same `playHumanMove` the 2D board tap
+        // and TVReviewScreen.pick use; a listening engine is told afterwards.
+        // A ko, superko or multi-stone suicide parks behind
+        // `confirmingIllegalMove` (the ornament's OK-only row dismisses it via
+        // `onDismissIllegalMove`); anything else is refused outright.
+        let outcome = session.gobanState.playHumanMove(vertex: vertex,
+                                                       gameRecord: record,
+                                                       config: record.concreteConfig,
+                                                       analysis: session.analysis,
+                                                       board: session.board,
+                                                       stones: session.stones,
+                                                       messageList: session.messageList,
+                                                       player: session.player,
+                                                       audioModel: nil,
+                                                       bookLookup: session.bookLookup)
+        // The fly-in intent follows the verdict: declared only for a played
+        // stone, after the decision and before the projector publishes the
+        // diff in a later update pass. A parked or refused pick therefore
+        // never leaves a stale intent for an unrelated later diff to consume,
+        // and nothing needs retracting.
+        if outcome == .played {
+            sceneModel.expectStoneAnimation(.place(point))
+        }
         ghost.reset()
     }
 
@@ -834,18 +857,31 @@ struct VisionRootView: View {
     }
 
     private func playPass() {
-        guard let turn = session.player.nextColorSymbolForPlayCommand,
-              session.stones.isReady,
-              session.gobanState.pendingMoveTurn == nil,
-              !isAITurn
+        guard let record = navigationContext.selectedGameRecord,
+              session.gobanState.canPlayHumanMove(config: record.concreteConfig,
+                                                  stones: session.stones,
+                                                  messageList: session.messageList)
         else { return }
+        // A pass never fails the legality check, so this is the record write
+        // itself (ADR 0018); the engine is told afterwards. `audioModel: nil`
+        // on purpose: GobanState's own pass click is gated on
+        // `gobanState.soundEffect`, which has no writer on visionOS, so it
+        // would be silent — or, once it had one, double the click below.
+        let outcome = session.gobanState.playHumanMove(vertex: "pass",
+                                                       gameRecord: record,
+                                                       config: record.concreteConfig,
+                                                       analysis: session.analysis,
+                                                       board: session.board,
+                                                       stones: session.stones,
+                                                       messageList: session.messageList,
+                                                       player: session.player,
+                                                       audioModel: nil,
+                                                       bookLookup: nil)
         // A pass changes no stones, so the scene-driven sound never fires
-        // for it — click here instead (a pass is always legal, so the
-        // kata-check-move round cannot retract this).
-        audioModel.playPlaySound(soundEffect: true)
-        session.gobanState.sendCheckMoveCommand(turn: turn,
-                                                move: "pass",
-                                                messageList: session.messageList)
+        // for it — click here instead, once the pass is in the record.
+        if outcome == .played {
+            audioModel.playPlaySound(soundEffect: true)
+        }
         ghost.reset()
     }
 
@@ -1036,21 +1072,6 @@ struct VisionRootView: View {
             session.gobanState.confirmingAIOverwrite = false
             session.gobanState.analysisStatus = .clear
         }
-    }
-
-    /// An illegal-move rejection means playAtGhost's fly-in intent will
-    /// never see its diff; withdraw it so it cannot satisfy a later,
-    /// unrelated diff (e.g. an undo restoring a capture at the rejected ko
-    /// point). Vision never plays rejected moves (the ornament row only
-    /// dismisses), so retraction is always correct here.
-    private func retractRejectedPlayIntent(_ confirming: Bool) {
-        guard confirming,
-              let vertex = session.gobanState.pendingMoveVertex,
-              let point = BoardPoint(move: vertex,
-                                     width: Int(session.board.width),
-                                     height: Int(session.board.height))
-        else { return }
-        sceneModel.retractStoneAnimation(.place(point))
     }
 
     /// Mirrors StatusToolbarItems.backwardEndAction (backwardMoves, limit
@@ -1345,8 +1366,8 @@ struct VisionRootView: View {
     #if DEBUG
     /// `simctl launch … vision-autoplay-smoke` drives the exact controller
     /// event path (activate → step → A-play) headlessly, so the sim can
-    /// verify ghost → kata-check-move → stone rendering without a physical
-    /// game controller.
+    /// verify ghost → `playHumanMove` (legality decided in Swift against the
+    /// record, ADR 0018) → stone rendering without a physical game controller.
     private func autoplaySmokeIfRequested() {
         guard ProcessInfo.processInfo.arguments.contains("vision-autoplay-smoke") else { return }
         Task {

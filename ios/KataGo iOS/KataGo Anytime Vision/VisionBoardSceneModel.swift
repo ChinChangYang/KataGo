@@ -376,12 +376,6 @@ final class VisionBoardSceneModel {
         }
     }
 
-    /// Withdraws an intent whose command the engine rejected (illegal move)
-    /// so it can never satisfy a later, unrelated diff.
-    func retractStoneAnimation(_ intent: StoneAnimationPlanner.Intent) {
-        planner.retract(intent)
-    }
-
     /// Diffs the engine's stone lists against the mounted entities —
     /// O(changed), not O(board). At most one stone of the diff animates
     /// (the one a queued intent accounts for); everything else — captures,

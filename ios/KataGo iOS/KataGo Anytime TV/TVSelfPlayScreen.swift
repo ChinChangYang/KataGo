@@ -72,6 +72,9 @@ struct TVSelfPlayScreen: View {
     @Environment(MessageList.self) private var messageList
     @Environment(BoardSize.self) private var board
     @Environment(Stones.self) private var stones
+    /// Handed to `playHumanMove`, which clicks a pass itself. TVRootView
+    /// injects it on the same chain as every other model read here.
+    @Environment(AudioModel.self) private var audioModel
     @Environment(Winrate.self) private var rootWinrate
     @Environment(Score.self) private var rootScore
     @Environment(NavigationContext.self) private var navigationContext
@@ -448,10 +451,11 @@ struct TVSelfPlayScreen: View {
 
             // Clickable candidates: a pick plays that move for the side to
             // move (the in-memory record is in editing mode — no branch).
-            // While the game runs, the pick's legality check cancels the
-            // in-flight gen-move and the AI answers the user's move; while
-            // paused, alternate picks explore a line. In attract mode the
-            // rows are placeholders (not focusable) so any press still exits.
+            // Legality is decided in Swift against the record and the stone
+            // lands at once; the engine is told afterwards. Rendered only
+            // while paused, where alternate picks explore a line. In attract
+            // mode the rows are placeholders (not focusable) so any press
+            // still exits.
             if isPaused {
                 // Interactive pause: picks explore (suppression keeps the AI
                 // from answering), exactly the old paused semantics.
@@ -918,10 +922,11 @@ struct TVSelfPlayScreen: View {
     }
 
     /// Play at the cursor's intersection (remote Select while the board is
-    /// focused). Occupied points are rejected here — the engine's occupied
-    /// reply is dropped silently anyway; keeping the cursor in place after a
-    /// play relies on it. The ghost survives the submit: the AI answers, the
-    /// marker recolors, and the user plays on nearby without re-aiming.
+    /// focused). Occupied points are rejected here — the local legality check
+    /// refuses them silently too (`.refused`); keeping the cursor in place
+    /// after a play relies on it. The ghost survives the submit: the AI
+    /// answers, the marker recolors, and the user plays on nearby without
+    /// re-aiming.
     private func playAtCursor() {
         guard let point = ghost.point,
               !stones.blackPoints.contains(point),
@@ -931,19 +936,33 @@ struct TVSelfPlayScreen: View {
         submit(vertex: vertex)
     }
 
-    /// Play a vertex for the side to move. The kata-check-move line cancels
-    /// an in-flight gen-move (its trailing "play" reply is dropped while the
-    /// play is pending); the legality reply then plays the move directly into
-    /// the in-memory record. If the AI's own move landed first, the reply is
-    /// wrong_turn and the play is silently dropped.
+    /// Play a vertex for the side to move — paused only, so no cycle is
+    /// running and there is no in-flight gen-move to race. Legality is decided
+    /// in Swift against the record and the move is written directly into the
+    /// in-memory record; the engine is told afterwards. Self-play offers no
+    /// "Play Anyway" UI, so a pick that breaks ko / superko / suicide is
+    /// simply dropped: `.confirming` parks the move, and the park is cleared
+    /// at once — left in place it would refuse every later pick.
     private func submit(vertex: String) {
-        guard isPaused,
+        guard let game,
+              isPaused,
               !isGameOver,
-              stones.isReady,
-              gobanState.pendingMoveTurn == nil,
-              let turn = player.nextColorSymbolForPlayCommand else { return }
-        gobanState.sendCheckMoveCommand(turn: turn, move: vertex,
-                                        messageList: messageList)
+              gobanState.canPlayHumanMove(config: game.concreteConfig,
+                                          stones: stones,
+                                          messageList: messageList) else { return }
+        let outcome = gobanState.playHumanMove(vertex: vertex,
+                                               gameRecord: game,
+                                               config: game.concreteConfig,
+                                               analysis: analysis,
+                                               board: board,
+                                               stones: stones,
+                                               messageList: messageList,
+                                               player: player,
+                                               audioModel: audioModel,
+                                               bookLookup: bookLookup)
+        if case .confirming = outcome {
+            gobanState.clearPendingMove()
+        }
     }
 
     /// The board's D-pad handler: one intersection per press, clamped at the
@@ -975,8 +994,11 @@ struct TVSelfPlayScreen: View {
     /// so the undone position holds. maybePauseAnalysis() then stops that
     /// re-requested stream so the engine idles (one snapshot of the undone
     /// position, then quiet). The game stays paused; Resume runs a fresh
-    /// report on the rewound position. Same readiness gating as `pick()` so a
-    /// press can't race an in-flight legality check or a just-arrived move.
+    /// report on the rewound position. Same readiness gating as `submit()` —
+    /// an in-sync board and no parked move — so a press can't race a
+    /// just-arrived move; unlike the play and review screens this one keeps
+    /// its `stones.isReady` wait, because self-play is meaningless without
+    /// the engine.
     private func stepBack() {
         guard let game, !isGameOver,
               stones.isReady,

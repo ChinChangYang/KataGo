@@ -102,6 +102,9 @@ public final class GameSession {
 
     public init() {
         messageList.session = self
+        // A human move decides its legality against the replay the board was
+        // drawn from (ADR 0018); the projector is that replay's owner.
+        gobanState.recordProjector = recordPosition
     }
 
     /// Routes this session's GTP I/O — reads happen here, sends go through
@@ -484,13 +487,6 @@ public final class GameSession {
                 aiMove: aiMove
             )
 
-            // Collect check-move response
-            maybeCollectCheckMove(
-                message: line,
-                navigationContext: navigationContext,
-                audioModel: audioModel
-            )
-
             // Remove when there are too many messages
             messageList.shrink()
         }
@@ -725,14 +721,14 @@ public final class GameSession {
     ) {
         // A kata-search_analyze_cancellable that runs to completion prints
         // "play <vertex>" (the engine never plays it on its own board); one
-        // interrupted by ANY queued line — kata-check-move, a replay burst,
+        // interrupted by ANY queued line — a human's play, a replay burst,
         // "stop" — prints the literal "play cancelled", which the vertex
         // regex below ignores. A completed reply can still arrive stale:
         // while the session is a spectator or paused (suppressesGenMove),
         // replaying (isAutoPlaying — the wand's command burst cancelled the
         // in-flight gen-move, and a stray reply would truncate the record
-        // via the editing path), or a user pick is mid-legality-check
-        // (pendingMoveTurn set), it must not be played into the record.
+        // via the editing path), or a user's move is waiting on "Play
+        // Anyway" (pendingMoveTurn set), it must not be played into the record.
         // shouldGenMove forbids issuing gen-moves in all three states, so no
         // legitimate reply is ever dropped here.
         // The tvOS broadcast licenses exactly ONE gen-move reply through the
@@ -805,82 +801,6 @@ public final class GameSession {
                 audioModel: audioModel,
                 aiMove: aiMove
             )
-        }
-    }
-
-    func maybeCollectCheckMove(
-        message: String,
-        navigationContext: NavigationContext,
-        audioModel: AudioModel
-    ) {
-        guard gobanState.pendingMoveTurn != nil else { return }
-        guard message.hasPrefix("= {") else { return }
-
-        let jsonString = String(message.dropFirst(2))
-        guard let data = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return  // Malformed JSON — not our response
-        }
-
-        // The "isLegal" key uniquely identifies kata-check-move responses.
-        // Other JSON-returning GTP commands do not include this key:
-        //   - kata-get-rules returns rule fields (ko, scoring, tax, etc.)
-        //   - kata-get-params returns search parameter fields
-        //   - kata-get-models returns a JSON array ("= ["), not an object
-        // The vertex/color validation below further guards against any
-        // hypothetical future command that might include an "isLegal" key.
-        guard let isLegal = json["isLegal"] as? Bool else {
-            return  // Different JSON command response — leave pending state intact
-        }
-
-        // Validate that vertex and color match the pending move to avoid consuming stale responses
-        // Compare case-insensitively: Swift stores "b"/"w", C++ returns "B"/"W"
-        let vertex = json["vertex"] as? String
-        let color = json["color"] as? String
-        guard vertex?.lowercased() == gobanState.pendingMoveVertex?.lowercased(),
-              color?.lowercased() == gobanState.pendingMoveTurn?.lowercased() else {
-            return  // Stale or mismatched response
-        }
-
-        if isLegal {
-            if let gameRecord = navigationContext.selectedGameRecord {
-                // Capture move info for book tracking before clearPendingMove()
-                let moveVertex = gobanState.pendingMoveVertex
-                gobanState.playPendingHumanMove(
-                    gameRecord: gameRecord,
-                    analysis: analysis,
-                    board: board,
-                    stones: stones,
-                    messageList: messageList,
-                    player: player,
-                    audioModel: audioModel
-                )
-
-                // Advance book for the played move
-                if let move = moveVertex,
-                   let point = BoardPoint(move: move, width: Int(board.width), height: Int(board.height)) {
-                    withAnimation {
-                        bookLookup.advanceMove(
-                            appPoint: point,
-                            boardWidth: Int(board.width),
-                            boardHeight: Int(board.height)
-                        )
-                    }
-                }
-            } else {
-                gobanState.clearPendingMove()
-            }
-        } else {
-            let reason = json["reason"] as? String
-            // Only show "Play Anyway" dialog for rule-based illegalities where
-            // overriding makes sense. For occupied/out_of_bounds/wrong_turn,
-            // the engine would reject the play command anyway.
-            if reason == "ko" || reason == "superko" || reason == "suicide" {
-                gobanState.illegalMoveReason = reason
-                gobanState.confirmingIllegalMove = true
-            } else {
-                gobanState.clearPendingMove()
-            }
         }
     }
 }

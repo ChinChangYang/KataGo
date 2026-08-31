@@ -40,12 +40,17 @@ struct MacBoardInteractionLayer: View {
     @Environment(Stones.self) private var stones
     @Environment(MessageList.self) private var messageList
     @Environment(Analysis.self) private var analysis
+    @Environment(AudioModel.self) private var audioModel
+    @Environment(BookLookup.self) private var bookLookup
 
     let gameRecord: GameRecord
 
-    /// Location of the last left-click, kept so the overwrite-confirmation dialog
-    /// can re-resolve the move after the user confirms (mirrors `BoardView`).
-    @State private var gestureLocation: CGPoint?
+    /// The vertex waiting on the overwrite confirmation, resolved by
+    /// `attemptPlay` at click time from whichever location the caller passed
+    /// (the tap's, or the context menu's hovered one). The dialog used to
+    /// re-resolve the tap location instead, so confirming from "Play here"
+    /// played the last LEFT-clicked vertex, or nothing.
+    @State private var pendingOverwriteMove: String?
     /// Drives the overwrite confirmation dialog (mirrors `BoardView`).
     @State private var confirmingOverwrite: Bool = false
     /// Cursor position inside the `GeometryReader`, tracked via
@@ -102,7 +107,6 @@ struct MacBoardInteractionLayer: View {
                         }
                     }
                     .onTapGesture { location in
-                        gestureLocation = location
                         attemptPlay(at: location, dimensions: dimensions)
                     }
                     .contextMenu {
@@ -114,19 +118,14 @@ struct MacBoardInteractionLayer: View {
                         titleVisibility: .visible
                     ) {
                         Button("Overwrite", role: .destructive) {
-                            if let gestureLocation,
-                               let coordinate = coordinate(at: gestureLocation, dimensions: dimensions),
-                               let move = coordinate.move,
-                               let turn = player.nextColorSymbolForPlayCommand {
-                                gobanState.sendCheckMoveCommand(
-                                    turn: turn,
-                                    move: move,
-                                    messageList: messageList
-                                )
+                            if let move = pendingOverwriteMove {
+                                play(move)
                             }
+                            pendingOverwriteMove = nil
                         }
 
                         Button("Cancel", role: .cancel) {
+                            pendingOverwriteMove = nil
                             confirmingOverwrite = false
                         }
                     }
@@ -163,7 +162,6 @@ struct MacBoardInteractionLayer: View {
         var canPlay = false
         if let point = coordinate.point,
            coordinate.move != nil,
-           player.nextColorSymbolForPlayCommand != nil,
            !stones.blackPoints.contains(point),
            !stones.whitePoints.contains(point) {
             canPlay = true
@@ -228,10 +226,13 @@ struct MacBoardInteractionLayer: View {
     }
 
     /// Resolves whether — and what — to preview under the cursor. Returns `nil`
-    /// (draw nothing) unless ALL suppression rules hold:
-    /// stones are ready; analysis is running; no live pending move; the vertex is
-    /// empty; it is not the pass area; and the side to move is known. This is a
-    /// purely visual "what-if": it sends NO GTP and mutates NO engine state.
+    /// (draw nothing) unless ALL suppression rules hold: a human move may be
+    /// played right now (`canPlayHumanMove` — record position shown, no move
+    /// waiting on Play Anyway, not auto-playing, a live engine in sync, and the
+    /// record's side to move is not an AI side); analysis is running; the vertex
+    /// is empty; and it is not the pass area. The ghost wears the RECORD's side
+    /// to move, which is defined with no engine. This is a purely visual
+    /// "what-if": it sends NO GTP and mutates NO engine state.
     ///
     /// The win%/score readout carries the EXTRA condition
     /// `isAnalysisReadoutVisible`; when that fails the ghost stone still draws
@@ -243,17 +244,15 @@ struct MacBoardInteractionLayer: View {
             return nil
         }
 
-        guard stones.isReady,
+        guard gobanState.canPlayHumanMove(config: config, stones: stones, messageList: messageList),
               gobanState.analysisStatus == .run,
-              gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale,
               !stones.blackPoints.contains(point),
               !stones.whitePoints.contains(point),
-              !point.isPass(width: Int(board.width), height: Int(board.height)),
-              player.nextColorForPlayCommand != .unknown else {
+              !point.isPass(width: Int(board.width), height: Int(board.height)) else {
             return nil
         }
 
-        let color: Color = (player.nextColorForPlayCommand == .black) ? .black : .white
+        let color: Color = (gobanState.recordSideToMove == .black) ? .black : .white
         let info = isAnalysisReadoutVisible ? analysis.info[point] : nil
         return GhostState(point: point, color: color, info: info)
     }
@@ -306,36 +305,51 @@ struct MacBoardInteractionLayer: View {
         .fixedSize()
     }
 
-    // MARK: - Play path (faithful copy of BoardView's tap guards)
+    // MARK: - Play path (the same guards as BoardView's tap)
 
-    /// Runs the SAME play path as `BoardView.onTapGesture`: identical readiness /
-    /// pending / occupancy / gen-move guards, identical pending-stale clearing,
-    /// and identical overwrite-vs-send branch.
+    /// Runs the SAME play path as `BoardView`'s tap: the shared
+    /// `canPlayHumanMove` gate plus the occupancy check, then the overwrite
+    /// confirmation (edit/branch mid-line) or the move itself. The move is
+    /// resolved from `location` HERE and carried into the dialog as
+    /// `pendingOverwriteMove`, so the tap and the context menu's "Play here"
+    /// confirm the vertex they were invoked on.
     private func attemptPlay(at location: CGPoint, dimensions: Dimensions) {
-        if stones.isReady
-            && !gobanState.isAutoPlaying
-            && (gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale),
-           let coordinate = coordinate(at: location, dimensions: dimensions),
-           let point = coordinate.point,
-           let move = coordinate.move,
-           let turn = player.nextColorSymbolForPlayCommand,
-           !stones.blackPoints.contains(point) && !stones.whitePoints.contains(point),
-           !gobanState.shouldGenMove(config: config, player: player) {
+        guard gobanState.canPlayHumanMove(config: config, stones: stones, messageList: messageList),
+              let coordinate = coordinate(at: location, dimensions: dimensions),
+              let point = coordinate.point,
+              let move = coordinate.move,
+              !stones.blackPoints.contains(point),
+              !stones.whitePoints.contains(point) else { return }
 
-            if gobanState.isPendingMoveStale {
-                gobanState.clearPendingMove()
-            }
-
-            if gobanState.isOverwriting(gameRecord: gameRecord) {
-                confirmingOverwrite = true
-            } else {
-                gobanState.sendCheckMoveCommand(
-                    turn: turn,
-                    move: move,
-                    messageList: messageList
-                )
-            }
+        if gobanState.isOverwriting(gameRecord: gameRecord) {
+            pendingOverwriteMove = move
+            confirmingOverwrite = true
+        } else {
+            play(move)
         }
+    }
+
+    /// The one exit for a board move (ADR 0018): `GobanState.playHumanMove`
+    /// decides legality in Swift against the record position and writes the
+    /// record, so the stone lands with no engine loaded; a live engine is told
+    /// afterwards. A ko, superko or multi-stone suicide comes back as
+    /// `.confirming`, parked behind `gobanState.confirmingIllegalMove`, which
+    /// `MainWindowController`'s observer presents as the "Play Anyway" sheet.
+    ///
+    /// The audio model clicks a pass (a stone's click rides its landing in the
+    /// motion layer) and the book follows the record; `MacBoardHostView`
+    /// injects both, as it does for the BoardView underneath.
+    private func play(_ move: String) {
+        gobanState.playHumanMove(vertex: move,
+                                 gameRecord: gameRecord,
+                                 config: config,
+                                 analysis: analysis,
+                                 board: board,
+                                 stones: stones,
+                                 messageList: messageList,
+                                 player: player,
+                                 audioModel: audioModel,
+                                 bookLookup: bookLookup)
     }
 
     // MARK: - Coordinate mapping (shared helper — identical to BoardView)

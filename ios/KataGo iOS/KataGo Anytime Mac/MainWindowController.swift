@@ -355,10 +355,11 @@ final class MainWindowController: NSWindowController {
 
         // Bridge the two `GobanState` confirmation flags (illegal-move / AI-
         // overwrite) to AppKit NSAlert sheets. The shared `GobanState` already
-        // SETS these flags (`GameSession.maybeCollectCheckMove` /
-        // `postProcessAIMove`); the Mac app just lacks the iOS dialogs that react
-        // to them. Installed right after the analysis observer so the same
-        // self-rescheduling pattern is armed before the engine starts.
+        // SETS these flags (`GobanState.playHumanMove`'s local legality check /
+        // `GameSession.postProcessAIMove`); the Mac app just lacks the iOS
+        // dialogs that react to them. Installed right after the analysis
+        // observer so the same self-rescheduling pattern is armed before the
+        // engine starts.
         installConfirmationObserver()
 
         // Rebuilds the engine board from the saved SGF when an active branch is
@@ -2432,10 +2433,11 @@ final class MainWindowController: NSWindowController {
     // Mirror the two SwiftUI `.confirmationDialog`s in `GameSplitView.detailView`
     // (GameSplitView.swift lines 144-195) that the Mac app is missing because it
     // hosts `BoardView` but not `GameSplitView`. The shared `GobanState` already
-    // drives the underlying state: `GameSession.maybeCollectCheckMove` sets
-    // `confirmingIllegalMove` (+ `illegalMoveReason`) on ko/superko/suicide, and
-    // `GameSession.postProcessAIMove` sets `confirmingAIOverwrite`; only the
-    // AppKit presentation is absent.
+    // drives the underlying state: `GobanState.playHumanMove` sets
+    // `confirmingIllegalMove` (+ `illegalMoveReason`) when its local legality
+    // check finds a ko, a superko or a multi-stone suicide (ADR 0018 — no
+    // engine round-trip), and `GameSession.postProcessAIMove` sets
+    // `confirmingAIOverwrite`; only the AppKit presentation is absent.
     //
     // Presented as NSAlert SHEETS (`beginSheetModal(for:)`), never `runModal()`:
     // a modal run loop would block this `@MainActor` while the GTP run loop
@@ -2966,13 +2968,16 @@ final class MainWindowController: NSWindowController {
     //
     // Keyboard equivalents for two board actions, mirroring LizzieYzy: `,` plays
     // the engine's current best move (the top analysis candidate) and `P` passes.
-    // Both route through `GobanState.sendCheckMoveCommand` — the SAME human-move
-    // entry the board tap uses (`MacBoardInteractionLayer.attemptPlay`) — so branch
-    // handling, the illegal-move alert, analysis re-arm, audio and SGF update all
-    // happen identically; they just supply the move string ("pass" or a vertex like
-    // "Q16") in place of a clicked vertex. Reached through the responder chain from
-    // the Game menu (`target = nil`); enable/text-input gating lives in
-    // `validateMenuItem`.
+    // Both route through `GobanState.playHumanMove` — the SAME human-move entry
+    // the board click uses (`MacBoardInteractionLayer.attemptPlay`): legality is
+    // decided in Swift against the record position and the move is written to
+    // the record, so it lands with no engine loaded; a live engine is told
+    // afterwards (ADR 0018). Branch handling, the illegal-move ("Play Anyway")
+    // alert, analysis re-arm, audio, the opening book and the SGF update all
+    // happen identically; they just supply the move string ("pass" or a vertex
+    // like "Q16") in place of a clicked vertex. Reached through the responder
+    // chain from the Game menu (`target = nil`); enable/text-input gating lives
+    // in `validateMenuItem`.
 
     /// Game-menu "Play Best Move" (`,`): play the top analysis candidate for the
     /// side to move. No-op when there is no live analysis (no best move yet).
@@ -2989,31 +2994,25 @@ final class MainWindowController: NSWindowController {
         attemptKeyboardPlay(move: "pass")
     }
 
-    /// Shared guard + dispatch for the keyboard board actions. Replicates
-    /// `MacBoardInteractionLayer.attemptPlay`'s guards exactly (stones ready, not
-    /// auto-playing, no live pending move, a known side to move, and AI play not
-    /// armed for that side), clears a stale pending move first, then either confirms
-    /// an overwrite (edit/branch mid-line) via an NSAlert sheet — as the board tap's
-    /// `confirmingOverwrite` dialog does — or sends the move straight through.
+    /// Shared guard + dispatch for the keyboard board actions. The same gate as
+    /// `MacBoardInteractionLayer.attemptPlay`: `GobanState.canPlayHumanMove`
+    /// (record position shown, no move waiting on Play Anyway, not auto-playing,
+    /// a live engine in sync, and the record's side to move not an AI side —
+    /// the record supplies the colour, so no engine turn is needed). Then either
+    /// confirms an overwrite (edit/branch mid-line) via an NSAlert sheet — as the
+    /// board click's `confirmingOverwrite` dialog does — or plays straight away.
     private func attemptKeyboardPlay(move: String) {
         guard let gameRecord = navigationContext.selectedGameRecord else { return }
         let gobanState = session.gobanState
 
-        guard session.stones.isReady,
-              !gobanState.isAutoPlaying,
-              gobanState.pendingMoveTurn == nil || gobanState.isPendingMoveStale,
-              let turn = session.player.nextColorSymbolForPlayCommand,
-              !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player)
-        else { return }
-
-        if gobanState.isPendingMoveStale {
-            gobanState.clearPendingMove()
-        }
+        guard gobanState.canPlayHumanMove(config: gameRecord.concreteConfig,
+                                          stones: session.stones,
+                                          messageList: session.messageList) else { return }
 
         if gobanState.isOverwriting(gameRecord: gameRecord) {
-            presentKeyboardOverwriteAlert(turn: turn, move: move)
+            presentKeyboardOverwriteAlert(move: move, in: gameRecord)
         } else {
-            gobanState.sendCheckMoveCommand(turn: turn, move: move, messageList: session.messageList)
+            playKeyboardMove(move, in: gameRecord)
         }
     }
 
@@ -3022,10 +3021,9 @@ final class MainWindowController: NSWindowController {
     /// dialog (and the AI-overwrite NSAlert pattern). Presented as a SHEET so it
     /// never blocks the GTP run loop on this `@MainActor`; with no window we just
     /// play (matching the board layer's no-window fallbacks).
-    private func presentKeyboardOverwriteAlert(turn: String, move: String) {
+    private func presentKeyboardOverwriteAlert(move: String, in gameRecord: GameRecord) {
         guard let window else {
-            session.gobanState.sendCheckMoveCommand(
-                turn: turn, move: move, messageList: session.messageList)
+            playKeyboardMove(move, in: gameRecord)
             return
         }
 
@@ -3035,11 +3033,39 @@ final class MainWindowController: NSWindowController {
         overwrite.hasDestructiveAction = true
         alert.addButton(withTitle: "Cancel")
 
+        // The completion re-resolves the selection (the file's NSAlert pattern;
+        // a `GameRecord` is not Sendable) and checks it is still the record the
+        // overwrite question was asked about: the main window's responder chain
+        // stays reachable under a sheet, so a menu action could in principle
+        // swap the selection before the user answers.
+        let recordID = ObjectIdentifier(gameRecord)
         alert.beginSheetModal(for: window) { [weak self] response in
-            guard let self, response == .alertFirstButtonReturn else { return }
-            self.session.gobanState.sendCheckMoveCommand(
-                turn: turn, move: move, messageList: self.session.messageList)
+            guard let self, response == .alertFirstButtonReturn,
+                  let gameRecord = self.navigationContext.selectedGameRecord,
+                  ObjectIdentifier(gameRecord) == recordID else { return }
+            self.playKeyboardMove(move, in: gameRecord)
         }
+    }
+
+    /// The one exit for a keyboard move (ADR 0018): `GobanState.playHumanMove`
+    /// decides legality in Swift against the record position and writes the
+    /// record, so the move lands with no engine loaded; a live engine is told
+    /// afterwards. A ko, superko or multi-stone suicide comes back as
+    /// `.confirming`, parked behind `confirmingIllegalMove`, which the
+    /// confirmation observer presents as the "Play Anyway" sheet. The
+    /// controller's `audioModel` sounds the stone and `session.bookLookup`
+    /// advances the opening book past it.
+    private func playKeyboardMove(_ move: String, in gameRecord: GameRecord) {
+        session.gobanState.playHumanMove(vertex: move,
+                                         gameRecord: gameRecord,
+                                         config: gameRecord.concreteConfig,
+                                         analysis: session.analysis,
+                                         board: session.board,
+                                         stones: session.stones,
+                                         messageList: session.messageList,
+                                         player: session.player,
+                                         audioModel: audioModel,
+                                         bookLookup: session.bookLookup)
     }
 
     /// Bare-arrow characters as `charactersIgnoringModifiers` reports them —

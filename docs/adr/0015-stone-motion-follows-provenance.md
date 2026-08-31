@@ -154,12 +154,15 @@ it lands.**
   commit-time click that moved to the landing was already silent there —
   `gobanState.soundEffect` has no writer on visionOS — so nothing that platform
   hears changes.
-- **There is no `retract` trigger on the 2D side.** The volumetric board needs
-  one because it enqueues before the engine has ruled on legality. Here
-  `playPendingHumanMove` runs only after `kata-check-move` came back legal, and
+- **There is no `retract` trigger on the 2D side.** The volumetric board needed
+  one because it enqueued before the engine had ruled on legality. Here
+  `playPendingHumanMove` ran only after `kata-check-move` came back legal, and
   `playAIMove` only for a reply that is actually being played, so no site can
-  enqueue an intent whose command is then refused. `StoneAnimationPlanner.retract`
-  stays for visionOS.
+  enqueue an intent whose command is then refused. *Since ADR 0018 legality is
+  decided synchronously in Swift on every host, and the volumetric board
+  declares its fly-in only for a played stone — its retract call is gone too;
+  `StoneAnimationPlanner.retract` remains as a pure, tested operation with no
+  caller.*
 - **One frame of the arriving stone is drawn by the Canvas alone.** The layer is
   fed from a `positionGeneration` observer, which runs after the body that drew
   the new position — so the stone appears at 1x for one frame and then settles
