@@ -32,6 +32,11 @@ public struct StoneView: View {
     /// The long-press rank chooser (iOS): called with the side and the picked
     /// profile. nil hides the menu.
     var onChooseRank: ((PlayerColor, String) -> Void)? = nil
+    /// The live board's stone motion (ADR 0015), injected by `BoardView`.
+    /// Defaults to nil, which is what makes every STATIC renderer inert by
+    /// construction — `ReportBoardView`, the game-list thumbnail, the GIF
+    /// frames — without any of them having to opt out.
+    var motion: StoneMotionState? = nil
 
     public init(dimensions: Dimensions,
                 isClassicStoneStyle: Bool,
@@ -42,7 +47,8 @@ public struct StoneView: View {
                 onToggleAI: ((PlayerColor) -> Void)? = nil,
                 blackRankProfile: String? = nil,
                 whiteRankProfile: String? = nil,
-                onChooseRank: ((PlayerColor, String) -> Void)? = nil) {
+                onChooseRank: ((PlayerColor, String) -> Void)? = nil,
+                motion: StoneMotionState? = nil) {
         self.dimensions = dimensions
         self.isClassicStoneStyle = isClassicStoneStyle
         self.verticalFlip = verticalFlip
@@ -53,6 +59,7 @@ public struct StoneView: View {
         self.blackRankProfile = blackRankProfile
         self.whiteRankProfile = whiteRankProfile
         self.onChooseRank = onChooseRank
+        self.motion = motion
     }
 
     public var body: some View {
@@ -239,16 +246,16 @@ public struct StoneView: View {
             }
         } symbols: {
             if isClassicStoneStyle {
-                classicShadowSymbol(dimensions: dimensions)
+                StoneSprites.classicShadow(dimensions: dimensions)
                     .tag(StoneSymbolID.shadow)
-                classicStoneSymbol(red: 0, green: 0, blue: 0, dimensions: dimensions)
+                StoneSprites.classicStone(red: 0, green: 0, blue: 0, dimensions: dimensions)
                     .tag(StoneSymbolID.classicBlack)
-                classicStoneSymbol(red: 0.9, green: 0.9, blue: 0.9, dimensions: dimensions)
+                StoneSprites.classicStone(red: 0.9, green: 0.9, blue: 0.9, dimensions: dimensions)
                     .tag(StoneSymbolID.classicWhite)
             } else {
-                fastStoneSymbol(stoneColor: .black, dimensions: dimensions)
+                StoneSprites.fastStone(stoneColor: .black, dimensions: dimensions)
                     .tag(StoneSymbolID.fastBlack)
-                fastStoneSymbol(stoneColor: Color(white: 0.9), dimensions: dimensions)
+                StoneSprites.fastStone(stoneColor: Color(white: 0.9), dimensions: dimensions)
                     .tag(StoneSymbolID.fastWhite)
             }
         }
@@ -258,16 +265,25 @@ public struct StoneView: View {
         // pass point — so it must stay transparent to hit testing.
         .allowsHitTesting(false)
 
-        // Removing the canvas when the board empties lets the stones fade out
-        // when a switch publishes an empty board, as the per-stone views'
-        // removal transitions used to. Per-move updates set the arrays with
-        // `.none`, so normal play still swaps instantly. The haptic stays on
-        // the always-present wrapper: a new game projects zero stones and must
-        // still buzz.
-        let layer = Group {
-            if !blackPoints.isEmpty || !whitePoints.isEmpty {
-                canvas
-                    .transition(.opacity)
+        // The canvas is dropped when the board empties, so an empty board costs
+        // no draw at all. Its `.transition(.opacity)` is gone: the projector
+        // writes the stone arrays inside `withAnimation(.none)`, so that
+        // transition could never have run — stone motion is the motion layer's
+        // job now (ADR 0015). The haptic stays on the always-present wrapper: a
+        // new game projects zero stones and must still buzz.
+        let layer = ZStack {
+            Group {
+                if !blackPoints.isEmpty || !whitePoints.isEmpty {
+                    canvas
+                }
+            }
+            // Above the canvas, so an arriving stone covers its own twin for
+            // the whole settle. Absent for every static renderer.
+            if let motion {
+                StoneMotionLayer(dimensions: dimensions,
+                                 verticalFlip: verticalFlip,
+                                 isClassicStoneStyle: isClassicStoneStyle,
+                                 state: motion)
             }
         }
 
@@ -285,10 +301,17 @@ public struct StoneView: View {
 #endif
     }
 
+}
+
+/// The stone artwork, as free functions rather than `StoneView` methods, so the
+/// transient views of `StoneMotionLayer` draw the SAME sprite the board's
+/// `Canvas` stamps. An arriving stone that did not match its own twin pixel for
+/// pixel would read as two stones instead of one.
+enum StoneSprites {
     /// One classic stone, drawn by the same Metal shader as before. The layer
     /// handed to `colorEffect` must stay exactly stoneLength², or the shader's
     /// uv = position / stoneLength mapping breaks — so no padding here.
-    private func classicStoneSymbol(red: Float, green: Float, blue: Float, dimensions: Dimensions) -> some View {
+    static func classicStone(red: Float, green: Float, blue: Float, dimensions: Dimensions) -> some View {
         Circle()
             .colorEffect(ShaderLibrary.stone(
                 .float(Float(dimensions.stoneLength)),
@@ -301,7 +324,7 @@ public struct StoneView: View {
     /// padding keeps the sprite center on the stone center while extending the
     /// raster bounds to cover the offset/blur spill (≤ squareLength/4 beyond
     /// the stone edge).
-    private func classicShadowSymbol(dimensions: Dimensions) -> some View {
+    static func classicShadow(dimensions: Dimensions) -> some View {
         ZStack {
             // Shifted shadow
             Circle()
@@ -320,12 +343,33 @@ public struct StoneView: View {
 
     /// One fast-style stone with its drop shadow baked in, so a later stone's
     /// shadow falls over earlier stones exactly like the old per-stone views.
-    private func fastStoneSymbol(stoneColor: Color, dimensions: Dimensions) -> some View {
+    static func fastStone(stoneColor: Color, dimensions: Dimensions) -> some View {
         Circle()
             .foregroundStyle(stoneColor)
             .frame(width: dimensions.stoneLength, height: dimensions.stoneLength)
             .shadow(radius: dimensions.squareLengthDiv16, x: dimensions.squareLengthDiv16)
             .padding(0.3 * dimensions.squareLength)
+    }
+
+    /// The whole sprite for one stone in the current style — shadow included,
+    /// exactly as the Canvas composites it.
+    @ViewBuilder
+    static func sprite(isClassicStoneStyle: Bool,
+                       color: PlayerColor,
+                       dimensions: Dimensions) -> some View {
+        if isClassicStoneStyle {
+            ZStack {
+                classicShadow(dimensions: dimensions)
+                if color == .black {
+                    classicStone(red: 0, green: 0, blue: 0, dimensions: dimensions)
+                } else {
+                    classicStone(red: 0.9, green: 0.9, blue: 0.9, dimensions: dimensions)
+                }
+            }
+        } else {
+            fastStone(stoneColor: color == .black ? .black : Color(white: 0.9),
+                      dimensions: dimensions)
+        }
     }
 }
 

@@ -75,6 +75,69 @@ final class StoneRenderPerfTests: XCTestCase {
         return seconds / Double(count)
     }
 
+    /// The dense classic board with an ACTIVE motion layer: one stone settling
+    /// and ten captured stones fading (ADR 0015). The Canvas underneath is
+    /// unchanged, so the transient views are the whole added cost and the same
+    /// bound has to hold.
+    private func renderDenseBoardWithMotion() -> CGImage? {
+        let dimensions = Dimensions(size: CGSize(width: Self.side, height: Self.side),
+                                    width: 19,
+                                    height: 19)
+        let stones = denseStones()
+        let gobanState = GobanState()
+        let motion = StoneMotionState(gobanState: gobanState)
+
+        // Driven the way BoardView drives it — a declared intent, then the
+        // position that satisfies it — rather than by poking the transient
+        // arrays, so this exercises the real resolve path too.
+        let arrival = stones.blackPoints[0]
+        let captured = Array(stones.whitePoints.prefix(10))
+        let capturedSet = Set(captured)
+        let beforeBlack = stones.blackPoints.filter { $0 != arrival }
+        let afterWhite = stones.whitePoints.filter { !capturedSet.contains($0) }
+
+        motion.noteBoard(recordID: nil, black: beforeBlack, white: stones.whitePoints,
+                         captured: [], width: 19, height: 19)
+        gobanState.expectStoneMotion(.place(arrival))
+        motion.noteBoard(recordID: nil, black: stones.blackPoints, white: afterWhite,
+                         captured: captured.map { CapturedStone(point: $0, color: .white) },
+                         width: 19, height: 19)
+        stones.whitePoints = afterWhite
+
+        let content = ZStack {
+            Color(red: 0.75, green: 0.6, blue: 0.4)
+            StoneView(dimensions: dimensions,
+                      isClassicStoneStyle: true,
+                      verticalFlip: false,
+                      isDrawingCapturedStones: false,
+                      motion: motion)
+        }
+        .frame(width: Self.side, height: Self.side)
+        .environment(stones)
+        .environment(gobanState)
+        .environment(\.colorScheme, .light)
+
+        let renderer = ImageRenderer(content: content)
+        renderer.scale = Self.scale
+        return renderer.cgImage
+    }
+
+    func testClassicDenseBoardWithMotionRenderTime() {
+        XCTAssertNotNil(renderDenseBoardWithMotion())
+        let count = 5
+        let start = ContinuousClock.now
+        for _ in 0..<count {
+            _ = renderDenseBoardWithMotion()
+        }
+        let elapsed = start.duration(to: .now)
+        let seconds = (Double(elapsed.components.seconds)
+                       + Double(elapsed.components.attoseconds) * 1e-18) / Double(count)
+        // The same 20 ms bound as the static classic board: eleven transient
+        // views over a Canvas must not cost what the old per-stone view tree
+        // did.
+        XCTAssertLessThan(seconds, 0.020)
+    }
+
     func testClassicDenseBoardRenderTime() {
         // Warm-up: shader pipeline compilation and first-render caches.
         XCTAssertNotNil(renderDenseBoard(classic: true))

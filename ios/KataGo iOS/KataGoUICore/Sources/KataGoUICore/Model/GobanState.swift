@@ -179,6 +179,79 @@ public class GobanState {
     @ObservationIgnored private var lastPlayedVertexCacheKey: (String, Int)? = nil
     @ObservationIgnored private var lastPlayedVertexCacheResult: String? = nil
 
+    // MARK: - Stone motion intents (ADR 0015)
+
+    /// What the command sites are about to do to the board, so the stone diff
+    /// each one produces can animate exactly the stone it accounts for — and
+    /// nothing else can animate at all.
+    ///
+    /// A struct HERE rather than on a rendering object because the navigation
+    /// methods that enqueue (`undoIndex`, `forwardMoves`, `autoPlayStep`) are
+    /// nonisolated and could not touch a main-actor scene model.
+    /// `@ObservationIgnored`: it is mutated by the command sites (expect,
+    /// clear) and by BoardView's motion layer (resolve), and never read during
+    /// a `body`.
+    ///
+    /// visionOS calls these same command sites but drains its OWN planner
+    /// inside `VisionBoardSceneModel` (its diffs come from the entity graph,
+    /// not from `Stones`), so this queue simply accumulates there, capped by
+    /// `StoneAnimationPlanner.capacity`. Harmless: nothing on that platform
+    /// ever resolves it.
+    @ObservationIgnored public var stonePlanner = StoneAnimationPlanner()
+
+    /// Whether stones animate at all. tvOS self-play — an engine-paced,
+    /// unattended attract loop whose broadcast owns the pacing — turns this
+    /// off; `TVPlayScreen` and `TVReviewScreen` turn it back on when they load,
+    /// next to the other spectator flags they trade.
+    @ObservationIgnored public var stoneMotionEnabled = true
+
+    /// Armed by a game switch: the next non-empty stone diff is a remount, not
+    /// a move, so it is silent as well as instant. Read and cleared by the
+    /// motion layer.
+    @ObservationIgnored public var stoneMotionInitialSyncArmed = false
+
+    /// True while `backwardMoves` is walking MORE THAN ONE index. Each step
+    /// calls `undoIndex`, and deriving its intent forces the feed replay back
+    /// to that index — up to a checkpoint stride of board replays per step,
+    /// for intents the jump is about to throw away anyway. So the walk
+    /// suppresses the derivation outright: identical outcome, none of the work.
+    @ObservationIgnored private var isBatchWalkingBackward = false
+
+    /// Declares what the command site about to run will do to the board.
+    /// A no-op while motion is off, which is what keeps the tvOS attract loop
+    /// from paying for a queue nothing there consumes.
+    public func expectStoneMotion(_ intent: StoneAnimationPlanner.Intent) {
+        guard stoneMotionEnabled else { return }
+        stonePlanner.expect(intent)
+    }
+
+    /// A jump or a scrub. The batch diff that lands must mount instantly AND
+    /// click once, so the queue is dropped and the game-switch silence is
+    /// DISARMED: a same-position reload can leave that flag armed with an empty
+    /// diff, and the jump the user just pressed is not a game switch.
+    public func clearStoneMotionForJump() {
+        stonePlanner.clear()
+        stoneMotionInitialSyncArmed = false
+    }
+
+    /// A game switch: drop the queue AND silence the remount diff. Loading a
+    /// game is not a move.
+    public func prepareStoneMotionForGameSwitch() {
+        stonePlanner.clear()
+        stoneMotionInitialSyncArmed = true
+    }
+
+    /// The board point a GTP vertex names, or nil for a pass.
+    ///
+    /// The pass test comes FIRST and is mandatory: `BoardPoint(move: "pass", …)`
+    /// returns the off-board pass SENTINEL rather than nil, and a sentinel
+    /// queued as a `.place` would sit there until some later, unrelated diff
+    /// happened to contain it.
+    private func motionPoint(vertex: String, width: Int, height: Int) -> BoardPoint? {
+        guard vertex != "pass" else { return nil }
+        return BoardPoint(move: vertex, width: width, height: height)
+    }
+
     public func sendShowBoardCommand(messageList: MessageList) {
         // Count only the showboards that actually go out. `appendAndSend` drops
         // commands while the engine is unavailable, and an uncounted-but-
@@ -614,6 +687,21 @@ public class GobanState {
         guard let turn = pendingMoveTurn,
               let move = pendingMoveVertex else { return }
 
+        // Provenance for the board's motion layer (ADR 0015), declared BEFORE
+        // the command goes out and before the branching below: every exit
+        // lands this same stone — the editing path, a branch, the mainline
+        // shortcut — so the intent belongs here rather than in each of them.
+        // A pass moves no stone, so no diff will ever come: it clicks here, at
+        // the command site. Legality was already settled by `kata-check-move`,
+        // which is why this needs no retraction path.
+        if move == "pass" {
+            audioModel.playPlaySound(soundEffect: soundEffect)
+        } else if let point = motionPoint(vertex: move,
+                                          width: Int(board.width),
+                                          height: Int(board.height)) {
+            expectStoneMotion(.place(point))
+        }
+
         // forcesBranchOnPlay outranks isEditing: the tvOS review screen must
         // never take the editing path (it truncates the record and lets
         // printsgf overwrite the synced SGF) even if a defaultSgf game
@@ -647,7 +735,8 @@ public class GobanState {
         // up. GTP replies are FIFO, so ordering the sends orders the replies.
         messageList.appendAndSend(command: "printsgf")
         sendShowBoardCommand(messageList: messageList)
-        audioModel.playPlaySound(soundEffect: soundEffect)
+        // No click here any more: it rides the stone's landing in BoardView's
+        // motion layer (ADR 0015), a settle after the command went out.
 
         clearPendingMove()
     }
@@ -679,6 +768,19 @@ public class GobanState {
         // mainline-step return included), and the landing is what counts.
         aiMoveLandingGeneration &+= 1
 
+        // The same provenance declaration as `playPendingHumanMove`, for the
+        // same reason: both exits land this stone. This is only reached for a
+        // reply that is actually being played — the overwrite case latches
+        // `confirmingAIOverwrite` instead of calling here — so no intent
+        // enqueued below is ever left unsatisfied.
+        if aiMove == "pass" {
+            audioModel.playPlaySound(soundEffect: soundEffect)
+        } else if let point = motionPoint(vertex: aiMove,
+                                          width: Int(board.width),
+                                          height: Int(board.height)) {
+            expectStoneMotion(.place(point))
+        }
+
         // Same review guard as playPendingHumanMove: never the editing path
         // while the spectator screen forces branches.
         if isEditing && !forcesBranchOnPlay {
@@ -706,7 +808,7 @@ public class GobanState {
         // `printsgf` before `showboard` — see `playPendingHumanMove`.
         messageList.appendAndSend(command: "printsgf")
         sendShowBoardCommand(messageList: messageList)
-        audioModel.playPlaySound(soundEffect: soundEffect)
+        // The click rides the landing — see `playPendingHumanMove`.
     }
 
     public func undo(messageList: MessageList, stones: Stones) {
@@ -804,6 +906,29 @@ public class GobanState {
     }
 
     public func undoIndex(gameRecord: GameRecord?) {
+        // The tip stone is about to leave the board: declare it BEFORE the
+        // cursor moves off the index (ADR 0015). This is the one step every
+        // back-one path shares — the iOS toolbar's backwardFrameAction, the
+        // tvOS play screen, VisionRootView, and `backwardMoves(limit: 1)` — so
+        // the derivation lives here instead of in four hosts.
+        //
+        // `engineMove` is the derivation because it is nil for an index the
+        // replay REFUSED: a move that never reached the board put no stone
+        // down, so undoing it removes nothing and a queued intent would wait
+        // for a diff that cannot come. A pass is skipped for the same reason.
+        // The grid comes from the replay too, never from a `BoardSize` that can
+        // lag the record mid-switch.
+        if stoneMotionEnabled, !isBatchWalkingBackward,
+           let sgf = getSgf(gameRecord: gameRecord),
+           let index = getCurrentIndex(gameRecord: gameRecord), index > 0,
+           let move = engineMove(sgf: sgf, at: index - 1),
+           let size = motionBoardSize(sgf: sgf),
+           let point = motionPoint(vertex: move.vertex,
+                                   width: size.width,
+                                   height: size.height) {
+            expectStoneMotion(.remove(point))
+        }
+
         if isBranchActive {
             // Stop at the divergence floor: the branch numbers only its own
             // moves, and the pre-branch moves below it belong to the saved
@@ -913,6 +1038,14 @@ public class GobanState {
         return built
     }
 
+    /// The record's own grid, read off the CACHED feed replay — never a second
+    /// C++ SGF parse, and never `BoardSize`, which can lag the record through a
+    /// switch. Used only to turn a fed vertex back into a point for a stone
+    /// motion intent (ADR 0015).
+    private func motionBoardSize(sgf: String) -> (width: Int, height: Int)? {
+        withFeedReplay(sgf: sgf, operations: nil) { ($0.width, $0.height) }
+    }
+
     public func backwardMoves(
         limit: Int?,
         gameRecord: GameRecord,
@@ -922,6 +1055,18 @@ public class GobanState {
     ) {
         guard let sgf = getSgf(gameRecord: gameRecord) else {
             return
+        }
+
+        // A one-step rewind keeps the intent `undoIndex` enqueues — one stone
+        // lifts off. Anything longer is a JUMP: instant, and one click for the
+        // whole batch (ADR 0015). The flag suppresses the per-step derivation
+        // during the walk; the clear afterwards also drops whatever an earlier
+        // command left queued, which the walk itself would never have seen.
+        let isJump = (limit != 1)
+        isBatchWalkingBackward = isJump
+        defer {
+            isBatchWalkingBackward = false
+            if isJump { clearStoneMotionForJump() }
         }
 
         let sgfHelper = SgfOperations(sgf: sgf)
@@ -993,6 +1138,13 @@ public class GobanState {
     /// The `play` is skipped for an index the replay refused: the engine never
     /// received that move, so re-sending it here would put the engine one move
     /// ahead of the board it is meant to be analysing.
+    ///
+    /// `audioModel` is no longer read: the click rides the stone's landing in
+    /// BoardView's motion layer (ADR 0015), and both callers
+    /// (`playPendingHumanMove`, `playAIMove`) have already declared the intent
+    /// — or clicked, for a pass — before they get here. Kept on the signature
+    /// because two call sites and two suites pass it; dropping it is a
+    /// mechanical cleanup, like the unread `board:` on `forwardMoves`.
     public func playMainlineStep(
         turn: String,
         move: String,
@@ -1012,7 +1164,6 @@ public class GobanState {
         }
         gameRecord.currentIndex += 1
         sendShowBoardCommand(messageList: messageList)
-        audioModel.playPlaySound(soundEffect: soundEffect)
     }
 
     public func getNextMove(gameRecord: GameRecord) -> Move? {
@@ -1108,6 +1259,30 @@ public class GobanState {
         }
 
         let sgfHelper = SgfOperations(sgf: sgf)
+
+        // A one-step forward declares the stone about to arrive (ADR 0015);
+        // anything longer is a jump, which mounts instantly and clicks once
+        // through the motion layer — which is why the blanket
+        // `movesExecuted > 0` click that used to sit below this walk is gone.
+        // Stepping over a recorded PASS moves no stone, so no diff will come
+        // and its click belongs here; stepping over a REFUSED index changes
+        // nothing on the board at all, so it is silent.
+        let isJump = (limit != 1)
+        defer {
+            if isJump { clearStoneMotionForJump() }
+        }
+        if !isJump,
+           let index = getCurrentIndex(gameRecord: gameRecord),
+           let move = engineMove(sgf: sgf, at: index, operations: sgfHelper) {
+            if move.vertex == "pass" {
+                audioModel?.playPlaySound(soundEffect: soundEffect)
+            } else if let point = motionPoint(vertex: move.vertex,
+                                              width: sgfHelper.xSize,
+                                              height: sgfHelper.ySize) {
+                expectStoneMotion(.place(point))
+            }
+        }
+
         var movesExecuted = 0
 
         while let currentIndex = getCurrentIndex(gameRecord: gameRecord),
@@ -1135,10 +1310,6 @@ public class GobanState {
             if let limit = limit, movesExecuted >= limit {
                 break
             }
-        }
-
-        if movesExecuted > 0 {
-            audioModel?.playPlaySound(soundEffect: soundEffect)
         }
 
         sendPostExecutionCommands(
@@ -1200,6 +1371,12 @@ public class GobanState {
                 stones: stones
             )
         }
+
+        // A scrub is navigation, not a move, however short the hop: the
+        // one-step helper it just delegated to declared an intent, and this
+        // drops it so a chart drag or a moves-list tap mounts instantly
+        // (ADR 0015).
+        clearStoneMotionForJump()
     }
 
     public func isOverwriting(gameRecord: GameRecord) -> Bool {
@@ -1317,6 +1494,11 @@ public class GobanState {
         // rule a no-op, and the previous game's win rate would survive the
         // switch.
         analysis.clear()
+
+        // The remount about to be projected is not a move: drop any stone
+        // motion intents the previous game left queued and silence the batch
+        // diff this projection produces (ADR 0015).
+        prepareStoneMotionForGameSwitch()
 
         // Show the switched game AT ONCE — engine-free.
         projector.project(key: RecordPositionKey(recordID: newGameRecord.persistentModelID,
@@ -1566,6 +1748,16 @@ public class GobanState {
             gameRecord.currentIndex = index + 1
 
             if let move = engineMove(sgf: sgf, at: index, operations: sgfHelper) {
+                // The replayed stone (ADR 0015). A recorded pass moves nothing,
+                // so no diff will come and its click stays here at the command
+                // site.
+                if move.vertex == "pass" {
+                    audioModel?.playPlaySound(soundEffect: soundEffect)
+                } else if let point = motionPoint(vertex: move.vertex,
+                                                  width: sgfHelper.xSize,
+                                                  height: sgfHelper.ySize) {
+                    expectStoneMotion(.place(point))
+                }
                 play(turn: move.turn, move: move.vertex, messageList: messageList, stones: stones)
                 player.toggleNextColorForPlayCommand()
                 played = true
@@ -1580,7 +1772,7 @@ public class GobanState {
             return
         }
         sendShowBoardCommand(messageList: messageList)
-        audioModel?.playPlaySound(soundEffect: soundEffect)
+        // The click rides the stone's landing — see `playPendingHumanMove`.
     }
 }
 

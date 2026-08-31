@@ -143,6 +143,22 @@ extension BoardPoint {
     }
 }
 
+/// One stone a move lifted off the board, in KataGoUICore's own coordinates.
+///
+/// A KataGoUICore type rather than `GoRulesKit.SgfReplay.CapturedStone`
+/// because `RecordPosition` must keep GoRulesKit off this module's public
+/// surface (see RecordPosition.swift's header): a consumer that does not import
+/// GoRulesKit still has to be able to name everything a public API hands it.
+public struct CapturedStone: Hashable, Sendable {
+    public let point: BoardPoint
+    public let color: PlayerColor
+
+    public init(point: BoardPoint, color: PlayerColor) {
+        self.point = point
+        self.color = color
+    }
+}
+
 @Observable
 public class Stones: Equatable {
     public init() {}
@@ -166,6 +182,17 @@ public class Stones: Equatable {
     /// "the engine caught up" — the placement haptic, for one. Compared for
     /// inequality only, so its wrap-around is harmless.
     public var positionGeneration: Int = 0
+    /// The stones the move that produced the displayed position took off the
+    /// board — what THAT move captured, never a running total. Written by
+    /// `RecordPositionProjector` alongside the stones, and read by the board's
+    /// motion layer so captured stones can fade as the capturing stone lands
+    /// (ADR 0015).
+    ///
+    /// Deliberately NOT part of `==` below: two boards showing the same stones
+    /// are the same position however they got there, and folding a per-move
+    /// annotation into that identity would make an idempotent re-projection
+    /// compare unequal.
+    public var capturedPoints: [CapturedStone] = []
 
     public static func == (lhs: Stones, rhs: Stones) -> Bool {
         lhs.blackPoints == rhs.blackPoints &&

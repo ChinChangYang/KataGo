@@ -80,6 +80,10 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Row note** — the line a game's row carries under its title: the *comment* on the move that game is parked on, which is the move its *thumbnail* draws, so a row describes one moment rather than two. A game whose current move carries no note simply has no such line. Distinct from the subtitle the Shortcuts and widget pickers show, which names a game's earliest note because those rows identify a game rather than describe a position.
 - **Unreadable record** — a saved game whose moves cannot be replayed at all. Not an empty game and not a game still loading: there is nothing to draw and nothing to analyse, and every surface that draws a board says so rather than showing a blank one. A row with its *thumbnail* off draws no board and so makes no such claim: the signal belongs to the picture, and a list that has given up pictures has given up this one too.
 
+## Board
+
+- **Stone intent** — a command site's declaration, before it acts, that the next change at a point is a placement or a removal. A change no intent accounts for mounts instantly.
+
 ## Engine
 
 - **Record position** — the board at the game's current index, replayed from the game record. The only thing the board ever shows.

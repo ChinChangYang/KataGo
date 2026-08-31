@@ -759,6 +759,10 @@ struct TVReviewScreen: View {
         // every pre-review reply has drained while the selection was nil.
         gobanState.suppressesGenMove = true
         gobanState.forcesBranchOnPlay = true
+        // Re-asserted here like the flags above: the self-play screen turns
+        // stone motion off for its attract loop (ADR 0015) and this screen may
+        // be entered straight from it.
+        gobanState.stoneMotionEnabled = true
         navigationContext.selectedGameRecord = nil
         // Register this board with the engine controller BEFORE anything is
         // sent. Two things depend on it: a board larger than the running

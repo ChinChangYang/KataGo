@@ -53,6 +53,86 @@ struct SgfReplayPositionTests {
         #expect(start.whiteCaptures == 0)
     }
 
+    // MARK: - Captured stones: which points, and which colour
+
+    @Test func aCaptureNamesThePointAndTheColourItTook() throws {
+        // Black surrounds a lone White stone in the corner and takes it: A1.
+        var r = try replay("(;GM[1]SZ[9];B[bi];W[ai];B[ah])")
+        let p = r.position(at: 3)
+        #expect(p.capturedByLastMove
+                == [SgfReplay.CapturedStone(point: GoPoint(x: 0, y: 8), color: .white)])
+    }
+
+    @Test func aMultiStoneCaptureNamesEveryStone() throws {
+        // A two-stone White chain on the bottom edge, taken by Black's C1.
+        var r = try replay("(;GM[1]SZ[9]AW[ai][bi]AB[ah][bh];B[ci])")
+        let p = r.position(at: 1)
+        #expect(Set(p.capturedByLastMove)
+                == [SgfReplay.CapturedStone(point: GoPoint(x: 0, y: 8), color: .white),
+                    SgfReplay.CapturedStone(point: GoPoint(x: 1, y: 8), color: .white)])
+        #expect(p.whiteCaptures == 2)
+    }
+
+    @Test func aMultiStoneSuicideNamesTheMoversOwnStones() throws {
+        // The one case where the stones removed are NOT the opponent's: the
+        // mover's own chain is what leaves, so that is the colour reported.
+        var r = try replay("(;GM[1]SZ[9]AW[ah][bh][ci]AB[bi];B[ai])")
+        let p = r.position(at: 1)
+        #expect(Set(p.capturedByLastMove)
+                == [SgfReplay.CapturedStone(point: GoPoint(x: 0, y: 8), color: .black),
+                    SgfReplay.CapturedStone(point: GoPoint(x: 1, y: 8), color: .black)])
+        #expect(p.blackCaptures == 2)
+    }
+
+    @Test func nothingIsCapturedAtTheStartOrByAPass() throws {
+        var r = try replay("(;GM[1]SZ[9];B[bi];W[ai];B[ah];W[])")
+        #expect(r.position(at: 0).capturedByLastMove.isEmpty)
+        // Index 3 DID capture; the pass that follows takes nothing, and the
+        // capturing index's annotation must not carry onto index 4.
+        #expect(r.position(at: 3).capturedByLastMove.count == 1)
+        #expect(r.position(at: 4).capturedByLastMove.isEmpty)
+    }
+
+    @Test func aRefusedMoveCapturesNothing() throws {
+        // The refusal is at index 3 (an occupied point), directly after a
+        // capturing move — exactly where an inherited annotation would show.
+        var r = try replay("(;GM[1]SZ[9];B[bi];W[ai];B[ah];W[ah])")
+        #expect(r.position(at: 3).capturedByLastMove.count == 1)
+        #expect(r.position(at: 4).capturedByLastMove.isEmpty)
+        #expect(r.isRefused(3))
+    }
+
+    @Test func aCheckpointedReplayStillReportsItsCapture() throws {
+        // 26 moves, so the replay memoizes a checkpoint at index 25 and index
+        // 26 is only ever reached by replaying forward FROM that checkpoint.
+        // The annotation rides `State`, so it has to survive that round trip —
+        // and the checkpointed index itself, whose move took nothing, has to
+        // report empty rather than the capture that follows it.
+        var moves: [SgfReplay.RecordedMove] = []
+        for i in 0..<24 {
+            // Two chains hugging opposite edges: 12 moves each, no contact,
+            // no captures.
+            moves.append(SgfReplay.RecordedMove(
+                color: i.isMultiple(of: 2) ? .black : .white,
+                point: GoPoint(x: i / 2, y: i.isMultiple(of: 2) ? 0 : 18)))
+        }
+        // Move 24: Black in the corner beside the White setup stone, leaving
+        // itself exactly one liberty. Move 25: White takes it.
+        moves.append(SgfReplay.RecordedMove(color: .black, point: GoPoint(x: 18, y: 0)))
+        moves.append(SgfReplay.RecordedMove(color: .white, point: GoPoint(x: 18, y: 1)))
+
+        var r = SgfReplay(width: 19, height: 19,
+                          setupWhite: [GoPoint(x: 17, y: 0)],
+                          moves: moves)
+        #expect(r.moveCount == SgfReplay.checkpointStride + 1)
+        // Force the replay past the checkpoint, then ask again: the second ask
+        // is the one that restarts from checkpoint 25.
+        _ = r.position(at: 26)
+        #expect(r.position(at: 25).capturedByLastMove.isEmpty)
+        #expect(r.position(at: 26).capturedByLastMove
+                == [SgfReplay.CapturedStone(point: GoPoint(x: 18, y: 0), color: .black)])
+    }
+
     // MARK: - lastThreeMoves (showboard's move-number digits)
 
     @Test func theLastThreeMovesAreNumberedOldestFirst() throws {

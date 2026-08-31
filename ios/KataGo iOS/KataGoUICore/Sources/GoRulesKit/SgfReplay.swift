@@ -23,6 +23,19 @@ import Foundation
 import KataGoAnalysisKit
 
 public struct SgfReplay: Sendable {
+    /// One stone a move lifted off the board, with the colour it WAS. The
+    /// colour matters because whatever draws the removal has to draw the right
+    /// sprite, and by the time anyone looks the point is empty.
+    public struct CapturedStone: Sendable, Equatable, Hashable {
+        public let point: GoPoint
+        public let color: GoColor
+
+        public init(point: GoPoint, color: GoColor) {
+            self.point = point
+            self.color = color
+        }
+    }
+
     /// A drawn position: stones as GTP vertices, plus everything `showboard`
     /// used to be the only source of.
     public struct Position: Sendable, Equatable {
@@ -49,11 +62,21 @@ public struct SgfReplay: Sendable {
         /// nothing, and a point keeps its digit even after the stone standing
         /// there was captured. See `SgfReplay` for the window rules.
         public let lastThreeMoves: [(vertex: String, order: Int)]
+        /// The stones the move that produced THIS index removed — the opponent
+        /// chains it captured, or the mover's own chain on a multi-stone
+        /// suicide. Empty at index 0, after a pass, after a move the board
+        /// refused, and at any index whose move took nothing.
+        ///
+        /// Carried so the board can animate captured stones off at the moment
+        /// the capturing stone lands (ADR 0015). `blackCaptures`/`whiteCaptures`
+        /// cannot serve: they are running totals and name no points.
+        public let capturedByLastMove: [CapturedStone]
 
         public init(blackVertices: [String], whiteVertices: [String],
                     lastMoveVertex: String?, toMove: PlayerColor,
                     blackCaptures: Int = 0, whiteCaptures: Int = 0,
-                    lastThreeMoves: [(vertex: String, order: Int)] = []) {
+                    lastThreeMoves: [(vertex: String, order: Int)] = [],
+                    capturedByLastMove: [CapturedStone] = []) {
             self.blackVertices = blackVertices
             self.whiteVertices = whiteVertices
             self.lastMoveVertex = lastMoveVertex
@@ -61,6 +84,7 @@ public struct SgfReplay: Sendable {
             self.blackCaptures = blackCaptures
             self.whiteCaptures = whiteCaptures
             self.lastThreeMoves = lastThreeMoves
+            self.capturedByLastMove = capturedByLastMove
         }
 
         // Hand-written because a tuple array is not Equatable-synthesizable.
@@ -73,6 +97,7 @@ public struct SgfReplay: Sendable {
                 && lhs.whiteCaptures == rhs.whiteCaptures
                 && lhs.lastThreeMoves.count == rhs.lastThreeMoves.count
                 && zip(lhs.lastThreeMoves, rhs.lastThreeMoves).allSatisfy { $0 == $1 }
+                && lhs.capturedByLastMove == rhs.capturedByLastMove
         }
     }
 
@@ -122,6 +147,10 @@ public struct SgfReplay: Sendable {
         var toMove: PlayerColor
         /// Recorded moves accepted so far.
         var acceptedCount: Int
+        /// What the move that produced this state took off the board. Reset by
+        /// every `apply`, so it describes ONE move and travels through the
+        /// memoized checkpoints with the board it belongs to.
+        var capturedByLastMove: [CapturedStone] = []
     }
 
     /// Builds a replay from plain values, so a caller that parsed the SGF
@@ -199,7 +228,8 @@ public struct SgfReplay: Sendable {
                         toMove: state.toMove,
                         blackCaptures: state.board.numBlackCaptures,
                         whiteCaptures: state.board.numWhiteCaptures,
-                        lastThreeMoves: marks(in: state.window))
+                        lastThreeMoves: marks(in: state.window),
+                        capturedByLastMove: state.capturedByLastMove)
     }
 
     /// The move the record holds at `index`, refused or not. Nil out of range.
@@ -279,6 +309,10 @@ public struct SgfReplay: Sendable {
     /// window.
     private mutating func apply(_ move: RecordedMove, at index: Int, to state: State) -> State {
         var next = state
+        // Each index reports only what ITS move took (ADR 0015), so the
+        // annotation is reset before the move is tried rather than inherited
+        // from the index before it.
+        next.capturedByLastMove = []
         // A pass legitimately clears ko, which is exactly the reset we want.
         next.board.playPass()
         // PlayerColor also has an `unknown` case the recorded move should
@@ -289,11 +323,26 @@ public struct SgfReplay: Sendable {
         let stone: GoColor = isBlack ? .black : .white
         if let point = move.point {
             do {
-                try next.board.play(at: point, color: stone,
-                                    multiStoneSuicideLegal: true)
+                let cleared = try next.board.play(at: point, color: stone,
+                                                  multiStoneSuicideLegal: true)
+                // Captures and a multi-stone suicide are mutually exclusive
+                // (see `GoBoard.play`), so one test settles the colour of the
+                // whole batch: the played point among the cleared ones means
+                // the move lifted its OWN chain, otherwise it took the
+                // opponent's.
+                let removedColor: GoColor = cleared.contains(point) ? stone : stone.opponent
+                next.capturedByLastMove = cleared.map {
+                    CapturedStone(point: $0, color: removedColor)
+                }
             } catch {
                 refusedIndices.insert(index)
-                return state
+                // A refused move changes nothing at all — not the board, not
+                // the turn, not the window. But it is still an index of its
+                // own and it took no stones, so the previous index's
+                // annotation must not travel onto it.
+                var refused = state
+                refused.capturedByLastMove = []
+                return refused
             }
         }
         // Search::makeMove clears BoardHistory whenever the mover is not the

@@ -12,6 +12,11 @@ import RealityKit
 import KataGoUICore
 
 struct VisionBoardRealityView: View {
+    /// Read in `body` and threaded through `SceneSnapshot`, never straight from
+    /// the RealityView update closure: an environment value SwiftUI does not
+    /// see during `body` is not a dependency, and the scene would be stuck with
+    /// whatever the setting was when the volume opened.
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let session: GameSession
     let ghost: GhostCursorModel
     let sceneModel: VisionBoardSceneModel
@@ -27,6 +32,8 @@ struct VisionBoardRealityView: View {
             let candidates = candidateMarkers
             let candidatePoints = Set(candidates.map(\.point))
             let analysisVisible = session.gobanState.eyeStatus == .opened
+            // Read HERE, in body, for the reason on the property.
+            let prefersReducedMotion = reduceMotion
 
             RealityView { content, _ in
                 content.add(sceneModel.volumeRoot)
@@ -59,7 +66,8 @@ struct VisionBoardRealityView: View {
                     ownership: (showOwnership ? ownershipUnits : [])
                         .filter { !candidatePoints.contains($0.point) },
                     isBoardStanding: shell.isBoardStanding,
-                    isBranchActive: session.gobanState.isBranchActive
+                    isBranchActive: session.gobanState.isBranchActive,
+                    reduceMotion: prefersReducedMotion
                 )
                 syncScene(snapshot)
                 syncMarkers(snapshot, attachments: attachments)
@@ -145,6 +153,8 @@ struct VisionBoardRealityView: View {
         let ownership: [OwnershipUnit]
         let isBoardStanding: Bool
         let isBranchActive: Bool
+        /// The viewer's Reduce Motion setting; see the property on the view.
+        let reduceMotion: Bool
     }
 
     /// The board asset's feet rest on y=0, so seating it on the volume floor
@@ -182,6 +192,9 @@ struct VisionBoardRealityView: View {
 
     private func applyDynamicState(_ snapshot: SceneSnapshot) {
         sceneModel.setOrientation(standing: snapshot.isBoardStanding, animated: true)
+        // Before applyStones: it is the call that decides whether a stone
+        // travels or cross-fades (ADR 0015).
+        sceneModel.reduceMotion = snapshot.reduceMotion
         sceneModel.applyStones(black: snapshot.black, white: snapshot.white)
         sceneModel.setGhost(VisionGhostAppearance.resolve(cursor: snapshot.ghostPoint,
                                                           black: snapshot.black,

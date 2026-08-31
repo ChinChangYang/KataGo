@@ -63,6 +63,11 @@ public struct BoardView: View {
     @FocusState<Bool>.Binding var commentIsFocused: Bool
     @State private var confirmingOverwrite: Bool = false
     @State private var pendingCoordinate: Coordinate?
+    /// The board's stone motion (ADR 0015). Created on first use rather than in
+    /// `init`, because it needs the environment's `GobanState` — the intent
+    /// queue's owner — which `init` cannot see. Until then it is nil, and nil
+    /// is exactly the old behaviour: no motion at all.
+    @State private var motion: StoneMotionState?
 
     public init(gameRecord: GameRecord,
                 interactive: Bool = true,
@@ -167,7 +172,8 @@ public struct BoardView: View {
                             ? HumanSLModel.canonicalProfile(config.humanProfileForBlack) : nil,
                         whiteRankProfile: showsCapturedStones
                             ? HumanSLModel.canonicalProfile(config.humanProfileForWhite) : nil,
-                        onChooseRank: interactive ? { chooseRank($1, for: $0) } : nil
+                        onChooseRank: interactive ? { chooseRank($1, for: $0) } : nil,
+                        motion: motion
                     )
 
                     if showsCapturedStones {
@@ -306,6 +312,18 @@ public struct BoardView: View {
                 gobanState.resyncOnAppear(engineReady: engineStatus?.isReady ?? true,
                                           player: player,
                                           messageList: messageList)
+                // Take the board already on screen as the motion layer's
+                // baseline: the first position a board shows was put there by
+                // the record, not by a move. Paired with the observer below
+                // rather than `onChange(initial: true)`, so the baseline cannot
+                // be lost to the order SwiftUI runs the two in.
+                noteBoardMotion()
+            }
+            .onChange(of: stones.positionGeneration) { _, _ in
+                // Every publish, including the ones that change nothing: an
+                // empty diff resolves to no effect and leaves the intent queue
+                // untouched.
+                noteBoardMotion()
             }
             .onChange(of: config.maxAnalysisMoves) { _, _ in
                 gobanState.maybeRequestAnalysis(
@@ -322,12 +340,16 @@ public struct BoardView: View {
             }
             .onChange(of: stones.blackStonesCaptured) { oldValue, newValue in
                 if oldValue < newValue {
-                    audioModel.playCaptureSound(soundEffect: gobanState.soundEffect)
+                    // Detection stays count-driven; the TIMING is the motion
+                    // layer's (ADR 0015). These counters move with the stone
+                    // lists, a whole settle before the capturing stone touches
+                    // the board, so rattling here would rattle early.
+                    ensureMotion().noteCapture()
                 }
             }
             .onChange(of: stones.whiteStonesCaptured) { oldValue, newValue in
                 if oldValue < newValue {
-                    audioModel.playCaptureSound(soundEffect: gobanState.soundEffect)
+                    ensureMotion().noteCapture()
                 }
             }
             .onChange(of: gobanState.eyeStatus) {
@@ -352,6 +374,33 @@ public struct BoardView: View {
                 rootScore.black = sc
             }
         }
+    }
+
+    /// The motion layer's state, created on first use and re-wired every time.
+    ///
+    /// The sound closures capture the environment objects THIS body was handed
+    /// — bound to locals first, so an escaping closure does not hold on to the
+    /// whole view and its environment. Never called from `body`: creating it
+    /// writes `@State`.
+    private func ensureMotion() -> StoneMotionState {
+        let state = motion ?? StoneMotionState(gobanState: gobanState)
+        if motion == nil { motion = state }
+        let audio = audioModel
+        let goban = gobanState
+        state.playStoneSound = { audio.playPlaySound(soundEffect: goban.soundEffect) }
+        state.playCaptureSound = { audio.playCaptureSound(soundEffect: goban.soundEffect) }
+        return state
+    }
+
+    /// Hands the freshly published position to the motion layer, which decides
+    /// what (if anything) moves and when it sounds.
+    private func noteBoardMotion() {
+        ensureMotion().noteBoard(recordID: gameRecord.persistentModelID,
+                                 black: stones.blackPoints,
+                                 white: stones.whitePoints,
+                                 captured: stones.capturedPoints,
+                                 width: Int(board.width),
+                                 height: Int(board.height))
     }
 
     /// Flip a color between Human (thinking time 0) and AI (0.5s) when its

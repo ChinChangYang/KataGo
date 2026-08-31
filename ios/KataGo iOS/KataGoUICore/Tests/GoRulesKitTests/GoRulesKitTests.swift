@@ -67,7 +67,7 @@ struct GoBoardTests {
         #expect(board.isLegal(at: GoPoint(x: 1, y: 0), color: .black, multiStoneSuicideLegal: false) == false)
         #expect(board.isLegal(at: GoPoint(x: 1, y: 0), color: .black, multiStoneSuicideLegal: true))
         var suicideBoard = board
-        try? suicideBoard.play(at: GoPoint(x: 1, y: 0), color: .black, multiStoneSuicideLegal: true)
+        _ = try? suicideBoard.play(at: GoPoint(x: 1, y: 0), color: .black, multiStoneSuicideLegal: true)
         #expect(suicideBoard.color(at: GoPoint(x: 0, y: 0)) == .empty)
         #expect(suicideBoard.color(at: GoPoint(x: 1, y: 0)) == .empty)
         #expect(suicideBoard.numBlackCaptures == 2)

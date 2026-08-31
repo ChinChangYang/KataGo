@@ -102,6 +102,22 @@ struct RecordPositionProjectorTests {
         #expect(position.blackStonesCaptured == 0)
         #expect(models.stones.whiteStonesCaptured == 1)
         #expect(models.stones.blackStonesCaptured == 0)
+        // And WHICH stone it took, with its colour (ADR 0015): the counters
+        // are running totals that name no point, and the board has to know
+        // where to fade a stone out.
+        #expect(position.capturedPoints
+                == [CapturedStone(point: point("A9", 9), color: .white)])
+        #expect(models.stones.capturedPoints
+                == [CapturedStone(point: point("A9", 9), color: .white)])
+    }
+
+    @Test func anIndexBeforeTheCaptureNamesNoCapturedStones() {
+        // Index 3's move (White J1) takes nothing, so the annotation is empty
+        // — it describes THIS index's move, never the game's history.
+        let models = Models()
+        let position = models.project(key(Self.capture, 3))
+        #expect(position.capturedPoints.isEmpty)
+        #expect(models.stones.capturedPoints.isEmpty)
     }
 
     @Test func moveOrderCarriesTheLastThreeDigits() {
@@ -260,6 +276,8 @@ struct RecordPositionProjectorTests {
         #expect(models.stones.moveOrder.isEmpty)
         #expect(models.stones.blackStonesCaptured == 0)
         #expect(models.stones.whiteStonesCaptured == 0)
+        #expect(empty.capturedPoints.isEmpty)
+        #expect(models.stones.capturedPoints.isEmpty)
         #expect(empty.lastMoveVertex == nil)
         // The grid stays the size it was — deselecting is not a board resize.
         #expect(models.board.width == 9)

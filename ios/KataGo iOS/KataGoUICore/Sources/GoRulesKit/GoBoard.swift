@@ -183,7 +183,19 @@ public struct GoBoard: Sendable, Equatable {
     /// Port of Board::playMoveAssumeLegal for stone plays. Validates
     /// board-level legality and throws instead of assuming. Resolves
     /// captures, suicide removal, capture counters, ko point, and hash.
-    public mutating func play(at p: GoPoint, color: GoColor, multiStoneSuicideLegal: Bool) throws {
+    ///
+    /// Returns every point this move CLEARED: the opponent chains it captured,
+    /// or — on a multi-stone suicide — the mover's own chain. The board's
+    /// removal animation needs to know which stones a move took (ADR 0015) and
+    /// the capture counters cannot say: they are running totals that name no
+    /// points.
+    ///
+    /// Deliberately a RETURN VALUE and not a stored property. `GoBoard`'s
+    /// `Equatable` is synthesized, and `SgfReplay.Position` equality and the
+    /// differential tests both rest on it — a per-move annotation stored here
+    /// would make two identical positions compare unequal.
+    @discardableResult
+    public mutating func play(at p: GoPoint, color: GoColor, multiStoneSuicideLegal: Bool) throws -> [GoPoint] {
         guard let index = index(of: p) else { throw GoPlayError.offBoard }
         guard grid[index] == .empty else { throw GoPlayError.occupied }
         guard koLoc != index else { throw GoPlayError.simpleKoBanned }
@@ -196,6 +208,7 @@ public struct GoBoard: Sendable, Equatable {
         posHash ^= Self.zobristKey(index: index, color: color)
 
         var captured = 0
+        var cleared: [GoPoint] = []
         var possibleKoLoc: Int?
         var oppChainsSeen: [Int] = []
         for adj in neighbors(of: index) where grid[adj] == opp {
@@ -206,6 +219,7 @@ public struct GoBoard: Sendable, Equatable {
                 for loc in oppChain {
                     grid[loc] = .empty
                     posHash ^= Self.zobristKey(index: loc, color: opp)
+                    cleared.append(point(at: loc))
                 }
                 captured += oppChain.count
                 possibleKoLoc = adj
@@ -226,12 +240,17 @@ public struct GoBoard: Sendable, Equatable {
             koLoc = nil
         }
 
-        // Multi-stone suicide (only reachable when the rules allow it).
+        // Multi-stone suicide (only reachable when the rules allow it). It is
+        // mutually exclusive with the captures above: a captured chain is by
+        // construction adjacent to the played stone, so it hands that stone a
+        // liberty and this branch cannot run. Callers rely on that to tell
+        // whose stones `cleared` names.
         if libertyCount(ofChainAt: index) == 0 {
             let suicided = chain(at: index)
             for loc in suicided {
                 grid[loc] = .empty
                 posHash ^= Self.zobristKey(index: loc, color: color)
+                cleared.append(point(at: loc))
             }
             if color == .black {
                 numBlackCaptures += suicided.count
@@ -240,6 +259,8 @@ public struct GoBoard: Sendable, Equatable {
             }
             koLoc = nil
         }
+
+        return cleared
     }
 
     /// A pass clears the simple-ko point (playMoveAssumeLegal PASS branch).

@@ -657,6 +657,12 @@ struct TVSelfPlayScreen: View {
         // stop-ack < showboard reply < turn change < first probe).
         gobanState.suppressesGenMove = true
         gobanState.forcesBranchOnPlay = false
+        // The attract loop is engine-paced and unattended, and the broadcast
+        // owns its pacing: a settling stone per move would fight the
+        // choreography. Off here, back on in TVPlayScreen/TVReviewScreen
+        // (ADR 0015). With motion off every diff is a batch, which is the
+        // click-per-move this screen already had.
+        gobanState.stoneMotionEnabled = false
         // Required or postProcessAIMove drops every engine reply; also routes
         // each move's printsgf into the in-memory record.
         navigationContext.selectedGameRecord = newGame
@@ -798,6 +804,9 @@ struct TVSelfPlayScreen: View {
         // reply ever creates a game any more).
         navigationContext.selectedGameRecord = nil
         UIApplication.shared.isIdleTimerDisabled = false
+        // Restore stone motion for whatever screen this exits to; the play and
+        // review screens re-assert it too, so the two cannot disagree.
+        gobanState.stoneMotionEnabled = true
 
         // A seeded route already ran this immediately before EVERY dismiss()
         // (the result pop, Menu, the thermal dismissal); this second call is a

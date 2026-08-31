@@ -67,6 +67,14 @@ final class VisionBoardSceneModel {
     /// rattle fired when the counter moves is heard a whole flight before
     /// the stone that caused it lands.
     var playCaptureSound: (() -> Void)?
+    /// Whether the viewer asked for Reduce Motion. Set by
+    /// `VisionBoardRealityView` from `\.accessibilityReduceMotion` before each
+    /// `applyStones`, and read by the fly-in / fly-away below: with it on a
+    /// stone cross-fades in place instead of travelling, which is the same rule
+    /// the 2D board follows (`MotionPreference`, ADR 0015). Timing is
+    /// deliberately unchanged either way, so the landing click still lands with
+    /// the stone.
+    var reduceMotion = false
     /// True until the first non-empty stone diff after boot, a board
     /// rebuild, or a game switch — that remount batch must stay silent.
     private var isInitialStoneSync = true
@@ -435,11 +443,24 @@ final class VisionBoardSceneModel {
             stone.transform.rotation = simd_quatf(angle: Self.grainAngle(for: point),
                                                   axis: [0, 1, 0])
             if effect == .flyIn(point) {
-                let rest = stone.transform
-                stone.position.y += Self.flightHeight
-                stonesRoot.addChild(stone)
-                stone.move(to: rest, relativeTo: stonesRoot,
-                           duration: Self.flyInDuration, timingFunction: .easeOut)
+                if reduceMotion {
+                    // No travel: the stone appears at its resting place and
+                    // fades up over the same duration. The component carries
+                    // the END value because a FromToByAnimation's default fill
+                    // mode reverts to the bound property once it finishes — an
+                    // OpacityComponent left at 0 would make the stone vanish
+                    // the instant it had finished arriving.
+                    stone.components.set(OpacityComponent(opacity: 1))
+                    stonesRoot.addChild(stone)
+                    Self.fade(stone, from: 0, to: 1,
+                              duration: Self.flyInDuration, timing: .easeOut)
+                } else {
+                    let rest = stone.transform
+                    stone.position.y += Self.flightHeight
+                    stonesRoot.addChild(stone)
+                    stone.move(to: rest, relativeTo: stonesRoot,
+                               duration: Self.flyInDuration, timingFunction: .easeOut)
+                }
                 // The landing click, guarded like the flyAway cleanup: an
                 // undo can pull the stone back mid-flight and a switch or
                 // rebuild can tear its world down — a stone that never
@@ -478,10 +499,19 @@ final class VisionBoardSceneModel {
     private func flyAway(_ entity: Entity, from point: BoardPoint) {
         flyingAway[point]?.removeFromParent()
         flyingAway[point] = entity
-        var target = entity.transform
-        target.translation.y += Self.flightHeight
-        entity.move(to: target, relativeTo: stonesRoot,
-                    duration: Self.flyAwayDuration, timingFunction: .easeIn)
+        if reduceMotion {
+            // Fades out where it stands; the cleanup below still removes it
+            // when the same duration is up, so nothing about the timing moves.
+            // The component carries the END value — see applyStones' fly-in.
+            entity.components.set(OpacityComponent(opacity: 0))
+            Self.fade(entity, from: 1, to: 0,
+                      duration: Self.flyAwayDuration, timing: .easeIn)
+        } else {
+            var target = entity.transform
+            target.translation.y += Self.flightHeight
+            entity.move(to: target, relativeTo: stonesRoot,
+                        duration: Self.flyAwayDuration, timingFunction: .easeIn)
+        }
         Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(Self.flyAwayDuration))
             entity.removeFromParent()
@@ -489,6 +519,23 @@ final class VisionBoardSceneModel {
                 self.flyingAway.removeValue(forKey: point)
             }
         }
+    }
+
+    /// Animates an entity's opacity — the Reduce Motion substitute for a
+    /// flight. A generated `AnimationResource` rather than a per-frame update:
+    /// the 90 Hz compositor owns that budget (ADR 0011, decision 6).
+    private static func fade(_ entity: Entity,
+                             from start: Float,
+                             to end: Float,
+                             duration: TimeInterval,
+                             timing: AnimationTimingFunction) {
+        let animation = FromToByAnimation<Float>(from: start,
+                                                 to: end,
+                                                 duration: duration,
+                                                 timing: timing,
+                                                 bindTarget: .opacity)
+        guard let resource = try? AnimationResource.generate(with: animation) else { return }
+        entity.playAnimation(resource)
     }
 
     /// Deterministic per-point grain rotation: stones look naturally varied

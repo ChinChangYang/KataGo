@@ -50,6 +50,12 @@ public struct RecordPosition: Equatable, Sendable {
     /// projector already has the record parsed; `RecordStoneCache` would
     /// otherwise re-parse the whole SGF in C++ on every projection.
     public let recordedMoveVertices: [Int: String]
+    /// The stones the move that produced THIS index took off the board. A
+    /// transient annotation of the last move — not part of the position — so
+    /// the board can fade captured stones out as the capturing stone lands
+    /// (ADR 0015). Empty at index 0, after a pass, after a refused move, and
+    /// whenever the move captured nothing.
+    public let capturedPoints: [CapturedStone]
 
     public init(width: Int,
                 height: Int,
@@ -60,7 +66,8 @@ public struct RecordPosition: Equatable, Sendable {
                 whiteStonesCaptured: Int,
                 toMove: PlayerColor,
                 lastMoveVertex: String?,
-                recordedMoveVertices: [Int: String] = [:]) {
+                recordedMoveVertices: [Int: String] = [:],
+                capturedPoints: [CapturedStone] = []) {
         self.width = width
         self.height = height
         self.blackPoints = blackPoints
@@ -71,6 +78,7 @@ public struct RecordPosition: Equatable, Sendable {
         self.toMove = toMove
         self.lastMoveVertex = lastMoveVertex
         self.recordedMoveVertices = recordedMoveVertices
+        self.capturedPoints = capturedPoints
     }
 
     /// A blank board of the given size — what a nil key publishes (nothing is
@@ -84,7 +92,8 @@ public struct RecordPosition: Equatable, Sendable {
                        blackStonesCaptured: 0,
                        whiteStonesCaptured: 0,
                        toMove: .black,
-                       lastMoveVertex: nil)
+                       lastMoveVertex: nil,
+                       capturedPoints: [])
     }
 }
 
@@ -229,6 +238,10 @@ public final class RecordPositionProjector {
             stones.whitePoints = position.whitePoints
             stones.blackStonesCaptured = position.blackStonesCaptured
             stones.whiteStonesCaptured = position.whiteStonesCaptured
+            // Written with the stones, inside the same instant transaction:
+            // the motion layer reads it off the position-generation bump, and
+            // an annotation one publish behind would fade the wrong stones.
+            stones.capturedPoints = position.capturedPoints
             board.width = CGFloat(position.width)
             board.height = CGFloat(position.height)
         }
@@ -273,6 +286,20 @@ public final class RecordPositionProjector {
         // the replay's own `lastMoveVertex` is deliberately not used.
         let lastMoveVertex = position.lastThreeMoves.last?.vertex
 
+        // The stones the move that landed on this index took, in BoardPoint's
+        // space. Routed through the GTP vertex — the very path `points(_:)`
+        // above uses for the stone lists — so a captured point and the stone
+        // that used to stand on it can never land on different intersections.
+        let capturedPoints: [CapturedStone] = position.capturedByLastMove.compactMap {
+            guard let point = BoardPoint(move: $0.point.gtpVertex(boardHeight: height),
+                                         width: width,
+                                         height: height) else { return nil }
+            // `GoColor` also has an `.empty` case a cleared stone can never
+            // carry; treat anything that is not Black as White, as every other
+            // reader of a replayed colour does.
+            return CapturedStone(point: point, color: $0.color == .black ? .black : .white)
+        }
+
         // The `moves` cache pair, read off the parse already in hand. Absent
         // indices (before the first move, and at the tip, where there is no
         // move N yet) simply produce no entry.
@@ -295,7 +322,8 @@ public final class RecordPositionProjector {
                               whiteStonesCaptured: position.whiteCaptures,
                               toMove: position.toMove,
                               lastMoveVertex: lastMoveVertex,
-                              recordedMoveVertices: recordedMoveVertices)
+                              recordedMoveVertices: recordedMoveVertices,
+                              capturedPoints: capturedPoints)
     }
 
     /// Parses `sgf` the way the app parses SGF everywhere else — the C++

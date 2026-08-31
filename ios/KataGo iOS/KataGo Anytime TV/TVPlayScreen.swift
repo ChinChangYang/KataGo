@@ -572,6 +572,9 @@ struct TVPlayScreen: View {
         gobanState.suppressesGenMove = false
         gobanState.forcesBranchOnPlay = false
         gobanState.suppressesHumanSLTurnCommands = false
+        // Re-asserted like the flags above: the self-play screen turns stone
+        // motion off for its attract loop (ADR 0015).
+        gobanState.stoneMotionEnabled = true
         // BEFORE the load: the engine's play replies and printsgf echoes must
         // land in THIS record (GameSession routes by selectedGameRecord).
         navigationContext.selectedGameRecord = game
