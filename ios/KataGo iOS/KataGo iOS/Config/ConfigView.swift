@@ -809,6 +809,9 @@ struct GlobalSettingsView: View {
     @State private var showOwnership = Config.defaultShowOwnership
     @State private var showWinrateBar = Config.defaultShowWinrateBar
     @State private var thumbnailSizeText = Config.defaultThumbnailSizeText
+    // Read straight from UserDefaults: the hold (`ScreenWakeHold`) reads the
+    // same key, so there is no GobanState mirror to keep in step.
+    @AppStorage(GlobalSettingsKeys.keepScreenAwake) private var keepScreenAwake = ScreenWakePolicy.defaultEnabled
     @Environment(GobanState.self) private var gobanState
     @Environment(TopUIState.self) private var topUIState
     @Environment(\.modelContext) private var modelContext
@@ -950,6 +953,20 @@ struct GlobalSettingsView: View {
                     .onChange(of: showVisitsPerSecond) {
                         gobanState.showVisitsPerSecond = showVisitsPerSecond
                     }
+            }
+
+            // Feedback 2026-08-31: "prevent the screen from turning off when a
+            // stone is just played by AI for a few seconds". The hold itself
+            // is `ScreenWakeHold` (iOS only, attached in GameSplitView); this
+            // is its switch. Its own section rather than Analysis or Board:
+            // those are about what is drawn, and a battery-affecting toggle
+            // has to be findable by someone looking for a screen setting.
+            Section {
+                ConfigBoolItem(title: "Keep Screen Awake for AI Moves", value: $keepScreenAwake)
+            } header: {
+                Text("Power")
+            } footer: {
+                Text("While KataGo thinks, for a few seconds after it plays, and during auto-play.")
             }
 
             // Feedback 2026-07-30: with Voice Control on, "it is not clear

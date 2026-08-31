@@ -24,4 +24,9 @@ public enum GlobalSettingsKeys {
     public static let analysisStyle = "GlobalSettings.analysisStyle"
     public static let analysisInformation = "GlobalSettings.analysisInformation"
     public static let thumbnailSize = "GlobalSettings.thumbnailSize"
+    /// Read directly with `@AppStorage` by its two consumers (the iOS
+    /// `ScreenWakeHold` and the Settings toggle); it has no `GobanState`
+    /// mirror because nothing that renders needs it, and no Mac sync because
+    /// macOS has no idle timer to hold.
+    public static let keepScreenAwake = "GlobalSettings.keepScreenAwake"
 }

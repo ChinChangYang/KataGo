@@ -130,6 +130,12 @@ public class GobanState {
     public var branchSgf: String = .inActiveSgf
     public var branchIndex: Int = .inActiveCurrentIndex
     public var confirmingAIOverwrite: Bool = false
+    /// Bumped every time an AI reply lands a stone — the mainline-step path
+    /// included — so a host can react to "the engine just played" without a
+    /// per-move flag the record does not carry. Compared for inequality only,
+    /// so its wrap-around is harmless. The iOS keep-awake window arms its
+    /// tail on it.
+    public var aiMoveLandingGeneration: Int = 0
     public var pendingMoveTurn: String? = nil
     public var pendingMoveVertex: String? = nil
     public var confirmingIllegalMove: Bool = false
@@ -669,6 +675,9 @@ public class GobanState {
         audioModel: AudioModel
     ) {
         guard let aiMove = aiMove else { return }
+        // Before the branch below: both exits land the stone (the
+        // mainline-step return included), and the landing is what counts.
+        aiMoveLandingGeneration &+= 1
 
         // Same review guard as playPendingHumanMove: never the editing path
         // while the spectator screen forces branches.

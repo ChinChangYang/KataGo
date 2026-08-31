@@ -233,6 +233,10 @@ struct GameSplitView: View {
             detailView
         }
         .modifier(GlobalPreferenceSync(gobanState: gobanState))
+        // The keep-awake window: holds the idle timer while the engine owes
+        // the person a move, briefly after its stone lands, and through
+        // auto-play (`ScreenWakePolicy`).
+        .modifier(ScreenWakeHold())
         // The board is record-owned: this publishes the position and runs
         // everything that must happen the moment the RECORD moves, engine or
         // no engine.

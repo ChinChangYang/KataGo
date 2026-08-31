@@ -96,6 +96,8 @@ struct GobanStateReviewLockTests {
         #expect(f.state.isBranchActive == true)
         #expect(f.record.sgf == sgfBefore)
         #expect(f.record.currentIndex == 0)
+        // One AI stone landed, whichever path it took.
+        #expect(f.state.aiMoveLandingGeneration == 1)
     }
 
     @Test("iOS (flag clear): the editing path is unchanged")

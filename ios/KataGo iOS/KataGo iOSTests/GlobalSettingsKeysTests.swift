@@ -23,5 +23,6 @@ struct GlobalSettingsKeysTests {
         #expect(GlobalSettingsKeys.analysisStyle == "GlobalSettings.analysisStyle")
         #expect(GlobalSettingsKeys.analysisInformation == "GlobalSettings.analysisInformation")
         #expect(GlobalSettingsKeys.thumbnailSize == "GlobalSettings.thumbnailSize")
+        #expect(GlobalSettingsKeys.keepScreenAwake == "GlobalSettings.keepScreenAwake")
     }
 }

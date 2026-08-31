@@ -107,6 +107,8 @@ struct GobanStateForcedBranchTests {
         #expect(f.state.isBranchActive == true)
         #expect(f.record.currentIndex == 0)
         #expect(f.record.sgf == sgfBefore)
+        // The landing counts on the branch path too.
+        #expect(f.state.aiMoveLandingGeneration == 1)
     }
 
     @Test("A fresh GobanState never forces a branch (iOS/macOS default)")

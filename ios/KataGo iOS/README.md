@@ -132,11 +132,12 @@ Settings are split in two: **More → Settings → Global Settings** opens the a
 
 ### Global Settings
 
-App-wide preferences in six groups:
+App-wide preferences in seven groups:
 
 - **Board** — Stone style (Fast / Classic), Move numbers (Last 3 moves / Last move / All moves / Marker), Show coordinate, Show pass, Vertical flip, and Show chart/comments.
 - **Analysis** — Analysis information (Winrate / Score / All / None), Analysis style (Fast / Classic), Show ownership, Show win rate bar.
 - **Sound & Haptics** — Sound effect, Haptic feedback, Show visits/s.
+- **Power** — Keep Screen Awake for AI Moves (iOS/iPadOS; on by default): the screen stays on while KataGo thinks, for a few seconds after it plays, and during auto-play.
 - **Accessibility** — a **Voice Control** help screen listing the phrases that drive the board, worded per platform ("Tap K 10" on iOS, "Click K 10" on the Mac). Every intersection and the pass tile are exposed as named targets, so Voice Control and VoiceOver can play moves through the same legality checks as a tap.
 - **Siri** — a **Siri Phrases** help screen listing the spoken phrase for every App Shortcut ("Open the latest go game with KataGo Anytime", …) plus the variants Siri also accepts, and a link to the Shortcuts app.
 - **Game List** — Thumbnails (Off / Small / Large).
