@@ -7,19 +7,19 @@ from **8d (top anchor)** down to **25k**. The ladder is anchored at 8d and tuned
   `humanSLChosenMovePiklLambda`) so that, in a **normal even game** (komi 6.5, colours alternated),
   its stronger neighbour beats it by **100 ELO**, certified to a **95% CI within ±30** ([70, 130]) —
   with two honestly-documented exceptions (4d +76, 3d +112; see the Status note below).
-- **15k → 25k — a pure-human tail.** At this depth the even-game gap between *adjacent* Human-SL
-  ranks is **non-monotonic in λ and peaks below 100 ELO** — adjacent deep-kyu profiles are
-  near-tied, so a full 100-ELO step is **not reachable** by the λ lever. These rungs therefore ship
-  at **`humanSLChosenMovePiklLambda = 1e8` (pure-human imitation)** and their **natural** even-game
-  gap vs the stronger neighbour is *measured and documented* (to a 95% CI half-width ≤30, before
-  integer rounding of printed endpoints), not forced to 100. See the [deep-kyu finding](#findings).
+- **15k → 25k — the same staircase on a second lever.** At this depth adjacent Human-SL ranks are
+  near-tied and λ is **exhausted** (at `humanSLChosenMovePiklLambda = 1e8` the played move already
+  *is* the human policy), so a 100-ELO step is **not reachable by λ**. These rungs keep λ=1e8 and are
+  tuned instead on **`chosenMoveTemperature`** at `maxVisits = 1` — which does reach. All eleven are
+  certified at **+100**, to a 95% CI inside [70, 130] *that also contains 100*. See the
+  [deep-kyu finding](#deep-kyu-regime-15k--25k-λ-is-exhausted-chosenmovetemperature-is-not).
 
-> **Status (2026-08-06): both regimes tuned.** **7d→14k are all locked** — 21 rungs: 17 certified at
-> +100, plus the four honestly re-measured dan rungs below. **15k→25k
-> are all shipped at λ=1e8** (11 of 11 pure-human rungs), each with its natural even-game gap measured
-> to a 95% CI half-width ≤30 (before integer rounding of the table endpoints):
-> **+29, +24, +44, +70, +32, +8, +23, +29, −1, +55, +86** (15k→25k) —
-> non-monotonic and all **below +100** (most well below it), consistent with the deep-kyu finding.
+> **Status (2026-09-15): both regimes tuned, whole ladder certified.** **7d→14k are all locked** — 21 rungs: 17 certified at
+> +100, plus the four honestly re-measured dan rungs below. **15k→25k are all certified at +100**
+> (11 of 11) — not by λ, which saturates here, but on the `chosenMoveTemperature` lever at 1 visit,
+> each to a 95% CI inside [70, 130] that also contains 100:
+> **+96, +98, +92, +91, +102, +109, +99, +100, +92, +100, +101**
+> (15k→25k) — the dial x is monotone all the way down and every rung lands at the target.
 > Four dan rungs
 > (**6d, 5d, 4d, 3d**) that had locked early via a since-removed optimistic pooled estimator were
 > **re-measured honestly** at their exact shipped λ (φ=1 — 6d/5d on the single concentrated cell,
@@ -54,8 +54,9 @@ The gap target was set to **100 ELO for every rung** on 2026-07-17. An earlier v
 re-tune used 100 ELO for the dan rungs and 50 ELO for the kyu rungs; that split was dropped in favour
 of a **uniform 100** target, because the low-dan λ values come out small (strong play) and a moderate
 100/rung let the run observe how λ climbs into the kyu range. The anticipated deep-kyu saturation then
-occurred: from 15k down, λ ran to pure-human policy without reaching +100, and the uniform target gave
-way to the two-regime outcome above (100-ELO staircase 7d→14k; measured pure-human tail 15k→25k).
+occurred: from 15k down, λ ran to pure-human policy without reaching +100. The uniform 100 target
+survived anyway, by changing levers rather than targets — 7d→14k on λ, 15k→25k on
+`chosenMoveTemperature` at 1 visit — so the whole 7d→25k ladder is one 100-ELO staircase.
 
 An even-earlier calibration (preserved in the author's fork's git history) spaced the ladder by **1 KGS rank** using a
 **komi-0.5 handicap game tuned to 50% winrate**; a subsequent even-game evaluation showed those
@@ -205,8 +206,7 @@ are the two documented exceptions (see the note below the table).
 | `gtp_human13k.cfg` | preaz_13k | gtp_human12k.cfg | **+104** [79, 129] ✅ certified | 800 | 40 | **0.83000** |
 | `gtp_human14k.cfg` | preaz_14k | gtp_human13k.cfg | **+100** [71, 129] ✅ certified | 592 | 40 | **3.40040** |
 
-_The deep-kyu tail **15k → 25k** is tuned in the pure-human regime (λ=1e8, gap measured not forced) —
-see [Deep-kyu pure-human tail](#deep-kyu-pure-human-tail-15k--25k) below._
+_The deep-kyu tail **15k → 25k** is calibrated on `chosenMoveTemperature` at 1 visit (λ stays 1e8) and is certified to the same +100 rule — see [Deep-kyu temperature-calibrated tail](#deep-kyu-temperature-calibrated-tail-15k--25k) below._
 
 > **13k note (deep-kyu compression):** the 12k↔13k even-game gap is a **flat, noisy
 > plateau ~+58 ELO for λ ∈ [0.60, 0.80]**, then climbs through a **steep, narrow
@@ -214,8 +214,8 @@ see [Deep-kyu pure-human tail](#deep-kyu-pure-human-tail-15k--25k) below._
 > So 13k required **λ=0.83 — far above its neighbors** (12k=0.463) — and a long
 > concentration (~800 games) to certify the +100 gap. Deep-kyu rungs were expected to
 > need high λ and extended CERT grinds for this reason — borne out at 14k (λ=3.40), while
-> from 15k down even λ→∞ no longer reaches +100 and the ladder switches to the measured
-> pure-human tail (below).
+> from 15k down even λ→∞ no longer reaches +100 and the ladder switches levers, to
+> `chosenMoveTemperature` (below).
 
 > **14k note (high-λ crossing):** the 14k↔13k even-game gap is **flat ~+9 ELO for λ ≲ 1.5**
 > (candidate ≈ tied with 13k), then rises steeply, crossing **+100 at λ≈3.4** and plateauing
@@ -233,38 +233,53 @@ honestly they read 6d +100, 5d +91, 4d +76, 3d +112 — i.e. the pooled estimato
 imprecisely. Per the project decision, these are **measured and documented as-is, not λ-re-tuned**
 (retuning is out of scope). Games column = games at the shipped-λ cell(s).
 
-### Deep-kyu pure-human tail (15k → 25k)
+### Deep-kyu temperature-calibrated tail (15k → 25k)
 
-At this depth adjacent Human-SL ranks are **near-tied**: the even-game gap is **non-monotonic in λ and
-peaks below 100 ELO** (see [Findings](#findings)), so a full 100-ELO step is **not reachable** by the λ
-lever. These rungs therefore ship at **`humanSLChosenMovePiklLambda = 1e8`** (pure-human imitation) and
-their **natural** even-game gap vs the stronger neighbour is **measured** (95% CI half-width ≤30;
-the table's endpoints are rounded to integers, so several rows' implied half-width comes out to
-30.5), not forced to 100. Same even-game protocol (komi 6.5, alternating colours, Japanese, b28c512 main net, 40v,
-winLossUtilityFactor 0).
+At this depth the λ lever is **exhausted**: `humanSLChosenMovePiklLambda = 1e8` already means the
+played move *is* the human policy, so no amount of extra λ weakens a rank further, and the natural
+pure-human gaps top out well below 100 ELO (see
+[Findings](#deep-kyu-regime-15k--25k-λ-is-exhausted-chosenmovetemperature-is-not)). The lever that does reach is
+**`chosenMoveTemperature`**. The ladder ships *sharpened* — `chosenMoveTemperatureEarly = 0.70`,
+`chosenMoveTemperature = 0.25`, i.e. close to argmax-of-the-human-policy — so **raising** both
+temperatures walks a rank back to honest policy sampling (T = 1) and then into the policy's tail.
+That is a monotone weakening dial with ample range, and it is what these eleven rungs are tuned on.
 
-| Config | Profile | Baseline (stronger) | Even-game gap (95% CI) | Games | maxVisits | piklLambda |
-|--------|---------|---------------------|------------------------|------:|----------:|-----------:|
-| `gtp_human15k.cfg` | preaz_15k | gtp_human14k.cfg | **+29** [-1, 59] measured | 528 | 40 | **1e8** |
-| `gtp_human16k.cfg` | preaz_16k | gtp_human15k.cfg | **+24** [-6, 55] measured | 512 | 40 | **1e8** |
-| `gtp_human17k.cfg` | preaz_17k | gtp_human16k.cfg | **+44** [14, 75] measured | 504 | 40 | **1e8** |
-| `gtp_human18k.cfg` | preaz_18k | gtp_human17k.cfg | **+70** [40, 101] measured | 520 | 40 | **1e8** |
-| `gtp_human19k.cfg` | preaz_19k | gtp_human18k.cfg | **+32** [2, 62] measured | 520 | 40 | **1e8** |
-| `gtp_human20k.cfg` | preaz_20k | gtp_human19k.cfg | **+8** [-22, 39] measured | 504 | 40 | **1e8** |
-| `gtp_human21k.cfg` | preaz_21k | gtp_human20k.cfg | **+23** [-7, 54] measured | 504 | 40 | **1e8** |
-| `gtp_human22k.cfg` | preaz_22k | gtp_human21k.cfg | **+29** [-1, 59] measured | 504 | 40 | **1e8** |
-| `gtp_human23k.cfg` | preaz_23k | gtp_human22k.cfg | **−1** [-32, 29] measured | 496 | 40 | **1e8** |
-| `gtp_human24k.cfg` | preaz_24k | gtp_human23k.cfg | **+55** [25, 85] measured | 536 | 40 | **1e8** |
-| `gtp_human25k.cfg` | preaz_25k | gtp_human24k.cfg | **+86** [55, 116] measured | 528 | 40 | **1e8** |
+One scalar **x** drives it, so the ladder stays one-dimensional and monotone: x raises
+`chosenMoveTemperatureEarly` to its 5.0 ceiling, then `chosenMoveTemperature` to 1.0 (never above —
+past 1.0 the pass move is flattened against ~300 tail moves, bots stop passing, and games fill the
+board and score no-result), then stretches `chosenMoveTemperatureHalflife` so the early temperature
+reaches deeper into the game, and finally opens `nnPolicyTemperature`.
 
-> The measured deep-kyu gaps are **small** (15k is only ~29 ELO below 14k) — a direct, honest
-> consequence of adjacent deep-kyu Human-SL ranks being nearly the same strength. This is documented,
-> not a defect: the ladder's *fine-grained* separation lives in the dan/low-kyu region, while the
-> deep-kyu rungs mark the correct **rank input** to the net with whatever natural strength gap the
-> pure-human policy provides.
+These rungs run **`maxVisits = 1`** (with `rootNumSymmetriesToSample = 1`). At λ=1e8 with
+`humanSLChosenMoveProp = 1.0` the search cannot influence which move is played at all — it only
+supplies the pass share — so 1 visit is the *same bot* at ~10× less compute. That is what made the
+campaign affordable: 16,233 games in the certifying buckets below, and ~51,000 games in total once every
+dial that was probed and rejected along the way is counted.
 
-<!-- COMPLETE: all 32 rungs 7d→25k tuned. Dan 6d/5d/4d/3d re-measured honestly (measure-only, no λ
-     re-tune); deep-kyu 15k→25k all shipped @λ=1e8 with measured gaps. -->
+| Config | Profile | Baseline (stronger) | Even-game gap (95% CI) | Games | dial x | early / late | halflife | nnPolicyTemp |
+|--------|---------|---------------------|-------------------------|------:|-------:|-------------:|---------:|-------------:|
+| `gtp_human15k.cfg` | preaz_15k | gtp_human14k.cfg | **+96** [76, 115] ✅ certified | 1296 | **0.630** | 1.330 / 0.407 | 30.0 | 1 (unused) |
+| `gtp_human16k.cfg` | preaz_16k | gtp_human15k.cfg | **+98** [80, 115] ✅ certified | 1644 | **1.000** | 1.700 / 0.500 | 30.0 | 1 (unused) |
+| `gtp_human17k.cfg` | preaz_17k | gtp_human16k.cfg | **+92** [75, 109] ✅ certified | 1704 | **1.200** | 1.900 / 0.550 | 30.0 | 1 (unused) |
+| `gtp_human18k.cfg` | preaz_18k | gtp_human17k.cfg | **+91** [76, 106] ✅ certified | 2099 | **1.460** | 2.160 / 0.615 | 30.0 | 1 (unused) |
+| `gtp_human19k.cfg` | preaz_19k | gtp_human18k.cfg | **+102** [82, 122] ✅ certified | 1296 | **1.920** | 2.620 / 0.730 | 30.0 | 1 (unused) |
+| `gtp_human20k.cfg` | preaz_20k | gtp_human19k.cfg | **+109** [94, 124] ✅ certified | 2388 | **2.320** | 3.020 / 0.830 | 30.0 | 1 (unused) |
+| `gtp_human21k.cfg` | preaz_21k | gtp_human20k.cfg | **+99** [78, 121] ✅ certified | 1067 | **2.720** | 3.420 / 0.930 | 30.0 | 1 (unused) |
+| `gtp_human22k.cfg` | preaz_22k | gtp_human21k.cfg | **+100** [78, 122] ✅ certified | 1056 | **3.520** | 4.220 / 1.000 | 30.0 | 1 (unused) |
+| `gtp_human23k.cfg` | preaz_23k | gtp_human22k.cfg | **+92** [75, 109] ✅ certified | 1704 | **4.880** | 5.000 / 1.000 | 44.8 | 1 (unused) |
+| `gtp_human24k.cfg` | preaz_24k | gtp_human23k.cfg | **+100** [77, 122] ✅ certified | 983 | **5.180** | 5.000 / 1.000 | 55.2 | 1 (unused) |
+| `gtp_human25k.cfg` | preaz_25k | gtp_human24k.cfg | **+101** [79, 124] ✅ certified | 996 | **5.620** | 5.000 / 1.000 | 74.9 | 1 (unused) |
+
+**Certified = the 95% CI is inside [70, 130] *and* contains 100.** Both halves matter: an interval
+like [70, 87.5] is inside the band but is evidence *against* a 100-ELO step, so it does not certify.
+11/11 rungs certify; the delivered gaps run +91 … +109 ELO, mean +98.1, over 16,233 games.
+
+> **Numerics (protocol P2).** Every calibration game ran MLX **FP32** (`mlxUseFP16 = false`) with a
+> deterministic NN path (`nnRandomize = false`) and one NN server thread. `mlxUseFP16 = auto`
+> resolves to FP16, and FP16 can produce a nonfinite policy at these temperatures, so the shipped
+> configs set both keys explicitly — **including `gtp_human14k.cfg`**, which is otherwise untouched.
+> Consequence: the **13k↔14k seam is cross-regime** (13k keeps the old numerics) and is not
+> re-certified here; the 14k↔15k rung and everything below it is measured on one consistent bot.
 
 ### Findings
 
@@ -300,27 +315,33 @@ winLossUtilityFactor 0).
   cells (as for 4d/3d), never a wide λ-gradient window — and that honest on-λ gap is the number to
   trust.
 
-#### Deep-kyu regime (15k → 25k): the 100-ELO step is not reachable by λ
+#### Deep-kyu regime (15k → 25k): λ is exhausted, `chosenMoveTemperature` is not
 
-- **λ climbs steeply through the deep-kyu rungs, then the lever saturates:** 11k 0.408 → 12k 0.463 →
-  13k **0.830** → 14k **3.40**. Each deep-kyu rung needs an order-of-magnitude more human-imitation than
-  the low-kyu rungs, because adjacent `preaz_<rank>` profiles at this depth are *very close in strength*.
-- **The adjacent even-game gap is non-monotonic in λ and peaks below 100 ELO.** Mapping 15k↔14k across
-  λ showed the gap **rises to a peak (~+85–98) around λ≈10, then declines** back toward a small value as
-  λ→∞ (pure human): probes read λ20→+89, λ44→+17, λ1e8→+17…+29. So beyond the peak, *more* human-imitation
-  makes the candidate no weaker — the two ranks are simply near-tied. A **monotone** logistic crossing
-  estimator misfits this shape (it extrapolates the +100 crossing to ever-larger λ); a peaked/empirical
-  search is required to even find the maximum gap.
-- **Consequence (feasibility):** for these rungs the *maximum achievable* adjacent gap appears to be
-  **< 100 ELO** (mapped in detail at 15k↔14k; consistent with all 11 measured pure-human gaps < +100),
-  so the uniform-100 target is **infeasible via the λ lever alone**. Rather than ship an absurd,
-  peak-hunted λ for a gap that is still short of 100, the ladder ships each deep-kyu rung at
-  **λ=1e8 (pure human)** and **documents the natural gap** it produces (15k: **+29 [-1, 59]** over 528
-  games). A full 100-ELO deep-kyu staircase would need a *different* weakening lever (e.g. fewer visits,
-  softmax temperature, or a weaker human-model rank) — noted as possible future work.
-- This matches the earlier komi-6.5 evaluation of the old rank-spaced ladder, which already found several
-  deep-kyu adjacent pairs **tied or inverted** (e.g. 15k–16k ≈ 0, 9k–10k ≈ −26): adjacent deep-kyu
-  Human-SL ranks genuinely encode nearly the same playing strength.
+- **λ saturates.** λ climbs steeply through the deep kyu — 11k 0.408 → 12k 0.463 → 13k **0.830** →
+  14k **3.40** — and then the lever ends. Mapping 15k↔14k across λ showed the gap **rises to a peak
+  (~+85–98) around λ≈10 and then declines** as λ→∞ (probes: λ20 → +89, λ44 → +17, λ1e8 → +17…+29).
+  Beyond the peak, *more* human-imitation makes the candidate no weaker: at λ=1e8 the played move
+  already is the human policy, and adjacent `preaz_<rank>` profiles at this depth are near-tied.
+  A monotone logistic crossing estimator misfits that shape entirely.
+- **Consequence, and the fix.** The uniform-100 target is infeasible *via λ*; the earlier campaign
+  therefore shipped these rungs at λ=1e8 and documented their natural gaps (+29, +24, +44, +70, +32,
+  +8, +23, +29, −1, +55, +86 — mean ~+37, non-monotonic). The **`chosenMoveTemperature`** lever that
+  the old text listed as possible future work turned out to be sufficient: at λ=1e8 and 1 visit it
+  delivers a full, monotone 100-ELO staircase across all eleven rungs. The dials are 15k 0.63, 16k 1.00, 17k 1.20, 18k 1.46, 19k 1.92, 20k 2.32, 21k 2.72, 22k 3.52, 23k 4.88, 24k 5.18, 25k 5.62.
+- **The certification rule is two-sided.** A 95% CI ⊂ [70,130] alone is satisfiable by a gap that is
+  clearly *not* 100 (e.g. [70, 87.5]); the rule used here also requires the interval to **contain
+  100**, which bounds the CI half-width from *below* as well as above. Geometrically that means a
+  certificate can only be issued for a point estimate in [85, 115], and the sample-size window opens
+  at ~900 decided games and is widest near ~2,400. Grinding a rung *past* that window can uncertify
+  it, so each rung stops as soon as it certifies.
+- **Repeated looks were disciplined explicitly.** Because a rung is tallied after every chunk and
+  stopped when it certifies, the published Z=1.96 interval is not an honest 95% interval on its own.
+  The stop rule therefore uses two wider/narrower intervals against the same games — the band-fit
+  test at Z=2.50 and the covers-100 test at Z=1.50 — which measured a ≤2.5% false-certification
+  rate against the naive peeked rule.
+- **Cost.** Both bots at 1 visit run ~800 games/h on this machine; the 14k anchor at 40 visits runs
+  ~33 games/h. The campaign is strictly serial (each rung is measured against its already-certified
+  neighbour), which is what sets the wall-clock, not the per-game cost.
 
 ## Reproduction
 
