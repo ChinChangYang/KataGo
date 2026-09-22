@@ -75,7 +75,12 @@ through a file whose only structure was "WGo".
 
 5. **A viewer that owns no drawable surface gets an overlay canvas.** The
    cyberoro adapter inserts a transparent, `pointer-events: none` canvas as a
-   sibling of the site's board and mirrors its width/height attributes. Painting
+   sibling of the site's board and mirrors its width/height attributes. It is
+   seated on the board by the two boxes' on-screen delta, never by its
+   containing block: the mobile skin cyberoro serves an iPhone leaves every
+   ancestor of the board static, so `left:0; top:0` alone lands on the document
+   origin, and its top banner moves the board by changing the body's padding.
+   Painting
    into the site's own context would fight its redraws and leave stale marks
    when the reader steps back. The painter itself is shared: one function draws
    ownership squares under candidate circles with AnalysisView's constants, for
@@ -108,5 +113,7 @@ through a file whose only structure was "WGo".
   product cannot explain, and a comparison feature would need its own
   vocabulary. Site support must not wait on it.
 - macOS is where this adapter is developed and QA'd (`refresh_safari_ext.sh` is
-  the fast loop). The shared hook means iOS Safari lights up too; the phone
-  layout of a `position: fixed` desktop page is not yet proven.
+  the fast loop). The shared hook means iOS Safari lights up too, but an iPhone
+  is served a different, mobile skin, not the desktop page laid out small. The
+  first iPhone QA (2026-09-23) found every mark drawn rows above its
+  intersection because of that skin; decision 5's delta seating is the fix.

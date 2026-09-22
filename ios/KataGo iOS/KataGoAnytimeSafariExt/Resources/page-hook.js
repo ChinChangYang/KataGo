@@ -29,7 +29,7 @@
     // in a page, where `window` always exists.
     if (typeof window === "undefined") {
         if (typeof module === "object" && module.exports) {
-            module.exports = { giboToSgf, gobanToSgf, ogsAccess };
+            module.exports = { giboToSgf, gobanToSgf, ogsAccess, alignOverlay };
         }
         return;
     }
@@ -235,6 +235,26 @@
                 lines.forEach((text, i) => ctx.fillText(text, c.cx, y0 + i * step));
             }
         }
+    }
+
+    // Puts an absolutely positioned overlay exactly over `board` by moving it
+    // the distance between their two on-screen boxes. The overlay's
+    // `left:0; top:0` is only the board's corner when the board's nearest
+    // positioned ancestor starts where the board does, and a page need not
+    // have one: cyberoro's mobile skin leaves every ancestor static, so the
+    // overlay resolves against the document origin and a banner that changes
+    // the body's padding moves the board without moving the overlay. The delta
+    // is containing-block agnostic, zero wherever the old placement was already
+    // right, and cheap enough to re-take on every poll. Under half a pixel is
+    // left alone so repeated calls settle instead of chasing rounding.
+    function alignOverlay(board, overlay) {
+        const want = board.getBoundingClientRect();
+        const have = overlay.getBoundingClientRect();
+        const dx = want.left - have.left;
+        const dy = want.top - have.top;
+        if (Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5) { return; }
+        overlay.style.left = ((parseFloat(overlay.style.left) || 0) + dx) + "px";
+        overlay.style.top = ((parseFloat(overlay.style.top) || 0) + dy) + "px";
     }
 
     // ---- adapter 1: WGo.js -------------------------------------------------
@@ -844,10 +864,18 @@
 
         // The safety net for everything that moves the board without going
         // through GoBoardInfo: the coordinate button (which resizes the canvas),
-        // a window resize, and the mode switches that only assign NowMode.
+        // a window resize, and the mode switches that only assign NowMode. It
+        // also re-seats the overlay when the board moves WITHOUT resizing — the
+        // mobile skin's top banner changes the body's padding as it opens and
+        // collapses — which no signature below can see.
         const poll = setInterval(() => {
             if (stateChanged()) { postState(); }
-            if (geometrySignature() !== lastGeometry) { redraw(); }
+            if (geometrySignature() !== lastGeometry) {
+                redraw();
+            } else if (overlay && overlay.isConnected) {
+                const canvas = document.getElementById("board");
+                if (canvas) { alignOverlay(canvas, overlay); }
+            }
         }, 500);
 
         let observer = null;
@@ -855,7 +883,11 @@
             observer = new ResizeObserver(() => redraw());
             const canvas = document.getElementById("board");
             if (canvas) { observer.observe(canvas); }
-        } catch (e) { /* the 500 ms poll still covers resizes */ }
+            // The body's BORDER box grows and shrinks with that banner's
+            // padding, so this re-seats the overlay at once instead of on the
+            // next poll.
+            if (document.body) { observer.observe(document.body, { box: "border-box" }); }
+        } catch (e) { /* the 500 ms poll still covers resizes and moves */ }
 
         postState();
         redraw();
@@ -987,9 +1019,18 @@
             }
             // The site sizes its canvas by the width/height ATTRIBUTES and
             // gives it no CSS box, so canvas pixels are CSS pixels and
-            // mirroring the attributes is the whole alignment story.
+            // mirroring the attributes is the whole SIZE story. POSITION is
+            // not: the desktop skin nests the canvas in an absolutely
+            // positioned #board_div2, but the mobile skin (what an iPhone is
+            // served) leaves every ancestor static and centres the canvas as
+            // inline content, so `left:0; top:0` lands on the document origin.
+            // Seat the overlay by the two boxes' on-screen delta instead.
+            // Making the parent `position: relative` (the OGS adapter's fix)
+            // is wrong HERE: it would switch on the `left`/`top` the site
+            // writes into #board_div2's style and shift the site's own board.
             if (overlay.width !== canvas.width) { overlay.width = canvas.width; }
             if (overlay.height !== canvas.height) { overlay.height = canvas.height; }
+            alignOverlay(canvas, overlay);
             return overlay;
         }
 

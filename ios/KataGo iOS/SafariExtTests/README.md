@@ -31,6 +31,12 @@ There is no `package.json`, no dependency and no build step: `node:test` and
   tags (TE to EV, RD to DT, KO to KM), `LN` to `SZ`, `HD` to `HA` plus the
   site's own handicap stones, the backtick pass, malformed moves, `RN[...]`
   reference blocks stripped by paren count, and the `//AI` trailer cut.
+- `overlayAlignment.test.js` — `alignOverlay`, which seats the cyberoro
+  adapter's overlay canvas on the site's board by the two boxes' on-screen
+  delta. The mobile skin an iPhone is served leaves every ancestor of the board
+  static, so the overlay's `left:0; top:0` alone lands on the document origin.
+  The fakes model an absolutely positioned box as its containing block's
+  origin plus its own `left`/`top`; there is no DOM here either.
 
 Fixtures are synthetic and **ASCII-only** on purpose. The live records are
 Korean; pinning one would pin a page's content as much as our parser, and every
