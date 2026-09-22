@@ -2251,7 +2251,18 @@ void NeuralNet::freeInputBuffers(InputBuffers* inputBuffers) {
 // NeuralNet Interface -------------------------------------------------------------------------------------------------
 
 void NeuralNet::globalInitialize() {
-  // MLX initializes automatically
+  // MLX keeps freed GPU buffers in a cache whose limit defaults to its memory limit -- 1.5x the
+  // device's recommended working set, per process -- so a KataGo process grows toward that
+  // ceiling over a long run. One process is bounded by the machine; several are not: eight
+  // gtp engines sharing one 48 GB Mac reached 1-10 GB each and filled swap within ten minutes.
+  // KATAGO_MLX_CACHE_LIMIT_MB caps the cache (256 holds a b18 engine near 1 GB with no
+  // measurable cost in visits/s); unset keeps MLX's default. Read here, before any array is
+  // allocated, since the limit is process-global.
+  if(const char* limit = std::getenv("KATAGO_MLX_CACHE_LIMIT_MB")) {
+    long mb = std::atol(limit);
+    if(mb >= 0)
+      mlx::core::set_cache_limit((size_t)mb * 1024 * 1024);
+  }
 }
 
 void NeuralNet::globalCleanup() {
