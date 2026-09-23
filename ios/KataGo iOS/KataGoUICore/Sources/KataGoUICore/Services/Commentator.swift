@@ -6,8 +6,8 @@
 //
 
 import SwiftUI
-#if canImport(FoundationModels)
-import FoundationModels   // Apple's on-device LLM — unavailable on tvOS
+#if canImport(FoundationModels) && !os(tvOS)
+import FoundationModels   // Apple's on-device LLM. tvOS 27 ships the module with every API unavailable, so canImport alone no longer excludes it.
 #endif
 
 // CommentTone enum is defined in KataGoGameStore (GameRules.swift) and
@@ -55,7 +55,7 @@ public class Commentator {
     @MainActor
     public func generateImprovedComment() async -> String {
         let original = generateNaturalComment()
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && !os(tvOS)
         let commentTone: CommentTone = gameRecord.config?.tone ?? .technical
 
         let prompt =
@@ -626,7 +626,7 @@ public enum CommentatorPhrasing {
     }
 }
 
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && !os(tvOS)
 @Generable
 struct CommentText {
     @Guide(description: "The improved Go commentary in single paragraph.")

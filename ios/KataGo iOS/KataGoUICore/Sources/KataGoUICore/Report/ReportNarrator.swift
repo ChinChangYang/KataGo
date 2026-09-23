@@ -12,8 +12,8 @@
 //
 
 import Foundation
-#if canImport(FoundationModels)
-import FoundationModels   // Apple's on-device LLM — unavailable on tvOS
+#if canImport(FoundationModels) && !os(tvOS)
+import FoundationModels   // Apple's on-device LLM. tvOS 27 ships the module with every API unavailable, so canImport alone no longer excludes it.
 #endif
 
 public enum ReportNarrator {
@@ -262,7 +262,7 @@ public enum ReportNarrator {
     public static func narrate(model: DeepReportModel,
                                tone: CommentTone,
                                temperature: Double) async {
-#if canImport(FoundationModels)
+#if canImport(FoundationModels) && !os(tvOS)
         guard case .available = SystemLanguageModel.default.availability else {
             model.narrativeUnavailableReason = "Apple Intelligence is not available on this device."
             return

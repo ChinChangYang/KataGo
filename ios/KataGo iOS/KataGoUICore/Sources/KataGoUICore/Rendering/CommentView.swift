@@ -6,8 +6,8 @@
 //
 
 import SwiftUI
-#if canImport(FoundationModels)
-import FoundationModels   // Apple's on-device LLM — unavailable on tvOS
+#if canImport(FoundationModels) && !os(tvOS)
+import FoundationModels   // Apple's on-device LLM. tvOS 27 ships the module with every API unavailable, so canImport alone no longer excludes it.
 #endif
 
 public struct CommentView: View {
