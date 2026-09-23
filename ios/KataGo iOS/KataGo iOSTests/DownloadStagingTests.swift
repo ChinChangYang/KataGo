@@ -85,7 +85,7 @@ struct DownloadStagingTests {
     }
 
     @Test func sidecarRoundTrips() throws {
-        try withTemporaryStaging { _ in
+        withTemporaryStaging { _ in
             let key = "abc123"
             let written = PartialMetadata(destinationPath: "/tmp/books/9x9.kbook.gz",
                                           sourceURLString: "https://example.invalid/9x9.kbook.gz",
@@ -98,7 +98,7 @@ struct DownloadStagingTests {
     }
 
     @Test func missingSidecarReadsAsNil() throws {
-        try withTemporaryStaging { _ in
+        withTemporaryStaging { _ in
             #expect(DownloadStaging.readMetadata(forKey: "never-written") == nil)
         }
     }

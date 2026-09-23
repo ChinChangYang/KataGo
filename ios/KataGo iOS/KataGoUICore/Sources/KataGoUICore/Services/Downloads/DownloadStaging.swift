@@ -144,7 +144,7 @@ public enum DownloadStaging {
     }
 
     public static func writeMetadata(_ metadata: PartialMetadata, forKey key: String) {
-        try? ensureDirectory()
+        _ = try? ensureDirectory()
         guard let data = try? JSONEncoder().encode(metadata) else { return }
         try? data.write(to: metadataURL(forKey: key), options: .atomic)
     }
@@ -183,7 +183,7 @@ public enum DownloadStaging {
     /// - Returns: the partial's new size in bytes.
     @discardableResult
     public static func replacePartial(withTemp temp: URL, forKey key: String) -> Int64 {
-        try? ensureDirectory()
+        _ = try? ensureDirectory()
         _ = swapIntoPlace(source: temp, destination: partialURL(forKey: key))
         return partialSize(forKey: key)
     }
@@ -202,7 +202,7 @@ public enum DownloadStaging {
     /// - Returns: the partial's new size in bytes.
     @discardableResult
     public static func appendChunk(from temp: URL, toKey key: String) -> Int64 {
-        try? ensureDirectory()
+        _ = try? ensureDirectory()
         let destination = partialURL(forKey: key)
         let fm = FileManager.default
         guard fm.fileExists(atPath: destination.path) else {

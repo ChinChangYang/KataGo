@@ -36,7 +36,7 @@ struct WatchRootView: View {
                     }
                 }
         }
-        .task {
+        .task { [library] in
             // Fires at the end of every refresh(), including the coalesced
             // remote-change path, so a CloudKit import updates the tile
             // without the user opening the library page. This is now the ONLY

@@ -360,6 +360,7 @@ final class EngineStatusUITests: PortraitUITestCase {
     /// swipes. Off-screen SwiftUI List cells are not in the accessibility tree,
     /// so a row near the bottom of Global Settings has to be revealed first.
     /// Same shape as the sibling suites' copies.
+    @MainActor
     private func reveal(_ app: XCUIApplication,
                         _ element: XCUIElement,
                         by swipe: () -> Void,

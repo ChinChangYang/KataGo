@@ -204,7 +204,7 @@ public final class ListeningEngine {
         let watchdog = Task { [weak self] in
             try? await self?.sleeper(ceiling)
             guard !Task.isCancelled else { return }
-            await self?.speaker.cancel()
+            self?.speaker.cancel()
         }
         await speaker.speak(text)
         watchdog.cancel()

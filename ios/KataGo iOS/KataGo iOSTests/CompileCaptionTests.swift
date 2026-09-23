@@ -46,7 +46,7 @@ struct CompileCaptionTests {
     @Test func runningTheCompileRaisesTheCaption() async throws {
         let (span, recorder) = makeSpan()
 
-        let result = try await reportingCompile(in: span) { "compiled" }
+        let result = await reportingCompile(in: span) { "compiled" }
 
         #expect(result == "compiled")
         // Raised, and still held: the caption must outlive the compile itself,
@@ -79,8 +79,8 @@ struct CompileCaptionTests {
 
         // `loadCoreMLHandle` retries once on a corrupt cache hit, which runs the
         // miss callback a second time. A Bool would leak the second raise.
-        _ = try await reportingCompile(in: span) { 1 }
-        _ = try await reportingCompile(in: span) { 2 }
+        _ = await reportingCompile(in: span) { 1 }
+        _ = await reportingCompile(in: span) { 2 }
 
         #expect(await recorder.begans == 2)
         await span.drain().value
@@ -89,7 +89,7 @@ struct CompileCaptionTests {
 
     @Test func drainingTwiceDoesNotDoubleRelease() async throws {
         let (span, recorder) = makeSpan()
-        _ = try await reportingCompile(in: span) { 0 }
+        _ = await reportingCompile(in: span) { 0 }
 
         await span.drain().value
         await span.drain().value

@@ -110,7 +110,7 @@ final class VisionControllerInput {
     /// release edge can never leave a runaway repeat.
     private func bindRepeating(_ button: GCControllerButtonInput, to event: ControllerEvent) {
         let key = ObjectIdentifier(button)
-        button.pressedChangedHandler = { [weak self] _, _, pressed in
+        button.pressedChangedHandler = { [weak self, weak button] _, _, pressed in
             Task { @MainActor in
                 guard let self else { return }
                 self.repeatTasks.removeValue(forKey: key)?.cancel()

@@ -191,7 +191,7 @@ public final class DownloadCenter {
     public func restoreOnLaunch() {
         sweepStaging()
         guard !downloadsDisabled else { return }
-        session.getAllTasks { tasks in
+        session.getAllTasks { [weak self] tasks in
             // Only Strings cross the boundary — never the tasks themselves.
             // Only `.running`: a `.suspended` or `.canceling` task may never
             // deliver a terminal callback, and one that does not would pin

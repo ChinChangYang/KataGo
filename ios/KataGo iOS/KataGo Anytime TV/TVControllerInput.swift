@@ -124,7 +124,7 @@ final class TVControllerInput {
     /// runaway repeat — which on the review screen would run the timeline away.
     private func bindRepeating(_ button: GCControllerButtonInput, to event: TVControllerEvent) {
         let key = ObjectIdentifier(button)
-        button.pressedChangedHandler = { [weak self] _, _, pressed in
+        button.pressedChangedHandler = { [weak self, weak button] _, _, pressed in
             Task { @MainActor in
                 guard let self else { return }
                 self.repeatTasks.removeValue(forKey: key)?.cancel()
