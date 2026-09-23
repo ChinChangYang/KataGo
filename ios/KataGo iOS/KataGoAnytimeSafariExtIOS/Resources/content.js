@@ -403,9 +403,13 @@
             this.engineModel = null;
             this.theme = null;            // "light"|"dark", from the page's surface
             // Where the adapter wants the panel to sit (ADR 0016). Read BEFORE
-            // buildPanel(), which is the only thing that consumes it.
+            // buildPanel(); placePanel() is the only thing that consumes it.
             this.anchor = info.anchor || null;
-            this.anchorAfter = info.anchorAfter || null;
+            this.anchorAt = info.anchorAt || null;
+            this.docked = false;
+            this.placementTimer = null;
+            this.misses = 0;              // checks in a row that missed anchorAt
+            this.removed = false;
             // A STABLE session key from the adapter, for a record that grows
             // under the reader (ADR 0017); null means the SGF hash IS the
             // identity, exactly as it always was.
@@ -429,42 +433,6 @@
         buildPanel() {
             const host = document.createElement("katago-anytime-panel");
             host.style.display = "block";
-            // "after" names the element the panel goes right after, on a page
-            // that flows. If that element is gone, or the selector does not
-            // parse, dock instead: an adapter asks for a slot only on a page
-            // where the default branch below would land nowhere useful.
-            let slot = null;
-            if (this.anchor === "after") {
-                try { slot = document.querySelector(this.anchorAfter); } catch (e) { slot = null; }
-                if (!slot || !slot.parentNode) { slot = null; this.anchor = "floating"; }
-            }
-            if (slot) {
-                // cyberoro's mobile skin: under the transport row, above the
-                // site's own AI graph. In the flow the panel pushes the page
-                // down instead of covering it. The side inset matches the
-                // page's 10px gutters and keeps the card's border off the
-                // screen edge.
-                host.style.margin = "8px 10px";
-                slot.parentNode.insertBefore(host, slot.nextSibling);
-            } else if (this.anchor === "floating") {
-                // Some viewers leave no flow to insert into: cyberoro's desktop
-                // giboviewer is position:fixed from <body> down, so the branch
-                // below would drop the panel underneath a full-viewport white
-                // surface. Dock into the viewport instead — the site's own
-                // right rail, above its transport controls, never over the
-                // board. The z-index clears the rail (100), the board (110)
-                // and the info strip (120).
-                host.style.position = "fixed";
-                host.style.right = "13px";
-                host.style.bottom = "44px";
-                host.style.width = "274px";
-                host.style.maxWidth = "calc(100vw - 26px)";
-                host.style.zIndex = "130";
-                document.body.appendChild(host);
-            } else {
-                const anchor = document.querySelector(".wgo-player-main") || document.body;
-                (anchor.parentNode || document.body).insertBefore(host, anchor.nextSibling);
-            }
             this.host = host;
 
             const root = host.attachShadow({ mode: "closed" });
@@ -533,15 +501,16 @@
 }
 .kga-msg { margin-top: 8px; color: var(--kga-ink-muted); }
 .kga-msg.kga-error { color: var(--kga-badge); }
-/* A site-anchored ("floating") panel: docked into the viewport because the page
-   left no flow to insert into. Bounded and scrollable so it can never outgrow
-   the site's own rail, and collapsible to a single bar. */
+/* A docked ("floating") panel sits over the page, so it is bounded and
+   scrollable and can never outgrow the site's own rail. */
 .kga-root.kga-floating { max-height: min(46vh, 420px); overflow: auto;
   box-shadow: 0 6px 20px rgba(0,0,0,0.20); }
 .kga-root.kga-floating.kga-collapsed { max-height: none; overflow: visible; }
-.kga-root.kga-floating.kga-collapsed > *:not(.kga-bar) { display: none; }
+/* A panel a site adapter placed collapses to its bar: docked it covers the
+   page, and in the flow it can still crowd a short column. */
+.kga-root.kga-collapsed > *:not(.kga-bar) { display: none; }
 .kga-collapse { display: none; }
-.kga-root.kga-floating .kga-collapse { display: inline-flex; }
+.kga-root.kga-collapsible .kga-collapse { display: inline-flex; }
 /* Narrow phones: stack the controls under the buttons. */
 @media (max-width: 420px) {
   .kga-controls { margin-left: 0; width: 100%; }
@@ -608,12 +577,13 @@
                 onHover: (index) => this.showTip(index),
             });
             new ResizeObserver(() => this.chart.draw()).observe(this.el.canvas);
+            this.el.collapse.addEventListener("click", () => this.toggleCollapsed());
+            // A WGo page keeps the panel it always had.
+            if (this.anchor) { this.el.rootEl.classList.add("kga-collapsible"); }
+            this.placePanel();
+            if (this.inFlowAnchor()) { this.placementTimer = setInterval(() => this.placePanel(), 1000); }
             this.applyTheme();
             themeListeners.add(() => this.applyTheme());
-            if (this.anchor === "floating") {
-                this.el.rootEl.classList.add("kga-floating");
-                this.el.collapse.addEventListener("click", () => this.toggleCollapsed());
-            }
 
             this.el.logo.addEventListener("click", () => this.toggleDetails());
             this.el.analyze.addEventListener("click", () => this.toggleAnalysis());
@@ -631,14 +601,111 @@
         /// route change: the shadow host would sit there over a board that no
         /// longer exists.
         removePanel() {
+            this.removed = true;
+            if (this.placementTimer) { clearInterval(this.placementTimer); this.placementTimer = null; }
             if (this.host && this.host.parentNode) {
                 this.host.parentNode.removeChild(this.host);
             }
         }
 
-        /// A floating panel sits OVER the page, so it has to be dismissable
-        /// without losing the session: collapse to the bar, keep whatever is
-        /// running running, expand again from the same button.
+        /// "after" and "prepend": the page flows, and `anchorAt` names where.
+        inFlowAnchor() { return this.anchor === "after" || this.anchor === "prepend"; }
+
+        /// Put the panel where the adapter asked (ADR 0016, decision 4).
+        ///
+        /// An in-flow panel goes right after the element `anchorAt` names, or
+        /// in it as its first child. That element can come and go under a
+        /// single-page app: OGS renders a different layout when the phone
+        /// turns, and the column the panel sat in is unmounted with the panel
+        /// inside it. So an in-flow panel is re-placed once a second. Once the
+        /// element has been missing for a whole second, or when the selector
+        /// does not parse, the panel docks, and it goes back into the flow when
+        /// the element returns.
+        placePanel() {
+            if (this.removed) { return; }
+            const host = this.host;
+            if (!this.inFlowAnchor() && this.anchor !== "floating") {
+                // A WGo page: right under the player, or body-end. Placed once.
+                if (!host.parentNode) {
+                    const anchor = document.querySelector(".wgo-player-main") || document.body;
+                    (anchor.parentNode || document.body).insertBefore(host, anchor.nextSibling);
+                }
+                return;
+            }
+            let target = null;
+            if (this.inFlowAnchor()) {
+                try { target = document.querySelector(this.anchorAt); } catch (e) { target = null; }
+                if (target && this.anchor === "after" && !target.parentNode) { target = null; }
+            }
+            if (target) {
+                this.misses = 0;
+                // A viewer that is off limits (ADR 0017) has nothing to offer
+                // but the line saying so, so a prepended panel goes last in its
+                // column instead, below whatever the reader needs during play:
+                // with the board beside the column, OGS keeps the clocks and
+                // the play buttons in it.
+                const last = this.anchor === "prepend" && !!this.refusal;
+                const placed = this.anchor === "after" ? target.nextElementSibling === host
+                    : last ? target.lastElementChild === host
+                    : target.firstElementChild === host;
+                if (placed) { return; }
+                this.setDocked(false);
+                if (this.anchor === "after") { target.after(host); }
+                else if (last) { target.append(host); }
+                else { target.prepend(host); }
+            } else {
+                // A missing element is often only late: OGS assigns its goban
+                // a render before it mounts the panel's column, and mounts a
+                // new column after the viewport changes shape. Waiting one
+                // check keeps the card from flashing over the page on its way
+                // into the flow.
+                if (this.inFlowAnchor() && this.misses++ < 1) { return; }
+                if (this.docked && host.parentNode === document.body) { return; }
+                this.setDocked(true);
+                document.body.appendChild(host);
+            }
+            // The surface behind the panel has just changed.
+            this.applyTheme();
+        }
+
+        setDocked(docked) {
+            this.docked = docked;
+            const style = this.host.style;
+            if (docked) {
+                // Docked into the viewport's lower right. Some viewers leave no
+                // flow to insert into: cyberoro's desktop giboviewer is
+                // position:fixed from <body> down, and this corner is its right
+                // rail, above its transport controls and clear of the board.
+                // The z-index clears the rail (100), the board (110) and the
+                // info strip (120). An in-flow panel whose element is missing
+                // waits here too, where it may cover part of the page.
+                style.position = "fixed";
+                style.right = "13px";
+                style.bottom = "44px";
+                style.width = "274px";
+                style.maxWidth = "calc(100vw - 26px)";
+                style.zIndex = "130";
+                style.margin = "";
+            } else {
+                // In the flow the panel pushes the page down instead of covering
+                // it. The side inset keeps the card's border off the edges of
+                // whatever it sits in: cyberoro's page has 10px gutters, and
+                // OGS's game page gives its panels no side padding.
+                for (const key of ["position", "right", "bottom", "width", "maxWidth", "zIndex"]) {
+                    style[key] = "";
+                }
+                style.margin = "8px 10px";
+            }
+            this.el.rootEl.classList.toggle("kga-floating", docked);
+        }
+
+        /// A panel a site adapter placed can be put out of the way without
+        /// losing the session: docked it sits over the page, and in the flow it
+        /// can crowd a short column, such as OGS's sidebar on a phone held
+        /// sideways, where it would push the clocks and the play buttons down.
+        /// Collapse to the bar, keep whatever is running running, expand again
+        /// from the same button. The choice holds when the panel moves between
+        /// the flow and the dock.
         toggleCollapsed() {
             const collapsed = this.el.rootEl.classList.toggle("kga-collapsed");
             this.el.collapse.textContent = collapsed ? "▸" : "▾";
@@ -756,6 +823,9 @@
             } else {
                 this.message("");
             }
+            // It decides where an in-flow panel goes in its column. One still
+            // waiting for its element, or docked, is left to the next check.
+            if (this.host.isConnected && !this.docked) { this.placePanel(); }
         }
 
         onPlayerUpdate(payload) {
@@ -769,7 +839,9 @@
             this.onMainline = line ? line.onMainline : path.onMainline;
             this.currentLine = line;
             this.chart.setCursor(this.currentIndex, this.onMainline);
-            this.message("");
+            // The refusal is the one line a viewer that is off limits has, and
+            // every move the reader makes lands here.
+            this.message(this.refusal || "");
             // Whatever was being deepened is no longer what the reader is
             // looking at. Abandon it — a three-second search nobody is waiting
             // on only delays the one they are.

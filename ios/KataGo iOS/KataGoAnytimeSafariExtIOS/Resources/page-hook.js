@@ -77,11 +77,11 @@
             // Where the panel should mount. Absent — the WGo default — means
             // the content script's own `.wgo-player-main` insertion; "floating"
             // means the page leaves no flow to insert into and the panel has to
-            // dock itself into the viewport; "after" means the page does flow,
-            // and the panel goes into it right after the element that the CSS
-            // selector `anchorAfter` names.
+            // dock itself into the viewport. "after" and "prepend" mean the page
+            // does flow: the panel goes right after the element that the CSS
+            // selector `anchorAt` names, or in it as its first child.
             anchor: info.anchor || null,
-            anchorAfter: typeof info.anchorAfter === "string" ? info.anchorAfter : null,
+            anchorAt: typeof info.anchorAt === "string" ? info.anchorAt : null,
             // A STABLE session identity, for a viewer whose record grows under
             // it (ADR 0017): the native side keys its session on this rather
             // than on the SGF hash, which changes with every appended move.
@@ -108,7 +108,7 @@
     // registers one viewer per BasicPlayer it traps, and did so before this
     // seam existed. A viewer is:
     //
-    //   describe()          { sgfInline, sgfFile, hasJson, anchor, anchorAfter }
+    //   describe()          { sgfInline, sgfFile, hasJson, anchor, anchorAt }
     //   goTo(n, mainline)   seek to move n, or a no-op where seeking is unsafe
     //   draw(state)         paint { ownership, candidates } for this viewer
     //   clear()             remove everything draw() painted
@@ -815,14 +815,14 @@
     function cyberoroPanelAnchor(doc, styleOf) {
         const selector = "#board_div ~ .con1";
         const row = doc.querySelector(selector);
-        if (!row) { return { anchor: "floating", anchorAfter: null }; }
+        if (!row) { return { anchor: "floating", anchorAt: null }; }
         for (let el = row; el && el !== doc.documentElement; el = el.parentElement) {
             const position = styleOf(el).position;
             if (position !== "static" && position !== "relative") {
-                return { anchor: "floating", anchorAfter: null };
+                return { anchor: "floating", anchorAt: null };
             }
         }
-        return { anchor: "after", anchorAfter: selector };
+        return { anchor: "after", anchorAt: selector };
     }
 
     function installCyberoro(hostApi) {
@@ -868,7 +868,7 @@
                     sgfFile: null,
                     hasJson: false,
                     anchor: place.anchor,
-                    anchorAfter: place.anchorAfter,
+                    anchorAt: place.anchorAt,
                 };
             },
             goTo(move) { seek(move); },
@@ -1247,6 +1247,23 @@
     const OGS_REFUSAL = "KataGo stays off ongoing games — OGS's terms forbid "
         + "engine analysis of a game in progress.";
 
+    // Where the panel sits: first thing in the game page's main panel, the one
+    // OGS always shows (online-go.com src/views/Game/Game.tsx:1260). OGS lays
+    // a game out as the board plus a column of panels. In portrait (a phone or
+    // an iPad held upright) the column is under the board and scrolls with it;
+    // otherwise it is a sidebar beside the board that scrolls on its own
+    // (src/components/GobanView/GobanView.tsx:569-628, :679-686). The move row
+    // and the tab bar are pinned below the column in both layouts, so a docked
+    // card covers them, and in portrait the board as well. The main panel
+    // heads the column in both, and OGS hides it while a takeover such as
+    // Settings is open, which hides this panel with it. OGS renders it anew
+    // when the viewport changes shape, so the content script keeps looking it
+    // up. The puzzle and joseki pages have main panels of their own, laid out
+    // for exactly their own children (Puzzle.css pushes its two blocks to the
+    // top and the bottom), so the selector is scoped to the game page and the
+    // panel docks everywhere else, as it always did on OGS.
+    const OGS_MAIN_PANEL = ".MainGobanView .GobanView-tab-panel.always";
+
     const ogsAdapter = {
         id: "ogs",
 
@@ -1257,11 +1274,14 @@
         detect() { return true; },
 
         attach(hostApi) {
-            // `window.global_goban` is set by <Game/> on mount and nulled on
-            // unmount (online-go.com src/views/Game/Game.tsx:283, :600). All ten
-            // game/review/demo routes render that component and set it; the two
-            // /embed routes render a MiniGoban and never do — which is why the
-            // ASSIGNMENT is the detection, and no URL is ever inspected.
+            // `window.global_goban` is set by <Game/> when it builds a goban and
+            // nulled on unmount (online-go.com src/views/Game/Game.tsx:414,
+            // :734). All nine game/review/demo routes render that component and
+            // set it; the two /embed routes render a MiniGoban and never do —
+            // which is why the ASSIGNMENT is the detection, and no URL is ever
+            // inspected. The puzzle, joseki and Learning Hub pages assign it too
+            // (Puzzle.tsx:352, Joseki.tsx:242, LearningPage.tsx:235), so the
+            // adapter binds there as well.
             let live;
             let session = null;
             try {
@@ -1311,10 +1331,8 @@
                     sgfInline: lastSgf,
                     sgfFile: null,
                     hasJson: false,
-                    // OGS's .Goban is absolutely positioned inside a flex
-                    // column: inserting after it overlaps the board, and
-                    // inserting after .goban-container shrinks the board.
-                    anchor: "floating",
+                    anchor: "prepend",
+                    anchorAt: OGS_MAIN_PANEL,
                     gameId: sessionKey(),
                     refusal: lastRefusal || null,
                 };

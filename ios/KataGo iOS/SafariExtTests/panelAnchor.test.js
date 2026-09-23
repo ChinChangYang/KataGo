@@ -52,7 +52,7 @@ test("mobile skin: the panel goes into the flow right after the transport row", 
     const page = root();
     const row = element("static", element("static", page.body));
     assert.deepEqual(cyberoroPanelAnchor(doc(page, row), styleOf),
-                     { anchor: "after", anchorAfter: ROW });
+                     { anchor: "after", anchorAt: ROW });
 });
 
 test("a relatively positioned ancestor still flows", () => {
@@ -63,7 +63,7 @@ test("a relatively positioned ancestor still flows", () => {
 
 test("desktop skin: no .con1 row, so the panel docks", () => {
     assert.deepEqual(cyberoroPanelAnchor(doc(root(), null), styleOf),
-                     { anchor: "floating", anchorAfter: null });
+                     { anchor: "floating", anchorAt: null });
 });
 
 for (const position of ["fixed", "absolute", "sticky"]) {
@@ -71,7 +71,7 @@ for (const position of ["fixed", "absolute", "sticky"]) {
         const page = root();
         const row = element("static", element(position, page.body));
         assert.deepEqual(cyberoroPanelAnchor(doc(page, row), styleOf),
-                         { anchor: "floating", anchorAfter: null });
+                         { anchor: "floating", anchorAt: null });
     });
 }
 

@@ -71,13 +71,26 @@ through a file whose only structure was "WGo".
    hint. Absent — every WGo page — keeps today's insertion after
    `.wgo-player-main`. `"floating"` tells both content scripts to dock a
    collapsible card into the viewport instead, for pages whose layout leaves no
-   flow to insert into. `"after"` names, through the CSS selector
-   `anchorAfter`, the element the panel goes right after in a page that does
-   flow; if that element is gone, the panel docks. A docked card covers
-   whatever is under it, so an adapter asks for it only where there is no flow.
-   cyberoro asks for both: its desktop skin is `position: fixed` throughout,
-   and the mobile skin an iPhone is served is an ordinary scrolling page, where
-   the card sits under the transport row.
+   flow to insert into. `"after"` and `"prepend"` name, through the CSS
+   selector `anchorAt`, an element in a page that does flow: the panel goes
+   right after it, or into it as its first child. A single-page app can take
+   that element away and bring it back, so the content scripts look it up
+   again once a second. Once it has been gone for a second the panel docks,
+   and it goes back into the flow when the element returns. A docked card
+   covers whatever is under it, so an adapter asks for it only where there is
+   no flow. Any panel an adapter placed, docked or in the flow, collapses to
+   its bar. cyberoro docks on its desktop skin, which is `position: fixed`
+   throughout; on the mobile skin an iPhone is served, the panel goes
+   `"after"` the transport row. On OGS it goes `"prepend"` into the game's
+   main panel, which heads the column of panels: under the board in
+   portrait, scrolling with it, and in a sidebar beside it otherwise. OGS
+   swaps the two layouts when the viewport changes shape, and hides the main
+   panel, and so the panel with it, while Settings or another takeover is
+   open. A game in progress gets only the line saying why KataGo is off (ADR
+   0017), so there the panel goes last in the main panel instead, below the
+   clocks and the play buttons OGS puts in it when the board is beside the
+   column. The selector names the game page only; OGS's puzzle and joseki
+   pages keep the dock.
 
 5. **A viewer that owns no drawable surface gets an overlay canvas.** The
    cyberoro adapter inserts a transparent, `pointer-events: none` canvas as a
@@ -124,4 +137,7 @@ through a file whose only structure was "WGo".
   first iPhone QA (2026-09-23) found two problems caused by that skin. Every
   mark was drawn rows above its intersection; decision 5's delta seating fixes
   that. The docked panel, once it grew, covered the lower-right of the board and
-  the forward buttons; decision 4's `"after"` anchor fixes that.
+  the forward buttons; decision 4's `"after"` anchor fixes that. On OGS the
+  same card covered the move row in both layouts on an iPhone and an iPad
+  mini, and the board as well in portrait; decision 4's `"prepend"` fixes
+  that.
