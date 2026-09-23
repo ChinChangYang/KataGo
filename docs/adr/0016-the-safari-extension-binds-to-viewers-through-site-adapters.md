@@ -71,7 +71,13 @@ through a file whose only structure was "WGo".
    hint. Absent — every WGo page — keeps today's insertion after
    `.wgo-player-main`. `"floating"` tells both content scripts to dock a
    collapsible card into the viewport instead, for pages whose layout leaves no
-   flow to insert into.
+   flow to insert into. `"after"` names, through the CSS selector
+   `anchorAfter`, the element the panel goes right after in a page that does
+   flow; if that element is gone, the panel docks. A docked card covers
+   whatever is under it, so an adapter asks for it only where there is no flow.
+   cyberoro asks for both: its desktop skin is `position: fixed` throughout,
+   and the mobile skin an iPhone is served is an ordinary scrolling page, where
+   the card sits under the transport row.
 
 5. **A viewer that owns no drawable surface gets an overlay canvas.** The
    cyberoro adapter inserts a transparent, `pointer-events: none` canvas as a
@@ -115,5 +121,7 @@ through a file whose only structure was "WGo".
 - macOS is where this adapter is developed and QA'd (`refresh_safari_ext.sh` is
   the fast loop). The shared hook means iOS Safari lights up too, but an iPhone
   is served a different, mobile skin, not the desktop page laid out small. The
-  first iPhone QA (2026-09-23) found every mark drawn rows above its
-  intersection because of that skin; decision 5's delta seating is the fix.
+  first iPhone QA (2026-09-23) found two problems caused by that skin. Every
+  mark was drawn rows above its intersection; decision 5's delta seating fixes
+  that. The docked panel, once it grew, covered the lower-right of the board and
+  the forward buttons; decision 4's `"after"` anchor fixes that.

@@ -1,8 +1,7 @@
 # SafariExtTests
 
-Node tests for the pure converters inside the Safari extension's page-world
-hook — the parts of a site adapter that are text in, text out and have no page
-in them (ADR 0016).
+Node tests for the pure functions inside the Safari extension's page-world
+hook — the parts of a site adapter that can run without a page (ADR 0016).
 
 ```sh
 cd "ios/KataGo iOS"
@@ -37,6 +36,12 @@ There is no `package.json`, no dependency and no build step: `node:test` and
   static, so the overlay's `left:0; top:0` alone lands on the document origin.
   The fakes model an absolutely positioned box as its containing block's
   origin plus its own `left`/`top`; there is no DOM here either.
+- `panelAnchor.test.js` — `cyberoroPanelAnchor`, which chooses where the
+  panel sits on a giboviewer page. On the mobile skin it goes into the page's
+  flow right after the transport row. On the desktop skin, or wherever the row
+  is out of the flow, it docks into the viewport. The fakes model one
+  `querySelector` answer, the parent chain and each element's computed
+  `position`.
 
 Fixtures are synthetic and **ASCII-only** on purpose. The live records are
 Korean; pinning one would pin a page's content as much as our parser, and every

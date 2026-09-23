@@ -405,6 +405,7 @@
             // Where the adapter wants the panel to sit (ADR 0016). Read BEFORE
             // buildPanel(), which is the only thing that consumes it.
             this.anchor = info.anchor || null;
+            this.anchorAfter = info.anchorAfter || null;
             // A STABLE session key from the adapter, for a record that grows
             // under the reader (ADR 0017); null means the SGF hash IS the
             // identity, exactly as it always was.
@@ -428,8 +429,25 @@
         buildPanel() {
             const host = document.createElement("katago-anytime-panel");
             host.style.display = "block";
-            if (this.anchor === "floating") {
-                // Some viewers leave no flow to insert into: cyberoro's
+            // "after" names the element the panel goes right after, on a page
+            // that flows. If that element is gone, or the selector does not
+            // parse, dock instead: an adapter asks for a slot only on a page
+            // where the default branch below would land nowhere useful.
+            let slot = null;
+            if (this.anchor === "after") {
+                try { slot = document.querySelector(this.anchorAfter); } catch (e) { slot = null; }
+                if (!slot || !slot.parentNode) { slot = null; this.anchor = "floating"; }
+            }
+            if (slot) {
+                // cyberoro's mobile skin: under the transport row, above the
+                // site's own AI graph. In the flow the panel pushes the page
+                // down instead of covering it. The side inset matches the
+                // page's 10px gutters and keeps the card's border off the
+                // screen edge.
+                host.style.margin = "8px 10px";
+                slot.parentNode.insertBefore(host, slot.nextSibling);
+            } else if (this.anchor === "floating") {
+                // Some viewers leave no flow to insert into: cyberoro's desktop
                 // giboviewer is position:fixed from <body> down, so the branch
                 // below would drop the panel underneath a full-viewport white
                 // surface. Dock into the viewport instead — the site's own

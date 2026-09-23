@@ -29,7 +29,8 @@
     // in a page, where `window` always exists.
     if (typeof window === "undefined") {
         if (typeof module === "object" && module.exports) {
-            module.exports = { giboToSgf, gobanToSgf, ogsAccess, alignOverlay };
+            module.exports = { giboToSgf, gobanToSgf, ogsAccess, alignOverlay,
+                               cyberoroPanelAnchor };
         }
         return;
     }
@@ -76,8 +77,11 @@
             // Where the panel should mount. Absent — the WGo default — means
             // the content script's own `.wgo-player-main` insertion; "floating"
             // means the page leaves no flow to insert into and the panel has to
-            // dock itself into the viewport.
+            // dock itself into the viewport; "after" means the page does flow,
+            // and the panel goes into it right after the element that the CSS
+            // selector `anchorAfter` names.
             anchor: info.anchor || null,
+            anchorAfter: typeof info.anchorAfter === "string" ? info.anchorAfter : null,
             // A STABLE session identity, for a viewer whose record grows under
             // it (ADR 0017): the native side keys its session on this rather
             // than on the SGF hash, which changes with every appended move.
@@ -104,7 +108,7 @@
     // registers one viewer per BasicPlayer it traps, and did so before this
     // seam existed. A viewer is:
     //
-    //   describe()          { sgfInline, sgfFile, hasJson, anchor }
+    //   describe()          { sgfInline, sgfFile, hasJson, anchor, anchorAfter }
     //   goTo(n, mainline)   seek to move n, or a no-op where seeking is unsafe
     //   draw(state)         paint { ownership, candidates } for this viewer
     //   clear()             remove everything draw() painted
@@ -791,6 +795,36 @@
         },
     };
 
+    // Where the panel sits on a giboviewer page. The two skins differ:
+    //
+    // - Desktop: the whole page is position:fixed and the body has no flow at
+    //   all, so the content script's body-end fallback would drop the panel
+    //   underneath a full-viewport white div. The panel docks into the
+    //   viewport instead.
+    // - Mobile, which is what an iPhone is served: an ordinary scrolling page
+    //   of a top bar, the board, the transport row `div.con1` and then the
+    //   site's own AI graph. A docked panel there covers the lower-right of
+    //   the board and the row's forward buttons as soon as it grows. So the
+    //   panel goes into the flow right under that row, where it covers
+    //   nothing and pushes the rest of the page down.
+    //
+    // The two are told apart by what the page exposes. The desktop skin has
+    // `con1` only as an id, never as a class. A row that some ancestor takes
+    // out of the flow would leave the panel with nothing to push, so it docks
+    // too.
+    function cyberoroPanelAnchor(doc, styleOf) {
+        const selector = "#board_div ~ .con1";
+        const row = doc.querySelector(selector);
+        if (!row) { return { anchor: "floating", anchorAfter: null }; }
+        for (let el = row; el && el !== doc.documentElement; el = el.parentElement) {
+            const position = styleOf(el).position;
+            if (position !== "static" && position !== "relative") {
+                return { anchor: "floating", anchorAfter: null };
+            }
+        }
+        return { anchor: "after", anchorAfter: selector };
+    }
+
     function installCyberoro(hostApi) {
         // The record, captured ONCE.
         //
@@ -828,14 +862,13 @@
 
         const viewer = {
             describe() {
+                const place = cyberoroPanelAnchor(document, (el) => getComputedStyle(el));
                 return {
                     sgfInline: record.sgf,
                     sgfFile: null,
                     hasJson: false,
-                    // The whole page is position:fixed and the body has no flow
-                    // at all, so the content script's body-end fallback would
-                    // drop the panel underneath a full-viewport white div.
-                    anchor: "floating",
+                    anchor: place.anchor,
+                    anchorAfter: place.anchorAfter,
                 };
             },
             goTo(move) { seek(move); },
