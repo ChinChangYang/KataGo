@@ -6,41 +6,44 @@ import PackageDescription
 // `katago` Xcode framework target's HEADER_SEARCH_PATHS +
 // SYSTEM_HEADER_SEARCH_PATHS.
 //
-// IMPORTANT — these MUST be relative to the directory the compiler runs in,
-// NOT the package/target source dir. When Xcode/XCBuild compiles a SwiftPM
-// C++ target the clang working directory is the directory CONTAINING the
-// .xcodeproj (i.e. `ios/KataGo iOS/KataGo Anytime.xcodeproj/`), so the repo's
-// cpp/ tree is three levels up (`../../../cpp`). (SwiftPM's `.headerSearchPath`
-// can't be used here because it rejects any path outside the package root.)
+// IMPORTANT — these are ABSOLUTE paths, rooted at this package's directory.
+// A relative `-I` resolves against clang's working directory, which each
+// build system picks differently: Xcode uses
+// `ios/KataGo iOS/KataGo Anytime.xcodeproj/`, SwiftPM's native build system
+// uses wherever `swift build` was started, and Xcode 27's default
+// `swift build` uses `ios/KataGo iOS/`, where `../../../cpp` leaves the repo.
+// (SwiftPM's `.headerSearchPath` can't be used here because it rejects any
+// path outside the package root.)
 //
 // The bridge only #includes "main.h" and "sgf.h"; everything else is pulled
 // in transitively by the engine headers via their own relative includes, so
 // it only needs the roots on the search path. The C++ target does NOT
 // recompile the engine — symbols resolve at app link time against the katago
 // framework.
+let cpp = Context.packageDirectory + "/../../../cpp"
+// ThirdParty/ sits directly under `ios/KataGo iOS/`, next to this package.
+let thirdParty = Context.packageDirectory + "/../ThirdParty"
 let engineHeaderFlags: [String] = [
-    "-I", "../../../cpp",
-    "-I", "../../../cpp/dataio",
-    "-I", "../../../cpp/external/tclap-1.2.5/include",
-    "-I", "../../../cpp/external",
+    "-I", cpp,
+    "-I", cpp + "/dataio",
+    "-I", cpp + "/external/tclap-1.2.5/include",
+    "-I", cpp + "/external",
     // MLX (USE_MLX_BACKEND) headers, pulled in transitively via nninterface.h.
-    // ThirdParty/ sits directly under `ios/KataGo iOS/`, one level up from the
-    // .xcodeproj working directory.
-    "-I", "../ThirdParty/mlx-swift/Source/Cmlx/mlx",
-    "-I", "../ThirdParty/mlx-swift/Source/Cmlx/mlx-c",
+    "-I", thirdParty + "/mlx-swift/Source/Cmlx/mlx",
+    "-I", thirdParty + "/mlx-swift/Source/Cmlx/mlx-c",
     // System header search paths (the engine target marks these as system).
-    "-I", "../../../cpp/external/filesystem-1.5.8/include",
-    "-I", "../../../cpp/external/katagocoreml/include",
-    "-I", "../../../cpp/external/katagocoreml/src",
-    "-I", "../../../cpp/external/katagocoreml/generated",
-    "-I", "../../../cpp/external/katagocoreml/vendor/mlmodel/format",
-    "-I", "../../../cpp/external/katagocoreml/vendor/mlmodel/src",
-    "-I", "../../../cpp/external/katagocoreml/vendor/modelpackage/src",
-    "-I", "../../../cpp/external/katagocoreml/vendor/deps/FP16/include",
-    "-I", "../../../cpp/external/nlohmann_json",
-    "-I", "../../../cpp/external/protobuf-34.1/src",
-    "-I", "../../../cpp/external/protobuf-34.1/third_party/utf8_range",
-    "-I", "../../../cpp/external/abseil-cpp-20260107.1",
+    "-I", cpp + "/external/filesystem-1.5.8/include",
+    "-I", cpp + "/external/katagocoreml/include",
+    "-I", cpp + "/external/katagocoreml/src",
+    "-I", cpp + "/external/katagocoreml/generated",
+    "-I", cpp + "/external/katagocoreml/vendor/mlmodel/format",
+    "-I", cpp + "/external/katagocoreml/vendor/mlmodel/src",
+    "-I", cpp + "/external/katagocoreml/vendor/modelpackage/src",
+    "-I", cpp + "/external/katagocoreml/vendor/deps/FP16/include",
+    "-I", cpp + "/external/nlohmann_json",
+    "-I", cpp + "/external/protobuf-34.1/src",
+    "-I", cpp + "/external/protobuf-34.1/third_party/utf8_range",
+    "-I", cpp + "/external/abseil-cpp-20260107.1",
 ]
 
 let package = Package(
