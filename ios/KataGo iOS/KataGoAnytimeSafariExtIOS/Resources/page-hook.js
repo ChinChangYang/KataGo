@@ -30,7 +30,7 @@
     if (typeof window === "undefined") {
         if (typeof module === "object" && module.exports) {
             module.exports = { giboToSgf, gobanToSgf, ogsAccess, alignOverlay,
-                               cyberoroPanelAnchor };
+                               cyberoroPanelAnchor, watchForeignCalls };
         }
         return;
     }
@@ -1303,6 +1303,32 @@
         },
     };
 
+    // Wraps `target[method]` so that every call still goes through unchanged,
+    // and a call made while `isOwn()` is false then runs `onForeign()`.
+    // Returns the undo. The undo puts back exactly what was there, an own
+    // property or none (the prototype's method then shows through again), and
+    // does nothing if something else has wrapped the method since: unwinding
+    // would drop that wrapper too, so ours stays in the chain and `onForeign`
+    // is expected to go inert by itself.
+    function watchForeignCalls(target, method, isOwn, onForeign) {
+        const original = target && target[method];
+        if (typeof original !== "function") { return () => {}; }
+        const hadOwn = Object.prototype.hasOwnProperty.call(target, method);
+        const watcher = function () {
+            const result = original.apply(this, arguments);
+            if (!isOwn()) { onForeign(); }
+            return result;
+        };
+        try { target[method] = watcher; } catch (e) { return () => {}; }
+        if (target[method] !== watcher) { return () => {}; }   // a setter kept its own
+        return () => {
+            if (target[method] !== watcher) { return; }
+            try {
+                if (hadOwn) { target[method] = original; } else { delete target[method]; }
+            } catch (e) { /* frozen since: the watcher stays, and its callback is inert */ }
+        };
+    }
+
     function bindOgsGoban(hostApi, goban) {
         let playerId = null;
         let analysis = { ownership: null, candidates: null };
@@ -1315,6 +1341,7 @@
         let disposed = false;
         let observer = null;
         let redrawTimer = null;
+        let writingCircles = false;
         const unbinders = [];
 
         const listen = (target, event, handler) => {
@@ -1533,6 +1560,7 @@
                     border_width: mark.isBest ? 0.125 : 0,
                 });
             }
+            writingCircles = true;
             try {
                 goban.setColoredCircles(circles);
                 // setColoredCircles([]) deletes the matrix and returns WITHOUT
@@ -1540,6 +1568,24 @@
                 // clearing has to ask for the repaint itself.
                 if (!circles.length) { goban.redraw(true); }
             } catch (e) { /* an older goban without the API: overlay only */ }
+            finally { writingCircles = false; }
+        }
+
+        // The circles are one slot that OGS's own AI review writes as well,
+        // from an effect that runs when its panel mounts and when its review
+        // data arrives (online-go.com src/components/AIReview/AIReview.tsx:
+        // 537-546), and only a move change among those emits `update`. OGS
+        // mounts that panel anew each time it swaps layouts, so rotating a
+        // phone replaced ours with the review's, or with none, and nothing
+        // put them back until the next analysis update. So this goban's
+        // setter is wrapped: a write that is not ours, while there are
+        // candidates to show, brings ours back on the debounce. Our write
+        // never re-runs that effect, so the two cannot chase each other.
+        function guardCircles() {
+            unbinders.push(watchForeignCalls(goban, "setColoredCircles",
+                                             () => writingCircles, () => {
+                if (!disposed && (analysis.candidates || []).length) { schedulePaint(); }
+            }));
         }
 
         function ensureOverlay() {
@@ -1558,7 +1604,14 @@
                     restoreParentPosition = parent.style.position;
                     parent.style.position = "relative";
                 }
-                parent.appendChild(overlay);
+                // goban's SVG renderer, OGS's default, draws inside an open
+                // shadow root on the parent (goban src/Goban/SVGRenderer.ts:
+                // 194-214), and that root has no <slot>: a child appended to
+                // the parent itself is never rendered, and never was. Beside
+                // the svg in that root it shows, still positioned against the
+                // parent. The canvas renderer has no root and draws into the
+                // parent directly.
+                (parent.shadowRoot || parent).appendChild(overlay);
             }
             return overlay;
         }
@@ -1567,11 +1620,22 @@
             const canvas = ensureOverlay();
             if (!canvas || typeof goban.computeMetrics !== "function") { return; }
             const metrics = goban.computeMetrics();
-            if (canvas.width !== metrics.width) { canvas.width = metrics.width; }
-            if (canvas.height !== metrics.height) { canvas.height = metrics.height; }
+            // goban's metrics are CSS pixels and its circles are vectors, so
+            // a bitmap that size would be stretched across a Retina screen's
+            // 2 or 3 device pixels and blur the text beside them. The backing
+            // store is sized in device pixels and the drawing done in CSS
+            // pixels, as chart.js does.
+            const dpr = window.devicePixelRatio || 1;
+            const width = Math.round(metrics.width * dpr);
+            const height = Math.round(metrics.height * dpr);
+            if (canvas.width !== width) { canvas.width = width; }
+            if (canvas.height !== height) { canvas.height = height; }
+            canvas.style.width = metrics.width + "px";
+            canvas.style.height = metrics.height + "px";
             const ctx = canvas.getContext("2d");
             if (!ctx) { return; }
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+            ctx.clearRect(0, 0, metrics.width, metrics.height);
             const cell = Number(goban.square_size) || 0;
             if (!(cell > 0)) { return; }
             // The inverse of goban's own xy2ij (goban
@@ -1585,8 +1649,15 @@
             const labelY = top > 0 ? 0 : (goban.draw_top_labels ? 1 : 0);
             // Only the OWNERSHIP layer goes here — the candidate circles are
             // goban's own display state — plus the candidate text, which has to
-            // sit above them.
-            paintAnalysis(ctx, { ownership: analysis.ownership, candidates: null }, cell,
+            // sit above them. Those circles are UNDER this canvas, where the
+            // shared painter puts its circles over the squares, so a point
+            // with a solid circle gets no square: at 0.8 opacity the circle
+            // would have all but hidden it.
+            const solid = new Set((analysis.candidates || [])
+                .filter((mark) => !mark.dimmed).map((mark) => mark.x + "," + mark.y));
+            const ownership = (analysis.ownership || [])
+                .filter((own) => !solid.has(own.x + "," + own.y));
+            paintAnalysis(ctx, { ownership, candidates: null }, cell,
                           (x, y) => ({
                               cx: (x - left + labelX) * cell + metrics.mid,
                               cy: (y - top + labelY) * cell + metrics.mid,
@@ -1609,9 +1680,10 @@
 
         function schedulePaint() {
             if (redrawTimer !== null) { return; }
-            // Debounced: OGS's own AI review writes colored circles too, and
-            // every write emits `update`. Re-applying ours on the trailing edge
-            // keeps the two from ping-ponging a redraw each.
+            // Debounced: OGS's own AI review writes colored circles too, on a
+            // move change (which emits `update`) and whenever its panel mounts
+            // (see guardCircles). Re-applying ours on the trailing edge keeps
+            // the two from ping-ponging a redraw each.
             redrawTimer = setTimeout(() => {
                 redrawTimer = null;
                 if (!disposed) { paint(); }
@@ -1632,6 +1704,7 @@
         listen(goban, "cur_move", postLine);
         listen(goban, "update", schedulePaint);
         listen(goban, "destroy", dispose);
+        guardCircles();
 
         try {
             observer = new ResizeObserver(() => schedulePaint());

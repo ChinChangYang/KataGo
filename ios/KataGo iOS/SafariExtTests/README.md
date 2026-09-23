@@ -36,6 +36,11 @@ There is no `package.json`, no dependency and no build step: `node:test` and
   static, so the overlay's `left:0; top:0` alone lands on the document origin.
   The fakes model an absolutely positioned box as its containing block's
   origin plus its own `left`/`top`; there is no DOM here either.
+- `ogs.test.js` — the OGS adapter's pure parts (ADR 0017): `ogsAccess`, the
+  rule that keeps KataGo off ongoing games; `gobanToSgf`, the walk from an OGS
+  move tree to an SGF main line; and `watchForeignCalls`, which wraps the
+  goban's `setColoredCircles` so that a write from OGS's own AI review puts
+  our circles back. The fakes are the smallest shapes each one reads.
 - `panelAnchor.test.js` — `cyberoroPanelAnchor`, which chooses where the
   panel sits on a giboviewer page. On the mobile skin it goes into the page's
   flow right after the transport row. On the desktop skin, or wherever the row

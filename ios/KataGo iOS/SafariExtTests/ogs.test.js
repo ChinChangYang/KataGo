@@ -1,8 +1,9 @@
 // Pure-converter tests for the Safari extension's OGS adapter (ADR 0017).
 //
-// Two things in that adapter have no page in them: the access rule that keeps
-// KataGo off ongoing games, and the walk that turns an OGS move tree into SGF.
-// Both are reached through page-hook.js's Node hatch.
+// Three things in that adapter have no page in them: the access rule that
+// keeps KataGo off ongoing games, the walk that turns an OGS move tree into
+// SGF, and the wrapper that notices when OGS's own AI review overwrites our
+// candidate circles. All three are reached through page-hook.js's Node hatch.
 //
 //   cd "ios/KataGo iOS" && node --test SafariExtTests/*.test.js
 //
@@ -17,7 +18,8 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 
-const { gobanToSgf, ogsAccess } = require("../KataGoAnytimeSafariExt/Resources/page-hook.js");
+const { gobanToSgf, ogsAccess, watchForeignCalls } =
+    require("../KataGoAnytimeSafariExt/Resources/page-hook.js");
 
 // ---- the access rule -------------------------------------------------------
 
@@ -163,4 +165,101 @@ test("initial_state stones join the root setup", () => {
 test("a missing engine is refused rather than guessed at", () => {
     assert.equal(gobanToSgf(null), null);
     assert.equal(gobanToSgf({}), null);
+});
+
+// ---- noticing a write that is not ours -------------------------------------
+//
+// goban keeps one set of colored circles, and OGS's AI review panel writes it
+// whenever the panel mounts, which it does anew each time OGS swaps layouts.
+// The adapter wraps the goban's `setColoredCircles` so that such a write puts
+// our circles back. The fake is the one method, on a prototype as in goban.
+
+class FakeGoban {
+    setColoredCircles(circles, dontDraw) {
+        this.circles = circles;
+        this.dontDraw = dontDraw;
+        return "drawn";
+    }
+}
+
+function watched(goban, own) {
+    const foreign = [];
+    const undo = watchForeignCalls(goban, "setColoredCircles", () => own.value,
+                                   () => foreign.push(goban.circles));
+    return { foreign, undo };
+}
+
+test("a call that is not ours goes through, then reports", () => {
+    const goban = new FakeGoban();
+    const { foreign } = watched(goban, { value: false });
+    // Both arguments, as OGS's review passes them (circles, dont_draw).
+    assert.equal(goban.setColoredCircles([], false), "drawn");
+    assert.equal(goban.dontDraw, false);
+    // The callback runs AFTER the write, so it sees the replaced circles.
+    assert.deepEqual(foreign, [[]]);
+});
+
+test("our own call goes through without reporting", () => {
+    const goban = new FakeGoban();
+    const own = { value: true };
+    const { foreign } = watched(goban, own);
+    goban.setColoredCircles([{ move: { x: 3, y: 3 } }]);
+    assert.deepEqual(foreign, []);
+    assert.equal(goban.circles.length, 1);
+    own.value = false;
+    goban.setColoredCircles(undefined);
+    assert.equal(foreign.length, 1);
+});
+
+test("undo lets the prototype's method show through again", () => {
+    const goban = new FakeGoban();
+    const { undo } = watched(goban, { value: false });
+    assert.ok(Object.prototype.hasOwnProperty.call(goban, "setColoredCircles"));
+    undo();
+    assert.ok(!Object.prototype.hasOwnProperty.call(goban, "setColoredCircles"));
+    assert.equal(goban.setColoredCircles, FakeGoban.prototype.setColoredCircles);
+});
+
+test("undo puts back a method the object already owned", () => {
+    const goban = new FakeGoban();
+    const mine = function (circles) { this.circles = circles; return "own"; };
+    goban.setColoredCircles = mine;
+    const { undo } = watched(goban, { value: false });
+    undo();
+    assert.equal(goban.setColoredCircles, mine);
+});
+
+test("undo leaves a wrapper added after ours in place", () => {
+    const goban = new FakeGoban();
+    const own = { value: false };
+    const { foreign, undo } = watched(goban, own);
+    const ours = goban.setColoredCircles;
+    const later = function () { return ours.apply(this, arguments); };
+    goban.setColoredCircles = later;
+    undo();
+    assert.equal(goban.setColoredCircles, later);
+    // Still in the chain, so the caller's callback must go inert on its own.
+    goban.setColoredCircles([]);
+    assert.equal(foreign.length, 1);
+});
+
+test("a write that throws reports nothing", () => {
+    const goban = new FakeGoban();
+    goban.setColoredCircles = () => { throw new Error("destroyed"); };
+    const { foreign } = watched(goban, { value: false });
+    assert.throws(() => goban.setColoredCircles([]), /destroyed/);
+    assert.deepEqual(foreign, []);
+});
+
+test("an object that cannot be wrapped is left alone", () => {
+    const frozen = Object.freeze(new FakeGoban());
+    const { undo } = watched(frozen, { value: false });
+    assert.ok(!Object.prototype.hasOwnProperty.call(frozen, "setColoredCircles"));
+    undo();
+    assert.equal(frozen.setColoredCircles, FakeGoban.prototype.setColoredCircles);
+    // An older goban without the method: nothing to wrap, and undo is safe.
+    const bare = {};
+    watchForeignCalls(bare, "setColoredCircles", () => false, () => {})();
+    assert.deepEqual(Object.keys(bare), []);
+    watchForeignCalls(null, "setColoredCircles", () => false, () => {})();
 });

@@ -86,7 +86,14 @@ bad first impression with OGS staff is hard to undo.
    on a stranger's board. Ownership squares and the candidate text have no
    ephemeral primitive — `setHeatmap` is a single-colour intensity map that
    cannot express Black-versus-White — so they go on an overlay canvas
-   positioned from `computeMetrics()` and `square_size`.
+   positioned from `computeMetrics()` and `square_size`. The canvas goes
+   inside the goban's shadow root, beside its SVG: the SVG renderer draws
+   there, and the root has no slot, so a canvas appended to the host itself
+   is never rendered. Because the circles are under the canvas, a point with a
+   solid circle gets no ownership square. `setColoredCircles` is one slot, and
+   OGS's own AI review writes it too, including whenever its panel mounts,
+   which it does on every layout swap. So the adapter wraps that method on the
+   one goban it binds, and a write that is not ours puts our circles back.
 
 7. **The extension opens no socket of its own.** The page's goban already has
    one and re-broadcasts everything as events. A second `game/connect` would
@@ -131,6 +138,11 @@ the next left a dead shadow-DOM panel behind and, on macOS, a poll that kept the
   nothing.
 - macOS is where this is developed and QA'd. The shared `page-hook.js` means
   iOS Safari attaches too; its per-message appex lifecycle against a board that
-  can move under it deserves its own pass.
+  can move under it deserves its own pass. The first iPhone QA (2026-09-23)
+  found two drawing faults, and neither is specific to a phone. The overlay had
+  never been visible, so no candidate showed its win rate, and on macOS no
+  ownership square showed either. Rotating the phone swapped OGS's layout, and
+  the circles disappeared until the next analysis update. Resizing a window
+  across OGS's threshold does the same. Decision 6 covers both.
 - `gameId` is omitted from the wire when absent, so a WGo page's `start`
   message still encodes byte-for-byte as it always did.
