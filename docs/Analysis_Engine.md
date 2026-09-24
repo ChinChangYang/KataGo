@@ -111,6 +111,7 @@ Explanation of fields (including some optional fields not present in the above q
            * `preaz_20k` through `preaz_9d`: Imitate human players of the given rank. (based on 2016 pre-AlphaZero opening style).
            * `rank_20k` through `rank_9d`: Imitate human players of the given rank (modern opening style).
            * `preaz_{BR}_{WR}` or `rank_{BR}_{WR}`: Same, but predict how black with the rank BR and white with the rank WR would play against each other, *knowing* that the other player is stronger/weaker than them. Warning: for rank differences > 9 ranks, or drastically mis-matched to the handicap used in the game, this may be out of distribution due to lack of training data and the model might not behave well! Experiment with care.
+           * `rankyear_{YEAR}_{RANK}` or `rankyear_{YEAR}_{BR}_{WR}`: Same as `preaz_`/`rank_`, but dated to September 1 of the given YEAR (1800 to 2100), so `rankyear_2016_5k` is `preaz_5k`. KGS training data starts in 2016, so earlier years are extrapolation. (KataGo Anytime fork extension.)
            * `proyear_1800` through `proyear_2023`: Imitate pro and strong insei moves based on historical game records from the specified year and surrounding years.
            * See also section below, "Human SL Analysis Guide" for various other parameters that are interesting to set in conjunction with this.
    * `reportDuringSearchEvery (float)`: Optional. Specify a number of seconds such that while this position is being searched, KataGo will report the partial analysis every that many seconds.

@@ -232,6 +232,7 @@ In addition to a basic set of [GTP commands](https://www.lysator.liu.se/~gunnar/
         * `humanSLProfile (string)`. Set the human-like play that KataGo should imitate. Requires that a human SL model like `b18c384nbt-humanv0.bin.gz` is being used, typically via the command line parameter `-human-model`. Available profiles include:
            * `preaz_20k` through `preaz_9d`: Imitate human players of the given rank. (based on 2016 pre-AlphaZero opening style).
            * `rank_20k` through `rank_9d`: Imitate human players of the given rank (modern opening style).
+           * `rankyear_{YEAR}_{RANK}` or `rankyear_{YEAR}_{BR}_{WR}`: Same as `preaz_`/`rank_`, but dated to September 1 of the given YEAR (1800 to 2100), so `rankyear_2016_5k` is `preaz_5k`. KGS training data starts in 2016, so earlier years are extrapolation. (KataGo Anytime fork extension.)
            * `proyear_1800` through `proyear_2023`: Imitate pro and strong insei moves based on historical game records from the specified year and surrounding years.
 
   * `kata-list-params`

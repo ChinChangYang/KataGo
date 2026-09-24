@@ -55,6 +55,7 @@ int MainCmds::runtests(const vector<string>& args) {
   Tests::runBoardSymmetryTests();
   Tests::runSymmetryDifferenceTests();
   Tests::runBoardReplayTest();
+  Tests::runSgfMetadataProfileTests();
 
   ScoreValue::freeTables();
 

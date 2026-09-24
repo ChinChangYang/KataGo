@@ -109,6 +109,7 @@ namespace Tests {
   //testmisc.cpp
   void runCollectFilesTests();
   void runLoadModelTests();
+  void runSgfMetadataProfileTests();
 
   //testbook.cpp
   void runBookTests();

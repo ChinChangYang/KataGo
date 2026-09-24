@@ -215,7 +215,7 @@ void SGFMetadata::fillMetadataRow(const SGFMetadata* sgfMeta, float* rowMetadata
   static_assert(151 + 16 < SGFMetadata::METADATA_INPUT_NUM_CHANNELS, "");
 }
 
-static SGFMetadata makeBasicRankProfile(int inverseRankBlack, int inverseRankWhite, bool preAZ) {
+static SGFMetadata makeBasicRankProfile(int inverseRankBlack, int inverseRankWhite, const SimpleDate& date) {
   // KGS rating system is pretty reasonable, so let's use KGS as the source.
   SGFMetadata ret;
   ret.initialized = true;
@@ -228,10 +228,7 @@ static SGFMetadata makeBasicRankProfile(int inverseRankBlack, int inverseRankWhi
   ret.mainTimeSeconds = 1200;
   ret.periodTimeSeconds = 30;
   ret.byoYomiPeriods = 5;
-  if(preAZ)
-    ret.gameDate = SimpleDate(2016,9,1);
-  else
-    ret.gameDate = SimpleDate(2020,3,1);
+  ret.gameDate = date;
   ret.source = SGFMetadata::SOURCE_KGS;
   return ret;
 }
@@ -277,16 +274,32 @@ SGFMetadata SGFMetadata::getProfile(const string& humanSLProfileName) {
       return makeModernProProfile(SimpleDate(year,6,1));
     }
   }
-  if(Global::isPrefix(humanSLProfileName,"rank_") || Global::isPrefix(humanSLProfileName,"preaz_")) {
+  // Fork-local (KataGo Anytime): rankyear_<YEAR>_<RANK> or rankyear_<YEAR>_<BR>_<WR> is the same KGS
+  // rank profile dated <YEAR>-09-01, so rankyear_2016_<RANK> is exactly preaz_<RANK>.
+  if(
+    Global::isPrefix(humanSLProfileName,"rank_") ||
+    Global::isPrefix(humanSLProfileName,"preaz_") ||
+    Global::isPrefix(humanSLProfileName,"rankyear_")
+  ) {
     string ranksStr;
-    bool preAZ;
+    SimpleDate date;
     if(Global::isPrefix(humanSLProfileName,"rank_")) {
       ranksStr = Global::chopPrefix(humanSLProfileName,"rank_");
-      preAZ = false;
+      date = SimpleDate(2020,3,1);
+    }
+    else if(Global::isPrefix(humanSLProfileName,"preaz_")) {
+      ranksStr = Global::chopPrefix(humanSLProfileName,"preaz_");
+      date = SimpleDate(2016,9,1);
     }
     else {
-      ranksStr = Global::chopPrefix(humanSLProfileName,"preaz_");
-      preAZ = true;
+      string rest = Global::chopPrefix(humanSLProfileName,"rankyear_");
+      size_t sep = rest.find('_');
+      string yearStr = rest.substr(0,sep);
+      int year;
+      if(sep == string::npos || yearStr.size() != 4 || !Global::tryStringToInt(yearStr,year) || year < 1800 || year > 2100)
+        throw StringError("Unknown human SL network profile: " + humanSLProfileName);
+      ranksStr = rest.substr(sep+1);
+      date = SimpleDate(year,9,1);
     }
 
     auto getInverseRank = [](const string& rankStr) {
@@ -337,14 +350,14 @@ SGFMetadata SGFMetadata::getProfile(const string& humanSLProfileName) {
 
     int inverseRank = getInverseRank(ranksStr);
     if(inverseRank != -1)
-      return makeBasicRankProfile(inverseRank,inverseRank,preAZ);
+      return makeBasicRankProfile(inverseRank,inverseRank,date);
 
     std::vector<std::string> pieces = Global::split(ranksStr,'_');
     if(pieces.size() == 2) {
       int inverseRankBlack = getInverseRank(pieces[0]);
       int inverseRankWhite = getInverseRank(pieces[1]);
       if(inverseRankBlack != -1 && inverseRankWhite != -1) {
-        return makeBasicRankProfile(inverseRankBlack,inverseRankWhite,preAZ);
+        return makeBasicRankProfile(inverseRankBlack,inverseRankWhite,date);
       }
     }
   }
