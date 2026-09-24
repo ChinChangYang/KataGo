@@ -25,10 +25,11 @@
 //    • An "Edit…" button at the bottom is a stubbed `@objc` no-op for now;
 //      P4-T6 will present the full native config editor from it.
 //
-//  The form rebuilds from the live `concreteConfig` in `viewWillAppear` and
-//  whenever `navigationContext.selectedGameRecord` changes (observed via the
-//  same self-rescheduling `withObservationTracking` pattern
-//  `MainWindowController` uses).
+//  The form rebuilds from the live `concreteConfig` in `viewWillAppear`, when
+//  the Edit… sheet closes, and whenever `navigationContext.selectedGameRecord`
+//  or either side's AI profile changes (observed via the same
+//  self-rescheduling `withObservationTracking` pattern `MainWindowController`
+//  uses) — the board's rank menu changes a profile with this tab on screen.
 //
 //  Reuses `ConfigEditingSupport.swift`'s `ConfigEngineSync` + `ConfigFormBuilder`
 //  — the same infrastructure P4-T6 will build its sheet from.
@@ -57,6 +58,10 @@ final class InspectorInfoViewController: NSViewController {
     /// `withObservationTracking` callback can tell when it actually changed
     /// (the observer is property-agnostic). Seeded in `viewDidLoad`.
     private var lastSelectedGame: GameRecord?
+
+    /// Both sides' AI profiles as the form was last built, so the observer can
+    /// tell a change made elsewhere from none.
+    private var builtProfiles: [String] = []
 
     init(session: GameSession, navigationContext: NavigationContext) {
         self.session = session
@@ -134,7 +139,7 @@ final class InspectorInfoViewController: NSViewController {
 
     private func trackSelectedGame() {
         withObservationTracking {
-            _ = navigationContext.selectedGameRecord
+            _ = Self.profiles(of: navigationContext.selectedGameRecord)
         } onChange: { [weak self] in
             Task { @MainActor in
                 guard let self else { return }
@@ -146,9 +151,16 @@ final class InspectorInfoViewController: NSViewController {
 
     private func handleSelectedGameChange() {
         let current = navigationContext.selectedGameRecord
-        guard current !== lastSelectedGame else { return }
+        guard current !== lastSelectedGame || Self.profiles(of: current) != builtProfiles else { return }
         lastSelectedGame = current
         rebuildForm()
+    }
+
+    /// The selected game's two AI profiles, read through the observable
+    /// record so `withObservationTracking` registers them.
+    private static func profiles(of gameRecord: GameRecord?) -> [String] {
+        guard let config = gameRecord?.config else { return [] }
+        return [config.humanProfileForBlack, config.humanProfileForWhite]
     }
 
     // MARK: - Form construction
@@ -168,6 +180,7 @@ final class InspectorInfoViewController: NSViewController {
 
         let config = gameRecord.concreteConfig
         let parsed = SgfGameInfo(sgf: gameRecord.sgf)
+        builtProfiles = Self.profiles(of: gameRecord)
 
         addSummarySection(gameRecord: gameRecord, config: config, parsed: parsed)
         ConfigFormBuilder.addSeparator(to: formStack)
@@ -283,12 +296,28 @@ final class InspectorInfoViewController: NSViewController {
             ConfigFormBuilder.rankMenuRow(
                 title: "Black profile",
                 current: HumanSLModel.canonicalProfile(config.humanProfileForBlack),
-                onChange: { [weak self] profile in
+                onChange: { [weak self] kind in
                     guard let self else { return }
-                    ConfigEngineSync.setBlackHumanProfile(profile, config: config,
-                                                          player: self.player, messageList: self.messageList)
+                    ConfigEngineSync.setBlackHumanProfile(
+                        RankCatalog.profile(choosing: kind, from: config.humanProfileForBlack),
+                        config: config,
+                        player: self.player, messageList: self.messageList)
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
+
+        if let yearRow = ConfigFormBuilder.styleYearRow(
+            title: "Black year",
+            current: HumanSLModel.canonicalProfile(config.humanProfileForBlack),
+            onChange: { [weak self] year in
+                guard let self else { return }
+                ConfigEngineSync.setBlackHumanProfile(
+                    RankCatalog.profile(choosingYear: year, from: config.humanProfileForBlack),
+                    config: config,
+                    player: self.player, messageList: self.messageList)
+                DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
+            }) {
+            formStack.addArrangedSubview(yearRow)
+        }
 
         if HumanSLModel.canonicalProfile(config.humanProfileForBlack) == "AI" {
             formStack.addArrangedSubview(
@@ -326,12 +355,28 @@ final class InspectorInfoViewController: NSViewController {
             ConfigFormBuilder.rankMenuRow(
                 title: "White profile",
                 current: HumanSLModel.canonicalProfile(config.humanProfileForWhite),
-                onChange: { [weak self] profile in
+                onChange: { [weak self] kind in
                     guard let self else { return }
-                    ConfigEngineSync.setWhiteHumanProfile(profile, config: config,
-                                                          player: self.player, messageList: self.messageList)
+                    ConfigEngineSync.setWhiteHumanProfile(
+                        RankCatalog.profile(choosing: kind, from: config.humanProfileForWhite),
+                        config: config,
+                        player: self.player, messageList: self.messageList)
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
+
+        if let yearRow = ConfigFormBuilder.styleYearRow(
+            title: "White year",
+            current: HumanSLModel.canonicalProfile(config.humanProfileForWhite),
+            onChange: { [weak self] year in
+                guard let self else { return }
+                ConfigEngineSync.setWhiteHumanProfile(
+                    RankCatalog.profile(choosingYear: year, from: config.humanProfileForWhite),
+                    config: config,
+                    player: self.player, messageList: self.messageList)
+                DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
+            }) {
+            formStack.addArrangedSubview(yearRow)
+        }
 
         if HumanSLModel.canonicalProfile(config.humanProfileForWhite) == "AI" {
             formStack.addArrangedSubview(
@@ -422,13 +467,20 @@ final class InspectorInfoViewController: NSViewController {
 
     /// Presents the full native config editor (`ConfigEditorViewController`) as a
     /// sheet for the currently-selected game. Every row in that sheet commits
-    /// live through `ConfigEngineSync` (same as this Info tab), so when the sheet
-    /// is dismissed the form here is rebuilt in `viewWillAppear` to reflect any
-    /// changes made while it was open.
+    /// live through `ConfigEngineSync` (same as this Info tab), so the form here
+    /// is rebuilt when the sheet is dismissed (`dismiss(_:)` below) to reflect
+    /// any changes made while it was open.
     @objc private func presentFullEditor(_ sender: Any?) {
         guard let gameRecord = navigationContext.selectedGameRecord else { return }
         let editor = ConfigEditorViewController(session: session, gameRecord: gameRecord)
         presentAsSheet(editor)
+    }
+
+    /// A sheet leaves this tab on screen, so `viewWillAppear` never runs when it
+    /// closes; the editor's Done dismisses through here.
+    override func dismiss(_ viewController: NSViewController) {
+        super.dismiss(viewController)
+        rebuildForm()
     }
 
     // MARK: - Helpers

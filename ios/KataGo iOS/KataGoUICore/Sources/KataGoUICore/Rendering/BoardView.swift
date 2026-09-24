@@ -170,8 +170,8 @@ public struct BoardView: View {
                         isClassicStoneStyle: gobanState.isClassicStoneStyle,
                         verticalFlip: gobanState.verticalFlip,
                         isDrawingCapturedStones: showsCapturedStones,
-                        blackPlayerName: showsCapturedStones ? config.playerLabel(for: .black) : nil,
-                        whitePlayerName: showsCapturedStones ? config.playerLabel(for: .white) : nil,
+                        blackPlayerName: showsCapturedStones ? config.displayPlayerLabel(for: .black) : nil,
+                        whitePlayerName: showsCapturedStones ? config.displayPlayerLabel(for: .white) : nil,
                         onToggleAI: interactive ? { toggleAI(for: $0) } : nil,
                         blackRankProfile: showsCapturedStones
                             ? HumanSLModel.canonicalProfile(config.humanProfileForBlack) : nil,

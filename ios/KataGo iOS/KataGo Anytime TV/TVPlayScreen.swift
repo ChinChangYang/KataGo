@@ -412,7 +412,7 @@ struct TVPlayScreen: View {
     private func playerRow(_ color: PlayerColor) -> some View {
         let isBlack = color == .black
         return TVPlayerRow(isBlack: isBlack,
-                           name: config.playerLabel(for: color),
+                           name: config.displayPlayerLabel(for: color),
                            captures: isBlack ? stones.blackStonesCaptured
                                              : stones.whiteStonesCaptured)
     }

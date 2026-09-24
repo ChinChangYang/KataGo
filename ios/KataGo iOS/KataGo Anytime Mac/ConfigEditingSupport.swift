@@ -87,15 +87,38 @@ enum ConfigFormBuilder {
 
     // MARK: Rank menu row (pull-down NSPopUpButton with submenus)
 
-    /// A labeled rank chooser: the 259 profiles grouped by `RankCatalog`
-    /// (Full Strength, Dan, Kyu, Pro by decade) behind a pull-down whose title
-    /// is the current profile. `onChange(profile)` fires with the picked
-    /// profile; the owner rebuilds the form to refresh the title, as it
-    /// already does after a profile change.
+    /// A labeled profile-kind chooser: the kinds grouped by `RankCatalog`
+    /// (Full Strength, Dan, Kyu, Pro) behind a pull-down whose title is the
+    /// current kind. `onChange(kind)` fires with the picked kind ONLY: the
+    /// owner builds the key from the side's LIVE profile at pick time
+    /// (`RankCatalog.profile(choosing:from:)`), because this form can outlive
+    /// a change made elsewhere — the Edit… sheet, the board's rank menu — and
+    /// a key built when the form was built would silently undo it. The owner
+    /// rebuilds the form afterwards to refresh the title and the Year row.
     static func rankMenuRow(title: String,
                             current: String,
                             onChange: @escaping (String) -> Void) -> RankMenuRow {
         RankMenuRow(title: title, current: current, onChange: onChange)
+    }
+
+    /// The side's style-year popup, or nil for Full Strength, which has none.
+    /// `onChange(year)` fires with the picked year ONLY; the owner builds the
+    /// key from the side's live profile (`RankCatalog.profile(choosingYear:from:)`),
+    /// for the reason `rankMenuRow` gives.
+    static func styleYearRow(title: String = "Year",
+                             current: String,
+                             onChange: @escaping (Int) -> Void) -> PopupRow? {
+        guard let model = HumanSLModel(profile: current),
+              let year = model.year,
+              let range = HumanSLModel.yearRange(forKind: model.kind) else { return nil }
+        let years = Array(range)
+        return PopupRow(title: title,
+                        options: years.map(RankCatalog.yearLabel),
+                        selectedIndex: years.firstIndex(of: year) ?? 0,
+                        onChange: { index in
+                            guard years.indices.contains(index) else { return }
+                            onChange(years[index])
+                        })
     }
 
     // MARK: Checkbox row (NSButton .switch)
@@ -328,14 +351,16 @@ final class PopupRow: NSStackView {
     }
 }
 
-/// Labeled rank chooser backed by a PULL-DOWN `NSPopUpButton` with submenus.
+/// Labeled profile-kind chooser backed by a PULL-DOWN `NSPopUpButton` with
+/// submenus.
 ///
 /// Pull-down, not pop-up: a pop-up-mode `NSPopUpButton` cannot select from a
 /// submenu — choosing a leaf fires its action but never updates the selection
-/// or the title — so the flat 259-item popup it replaces could never have
-/// been grouped. A pull-down shows its item 0 as the title and leaves the
-/// rest to us: leaves carry the profile in `representedObject`, the current
-/// one wears a checkmark (the Board/Book View submenu idiom in AppDelegate).
+/// or the title — so a flat popup could never have been grouped. A pull-down
+/// shows its item 0 as the title and leaves the rest to us: leaves carry
+/// their kind in `representedObject` — never a whole key, which the owner
+/// builds from the live profile at pick time — and the current kind wears a
+/// checkmark (the Board/Book View submenu idiom in AppDelegate).
 @MainActor
 final class RankMenuRow: NSStackView {
     private let popup = NSPopUpButton(frame: .zero, pullsDown: true)
@@ -366,48 +391,39 @@ final class RankMenuRow: NSStackView {
     private func makeMenu(current: String) -> NSMenu {
         let menu = NSMenu(title: "Rank")
         // Item 0 is the pull-down's title, never shown in the list.
-        menu.addItem(NSMenuItem(title: RankCatalog.title(for: current), action: nil, keyEquivalent: ""))
+        let currentKind = HumanSLModel(profile: current)?.kind ?? RankCatalog.aiProfile
+        menu.addItem(NSMenuItem(title: RankCatalog.title(for: currentKind), action: nil, keyEquivalent: ""))
         menu.addItem(leaf(RankCatalog.aiProfile, title: RankCatalog.aiTitle, current: current))
-        menu.addItem(submenu("Dan", RankCatalog.dan.map { ($0, $0) }, current: current))
-        menu.addItem(submenu("Kyu", RankCatalog.kyu.map { ($0, $0) }, current: current))
-        let pro = NSMenuItem(title: "Pro", action: nil, keyEquivalent: "")
-        let proMenu = NSMenu(title: "Pro")
-        for decade in RankCatalog.decades {
-            proMenu.addItem(submenu(RankCatalog.decadeLabel(decade),
-                                    RankCatalog.entries(inDecade: decade).map { ($0.profile, $0.label) },
-                                    current: current))
-        }
-        pro.submenu = proMenu
-        menu.addItem(pro)
+        menu.addItem(submenu("Dan", RankCatalog.dan, current: current))
+        menu.addItem(submenu("Kyu", RankCatalog.kyu, current: current))
+        menu.addItem(leaf(RankCatalog.proKind, title: RankCatalog.proKind, current: current))
         return menu
     }
 
-    private func submenu(_ title: String,
-                         _ entries: [(profile: String, label: String)],
-                         current: String) -> NSMenuItem {
+    private func submenu(_ title: String, _ kinds: [String], current: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: nil, keyEquivalent: "")
         let menu = NSMenu(title: title)
-        for entry in entries {
-            menu.addItem(leaf(entry.profile, title: entry.label, current: current))
+        for kind in kinds {
+            menu.addItem(leaf(kind, title: kind, current: current))
         }
         item.submenu = menu
         // A checkmark on the group that holds the current pick, so the
         // closed menu already says where to look.
-        item.state = entries.contains { $0.profile == current } ? .on : .off
+        item.state = kinds.contains { RankCatalog.isCurrent(kind: $0, current: current) } ? .on : .off
         return item
     }
 
-    private func leaf(_ profile: String, title: String, current: String) -> NSMenuItem {
+    private func leaf(_ kind: String, title: String, current: String) -> NSMenuItem {
         let item = NSMenuItem(title: title, action: #selector(leafPicked(_:)), keyEquivalent: "")
         item.target = self
-        item.representedObject = profile
-        item.state = profile == current ? .on : .off
+        item.representedObject = kind
+        item.state = RankCatalog.isCurrent(kind: kind, current: current) ? .on : .off
         return item
     }
 
     @objc private func leafPicked(_ sender: NSMenuItem) {
-        guard let profile = sender.representedObject as? String else { return }
-        onChange(profile)
+        guard let kind = sender.representedObject as? String else { return }
+        onChange(kind)
     }
 }
 

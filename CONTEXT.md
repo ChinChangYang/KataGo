@@ -94,13 +94,19 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Local legality** — deciding, in the app and against the record position, whether a new move is legal under the record's rules — the engine's own reasons, in its order. The one legality path for human moves; the engine is never asked.
 - **Play Anyway** — the override offered for a move that breaks ko, superko or a multi-stone suicide rule. Never for an occupied point, a point off the board, or a lone stone's suicide.
 - **Engine availability** — *Absent* (no model chosen), *Launching* (model loading, possibly compiling), *Ready*, *Failed* (with a reason and an action), *Held* (the engine cannot take this board's size, so it is told nothing about it and analysis is off). A state; never a screen that replaces the board. Only the transient *Launching* overlays the board; the resting states surface through the *analysis control*.
-- **Player label** — the per-side capsule above the board naming who plays that side: Human, or the AI's rank. A tap flips the side between Human and AI; a long press picks the rank, and picking one for a Human side hands that side to the AI.
+- **Player label** — the per-side capsule above the board naming who plays that side: Human, or the AI's *profile* — its rank or Pro, with its *style year*. A tap flips the side between Human and AI; a long press picks the rank, and picking one for a Human side hands that side to the AI.
 - **Launch pill** — the only chrome that ever overlays the board: the *Launching* status and its compile caption, drawn over the top of the goban until the engine is ready. Never a control, never a resting state's home.
 - **Keep-awake window** — from the moment the engine owes the person a move until a few seconds after its stone lands, and the whole of an auto-play; the only time the app holds the screen on.
 - **Analysis preference** — the user's run / pause / off choice for *live analysis*. Owned by the user: engine transitions never write it, which is why analysis resumes by itself when a down engine comes back.
 - **Analysis activity** — whether analysis is actually streaming: the preference says run *and* the engine is ready. What the analysis control's appearance reports.
 - **Analysis control** — the sparkle. With a usable engine its tap cycles the preference; with a resting-down engine it wears a warning badge and its tap opens the *remedy surface*. A bare red slash means the user turned analysis off; a badged one means the engine cannot analyse.
 - **Remedy surface** — the model-selection surface (model picker sheet, Manage Models window, Models ornament), carrying an engine-status header: the state, the failure reason, Retry when offered, and the way out of *Held*.
+
+## Human-like AI
+
+- **Profile** — how the AI plays one side: its *profile kind* and, unless the kind is Full Strength, its *style year*. Each side of a game has its own.
+- **Profile kind** — Full Strength (the strongest play the net can find, with no human bias), a rank (9d down to 25k: imitate an amateur of that strength), or Pro (imitate professional play).
+- **Style year** — the year whose games the AI imitates. A rank's style year runs 2016–2023, the years the amateur games it learned from were played; Pro's runs 1800–2023. A side keeps its style year when its kind changes, moved into the new kind's range if it falls outside; a side coming from Full Strength starts at 2016. The rank ladder's strengths were measured at 2016, so at any other year a rank is the same ladder rung imitating a different era, not a re-measured strength.
 
 ## Core ML compilation
 

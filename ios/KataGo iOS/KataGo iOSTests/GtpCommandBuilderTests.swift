@@ -124,6 +124,12 @@ struct GtpCommandBuilderTests {
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 0.5) == strong)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d", maxTime: 30.0) == strong)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "Pro 1800", maxTime: 0.5) == strong)
+        // The style year never moves a rung's budget: 9d and Pro at any year stay strong.
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "9d 2019", maxTime: 0.5) == strong)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "Pro 1850", maxTime: 0.5) == strong)
+        // A legacy spelling is read as its canonical key, not as an unknown rung.
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "preaz_9d", maxTime: 0.5) == strong)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "proyear_1997", maxTime: 0.5) == strong)
         // Ladder rungs (8d…25k) play fast at 40 visits, also ignoring the time.
         let weak = ["kata-set-param maxVisits 40",
                     "kata-set-param maxTime 60.0"]
@@ -131,6 +137,8 @@ struct GtpCommandBuilderTests {
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "5k", maxTime: 30.0) == weak)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "20k", maxTime: 0.5) == weak)
         #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "25k", maxTime: 0.5) == weak)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "5k 2023", maxTime: 0.5) == weak)
+        #expect(GtpCommandBuilder.searchBudgetCommands(effectiveProfile: "8d 2016", maxTime: 0.5) == weak)
     }
 
     @Test func genMoveAnalyzeCommandsPrependsBudget() {
@@ -208,7 +216,7 @@ struct ConfigEngineSyncTests {
         let messageList = MessageList.accepting()
 
         // White is currently Human but has a human-style profile configured; White to move.
-        config.humanProfileForWhite = "5k"
+        config.humanProfileForWhite = "5k 2016"
         config.whiteMaxTime = 0
         player.nextColorForPlayCommand = .white
 
@@ -217,7 +225,7 @@ struct ConfigEngineSyncTests {
                                          gobanState: gobanState, player: player, messageList: messageList)
 
         let texts = messageList.messages.map(\.text)
-        #expect(texts.contains("> kata-set-param humanSLProfile preaz_5k"))
+        #expect(texts.contains("> kata-set-param humanSLProfile rankyear_2016_5k"))
         #expect(texts.contains("> kata-set-param humanSLChosenMoveProp 1.0"))
     }
 
@@ -293,31 +301,100 @@ struct HumanSLModelTests {
         return Float(line.dropFirst(prefix.count))
     }
 
-    @Test func allProfilesAreCleanUnifiedKeys() {
+    @Test func allProfilesAreExplicitKindYearKeys() {
         let all = HumanSLModel.allProfiles
         #expect(all.first == "AI")
-        #expect(all.contains("9d"))
-        #expect(all.contains("20k"))
-        #expect(all.contains("25k"))
+        #expect(all.contains("9d 2016"))
+        #expect(all.contains("20k 2023"))
+        #expect(all.contains("25k 2019"))
         #expect(all.contains("Pro 1800"))
         #expect(all.contains("Pro 2023"))
-        // The old duplicated/raw engine strings are gone from the menu.
+        // A key always carries its year: a bare rank is a legacy spelling, not a key.
+        #expect(!all.contains("9d"))
+        #expect(!all.contains("5k"))
+        #expect(!all.contains("Pro"))
+        // Rank years are the KGS training years; pros keep their full span.
+        #expect(!all.contains("5k 2015"))
+        #expect(!all.contains("5k 2024"))
+        #expect(!all.contains("Pro 1799"))
+        #expect(!all.contains("Pro 2024"))
+        // The raw engine strings are never keys.
         #expect(!all.contains("rank_9d"))
         #expect(!all.contains("preaz_9d"))
         #expect(!all.contains("proyear_2023"))
-        // 1 (AI) + 34 ranks (9d…1d, 1k…25k) + 224 pros (1800…2023) = 259.
-        #expect(all.count == 259)
+        // 1 (AI) + 34 ranks × 8 years (2016…2023) + 224 pro years (1800…2023) = 497.
+        #expect(all.count == 497)
+        #expect(Set(all).count == all.count)
+    }
+
+    @Test func profileKindsAreAIRanksThenPro() {
+        let kinds = HumanSLModel.profileKinds
+        #expect(kinds.first == "AI")
+        #expect(kinds.last == "Pro")
+        #expect(kinds.count == 1 + 34 + 1)
+        #expect(Array(kinds[1...9]) == ["9d", "8d", "7d", "6d", "5d", "4d", "3d", "2d", "1d"])
+        #expect(kinds[10] == "1k")
+        #expect(kinds[34] == "25k")
+        #expect(HumanSLModel.rankKinds == Array(kinds[1...34]))
+    }
+
+    @Test func yearRangesPerKind() {
+        #expect(HumanSLModel.yearRange(forKind: "AI") == nil)
+        #expect(HumanSLModel.yearRange(forKind: "5k") == 2016...2023)
+        #expect(HumanSLModel.yearRange(forKind: "9d") == 2016...2023)
+        #expect(HumanSLModel.yearRange(forKind: "Pro") == 1800...2023)
+        #expect(HumanSLModel.yearRange(forKind: "garbage") == nil)
+        #expect(HumanSLModel.defaultStyleYear == 2016)
+    }
+
+    @Test func kindAndYearSplitTheKey() {
+        let rank = HumanSLModel(profile: "5k 2019")!
+        #expect(rank.kind == "5k")
+        #expect(rank.year == 2019)
+        #expect(rank.profile == "5k 2019")
+        let pro = HumanSLModel(profile: "Pro 1997")!
+        #expect(pro.kind == "Pro")
+        #expect(pro.year == 1997)
+        let ai = HumanSLModel(profile: "AI")!
+        #expect(ai.kind == "AI")
+        #expect(ai.year == nil)
+        #expect(HumanSLModel.key(kind: "3d", year: 2020) == "3d 2020")
+        #expect(HumanSLModel.key(kind: "Pro", year: 1850) == "Pro 1850")
+        #expect(HumanSLModel.key(kind: "AI", year: 2020) == "AI")
+    }
+
+    /// A side keeps its style year across a kind change, moved into the new
+    /// kind's range; a side leaving Full Strength starts at 2016.
+    @Test func choosingAKindCarriesAndClampsTheYear() {
+        #expect(HumanSLModel(profile: "5k 2019")!.choosing(kind: "3d") == "3d 2019")
+        #expect(HumanSLModel(profile: "5k 2019")!.choosing(kind: "Pro") == "Pro 2019")
+        #expect(HumanSLModel(profile: "Pro 1850")!.choosing(kind: "5k") == "5k 2016")
+        #expect(HumanSLModel(profile: "Pro 2023")!.choosing(kind: "5k") == "5k 2023")
+        #expect(HumanSLModel(profile: "AI")!.choosing(kind: "5k") == "5k 2016")
+        #expect(HumanSLModel(profile: "AI")!.choosing(kind: "Pro") == "Pro 2016")
+        #expect(HumanSLModel(profile: "5k 2019")!.choosing(kind: "AI") == "AI")
+        // An unknown kind leaves the profile as it was.
+        #expect(HumanSLModel(profile: "5k 2019")!.choosing(kind: "99k") == "5k 2019")
+    }
+
+    @Test func choosingAYearKeepsTheKindAndClamps() {
+        #expect(HumanSLModel(profile: "5k 2016")!.choosing(year: 2021) == "5k 2021")
+        #expect(HumanSLModel(profile: "5k 2016")!.choosing(year: 1990) == "5k 2016")
+        #expect(HumanSLModel(profile: "5k 2016")!.choosing(year: 2030) == "5k 2023")
+        #expect(HumanSLModel(profile: "Pro 2016")!.choosing(year: 1900) == "Pro 1900")
+        #expect(HumanSLModel(profile: "AI")!.choosing(year: 2020) == "AI")
     }
 
     @Test func defaultProfileIsAI() {
         #expect(HumanSLModel().profile == "AI")
     }
 
-    @Test func rankKeyMapsToPreazEngineProfile() {
-        #expect(HumanSLModel(profile: "9d")?.commands.contains("kata-set-param humanSLProfile preaz_9d") == true)
-        #expect(HumanSLModel(profile: "5k")?.commands.contains("kata-set-param humanSLProfile preaz_5k") == true)
-        #expect(HumanSLModel(profile: "20k")?.commands.contains("kata-set-param humanSLProfile preaz_20k") == true)
-        #expect(HumanSLModel(profile: "25k")?.commands.contains("kata-set-param humanSLProfile preaz_25k") == true)
+    @Test func rankKeyMapsToRankyearEngineProfile() {
+        #expect(HumanSLModel(profile: "9d 2016")?.commands.contains("kata-set-param humanSLProfile rankyear_2016_9d") == true)
+        #expect(HumanSLModel(profile: "5k 2019")?.commands.contains("kata-set-param humanSLProfile rankyear_2019_5k") == true)
+        #expect(HumanSLModel(profile: "20k 2023")?.commands.contains("kata-set-param humanSLProfile rankyear_2023_20k") == true)
+        #expect(HumanSLModel(profile: "25k 2016")?.commands.contains("kata-set-param humanSLProfile rankyear_2016_25k") == true)
+        #expect(HumanSLModel(profile: "5k 2019")?.humanSLProfile == "rankyear_2019_5k")
     }
 
     @Test func proKeyMapsToProyearEngineProfile() {
@@ -331,7 +408,7 @@ struct HumanSLModelTests {
 
     @Test func humanRankProfilesUseCalibratedLadderConstants() {
         // #1209 ladder rungs share constant human params; only λ varies by rank.
-        let cmds = HumanSLModel(profile: "5k")!.commands
+        let cmds = HumanSLModel(profile: "5k 2016")!.commands
         #expect(paramValue(in: cmds, "humanSLChosenMoveProp") == 1.0)
         #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.8)
         #expect(paramValue(in: cmds, "chosenMoveTemperatureEarly") == 0.7)
@@ -386,11 +463,11 @@ struct HumanSLModelTests {
     }
 
     @Test func nineDanIsTheLegacyStrongReference() {
-        // 9d sits above the 40-visit ladder: preaz_9d @ 400 visits (budget asserted in
+        // 9d sits above the 40-visit ladder: 9d @ 400 visits (budget asserted in
         // searchBudgetIsPerRankVisitsIgnoringTime), λ 0.045, and — uniquely among human
         // profiles — try-to-win (winLossUtilityFactor 1.0), per the PR docs' legacy 9d.
-        let cmds = HumanSLModel(profile: "9d")!.commands
-        #expect(cmds.contains("kata-set-param humanSLProfile preaz_9d"))
+        let cmds = HumanSLModel(profile: "9d 2016")!.commands
+        #expect(cmds.contains("kata-set-param humanSLProfile rankyear_2016_9d"))
         #expect(abs(paramValue(in: cmds, "humanSLChosenMovePiklLambda")! - 0.045) < 1e-4)
         #expect(paramValue(in: cmds, "winLossUtilityFactor") == 1.0)
         #expect(paramValue(in: cmds, "humanSLRootExploreProbWeightless") == 0.8)
@@ -412,30 +489,60 @@ struct HumanSLModelTests {
             "Pro 1950": 0.06, "AI": 0.06,
         ]
         for (key, lam) in expected {
-            let cmds = HumanSLModel(profile: key)!.commands
+            let cmds = HumanSLModel(profile: key == "AI" || key.hasPrefix("Pro ") ? key : "\(key) 2016")!.commands
             let value = paramValue(in: cmds, "humanSLChosenMovePiklLambda")
             #expect(value != nil)
             #expect(abs((value ?? 0) - lam) < max(1e-4, lam * 1e-6), "λ mismatch for \(key)")
         }
     }
 
-    @Test func legacyEngineStringsNormalizeToUnifiedKeys() {
-        #expect(HumanSLModel(profile: "rank_9d")?.profile == "9d")
-        #expect(HumanSLModel(profile: "preaz_9d")?.profile == "9d")   // both collapse
-        #expect(HumanSLModel(profile: "preaz_5k")?.profile == "5k")
-        #expect(HumanSLModel(profile: "preaz_25k")?.profile == "25k")
+    /// The style year is an input to the net, not a rung: the #1209 params
+    /// calibrated at 2016 ride along unchanged, so two years of one rank differ
+    /// only in the engine profile line.
+    @Test func styleYearChangesOnlyTheEngineProfile() {
+        for kind in ["9d", "5k", "25k"] {
+            let base = HumanSLModel(profile: "\(kind) 2016")!.commands
+            let other = HumanSLModel(profile: "\(kind) 2021")!.commands
+            #expect(base.count == other.count)
+            #expect(base.first == "kata-set-param humanSLProfile rankyear_2016_\(kind)")
+            #expect(other.first == "kata-set-param humanSLProfile rankyear_2021_\(kind)")
+            #expect(Array(base.dropFirst()) == Array(other.dropFirst()))
+        }
+        let pro = HumanSLModel(profile: "Pro 1950")!.commands
+        let modern = HumanSLModel(profile: "Pro 2022")!.commands
+        #expect(Array(pro.dropFirst()) == Array(modern.dropFirst()))
+    }
+
+    /// Every spelling that ever meant a 2016 rank still does: a bare menu key
+    /// from before the style year, and both old engine strings.
+    @Test func legacySpellingsNormalizeToExplicitKeys() {
+        #expect(HumanSLModel(profile: "9d")?.profile == "9d 2016")
+        #expect(HumanSLModel(profile: "5k")?.profile == "5k 2016")
+        #expect(HumanSLModel(profile: "rank_9d")?.profile == "9d 2016")
+        #expect(HumanSLModel(profile: "preaz_9d")?.profile == "9d 2016")
+        #expect(HumanSLModel(profile: "preaz_5k")?.profile == "5k 2016")
+        #expect(HumanSLModel(profile: "preaz_25k")?.profile == "25k 2016")
         #expect(HumanSLModel(profile: "proyear_2000")?.profile == "Pro 2000")
         #expect(HumanSLModel(profile: "AI")?.profile == "AI")
-        // A normalized legacy rank still drives the preaz engine profile.
-        #expect(HumanSLModel(profile: "rank_5k")?.commands.contains("kata-set-param humanSLProfile preaz_5k") == true)
+        #expect(HumanSLModel(profile: "rank_5k")?.commands.contains("kata-set-param humanSLProfile rankyear_2016_5k") == true)
     }
 
     @Test func unrecognizedProfileIsRejectedAndCanonicalizesToAI() {
         #expect(HumanSLModel(profile: "garbage_profile") == nil)
         #expect(HumanSLModel.canonicalProfile("garbage_profile") == "AI")
-        #expect(HumanSLModel.canonicalProfile("rank_3d") == "3d")
+        #expect(HumanSLModel.canonicalProfile("rank_3d") == "3d 2016")
         #expect(HumanSLModel.canonicalProfile("Pro 1999") == "Pro 1999")
-        #expect(HumanSLModel.canonicalProfile("7k") == "7k")
+        #expect(HumanSLModel.canonicalProfile("7k") == "7k 2016")
+        #expect(HumanSLModel.canonicalProfile("7k 2020") == "7k 2020")
+        // Out-of-range years, a bare "Pro", and malformed keys are not profiles.
+        #expect(HumanSLModel(profile: "5k 2015") == nil)
+        #expect(HumanSLModel(profile: "5k 2024") == nil)
+        #expect(HumanSLModel(profile: "Pro 1799") == nil)
+        #expect(HumanSLModel(profile: "Pro") == nil)
+        #expect(HumanSLModel(profile: "AI 2016") == nil)
+        #expect(HumanSLModel(profile: "5k  2019") == nil)
+        #expect(HumanSLModel(profile: "5k 20x9") == nil)
+        #expect(HumanSLModel(profile: "26k 2016") == nil)
     }
 }
 
@@ -461,7 +568,7 @@ struct AnalysisBudgetRoutingTests {
 
     @Test func humanStrongRankSideGenMoveIsFixed400VisitsIgnoringTime() {
         let config = Config()
-        config.humanProfileForBlack = "9d"
+        config.humanProfileForBlack = "9d 2016"
         config.blackMaxTime = 0.5            // engine plays Black as 9d; magnitude ignored
         let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
         #expect(cmds == ["kata-set-param maxVisits 400",
@@ -471,7 +578,7 @@ struct AnalysisBudgetRoutingTests {
 
     @Test func humanWeakRankSideGenMoveIsFast40Visits() {
         let config = Config()
-        config.humanProfileForBlack = "5k"
+        config.humanProfileForBlack = "5k 2016"
         config.blackMaxTime = 0.5            // engine plays Black as 5k; magnitude ignored
         let cmds = runningState().getRequestAnalysisCommands(config: config, nextColorForPlayCommand: .black)
         #expect(cmds == ["kata-set-param maxVisits 40",

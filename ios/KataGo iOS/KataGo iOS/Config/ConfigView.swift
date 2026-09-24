@@ -126,15 +126,48 @@ struct ConfigBoolItem: View {
     }
 }
 
+/// The side's profile KIND (Full Strength, a rank, or Pro). Writes the whole
+/// key back: a new kind keeps the side's style year (ADR 0019). One view, one
+/// row — the host's `.onAppear`/`.onChange` must not be multiplied by a List
+/// flattening sibling rows, so the Year row is a separate `StyleYearPicker`.
 struct HumanStylePicker: View {
     let title: String
     @Binding var humanSLProfile: String
 
     var body: some View {
-        Picker(title, selection: $humanSLProfile) {
-            ForEach(HumanSLModel.allProfiles, id: \.self) { profile in
-                Text(profile).tag(profile)
+        Picker(title, selection: Binding(
+            get: { HumanSLModel(profile: humanSLProfile)?.kind ?? HumanSLModel.aiKind },
+            set: { humanSLProfile = RankCatalog.profile(choosing: $0, from: humanSLProfile) })) {
+            Text(verbatim: RankCatalog.aiTitle).tag(RankCatalog.aiProfile)
+            Section("Dan") {
+                ForEach(RankCatalog.dan, id: \.self) { Text(verbatim: $0).tag($0) }
             }
+            Section("Kyu") {
+                ForEach(RankCatalog.kyu, id: \.self) { Text(verbatim: $0).tag($0) }
+            }
+            Text(verbatim: RankCatalog.proKind).tag(RankCatalog.proKind)
+        }
+    }
+}
+
+/// The side's style year, over its kind's range; absent for Full Strength,
+/// which has none. Writes the whole key back through the same binding the
+/// kind picker uses, so the host's one `.onChange` sends it to the engine.
+struct StyleYearPicker: View {
+    @Binding var humanSLProfile: String
+    let accessibilityID: String
+
+    var body: some View {
+        if let model = HumanSLModel(profile: humanSLProfile),
+           let year = model.year,
+           let range = HumanSLModel.yearRange(forKind: model.kind) {
+            Picker("Year", selection: Binding(
+                get: { year },
+                set: { humanSLProfile = model.choosing(year: $0) })) {
+                // `Text(verbatim:)`: a year as a LocalizedStringKey renders "2,016".
+                ForEach(Array(range), id: \.self) { Text(verbatim: RankCatalog.yearLabel($0)).tag($0) }
+            }
+            .accessibilityIdentifier(accessibilityID)
         }
     }
 }
@@ -516,8 +549,6 @@ struct AIConfigView: View {
     @State var blackMaxTime = Config.defaultBlackMaxTime
     @State var humanProfileForWhite = Config.defaultHumanSLProfile
     @State var whiteMaxTime = Config.defaultWhiteMaxTime
-    @State var blackHumanSLModel = HumanSLModel()
-    @State var whiteHumanSLModel = HumanSLModel()
     @Environment(Turn.self) var player
     @Environment(MessageList.self) var messageList
     @Environment(GobanState.self) var gobanState
@@ -546,13 +577,13 @@ struct AIConfigView: View {
                 .onAppear {
                     let canonical = HumanSLModel.canonicalProfile(config.humanProfileForBlack)
                     humanProfileForBlack = canonical
-                    blackHumanSLModel.profile = canonical
                     blackMaxTime = config.blackMaxTime   // seed for both stepper and toggle
                 }
                 .onChange(of: humanProfileForBlack) { _, newValue in
-                    blackHumanSLModel.profile = newValue
                     ConfigEngineSync.setBlackHumanProfile(newValue, config: config, player: player, messageList: messageList)
                 }
+
+            StyleYearPicker(humanSLProfile: $humanProfileForBlack, accessibilityID: "blackStyleYear")
 
             if humanProfileForBlack == "AI" {
                 ConfigFloatItem(title: "Time per move",
@@ -588,13 +619,13 @@ struct AIConfigView: View {
                 .onAppear {
                     let canonical = HumanSLModel.canonicalProfile(config.humanProfileForWhite)
                     humanProfileForWhite = canonical
-                    whiteHumanSLModel.profile = canonical
                     whiteMaxTime = config.whiteMaxTime
                 }
                 .onChange(of: humanProfileForWhite) { _, newValue in
-                    whiteHumanSLModel.profile = newValue
                     ConfigEngineSync.setWhiteHumanProfile(newValue, config: config, player: player, messageList: messageList)
                 }
+
+            StyleYearPicker(humanSLProfile: $humanProfileForWhite, accessibilityID: "whiteStyleYear")
 
             if humanProfileForWhite == "AI" {
                 ConfigFloatItem(title: "Time per move",

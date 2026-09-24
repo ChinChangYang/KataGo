@@ -24,9 +24,12 @@ public enum GtpCommandBuilder {
 
     /// Visit budget for a human play move: 9d and pros keep the strong 400-visit
     /// budget; ladder ranks (8d…25k) play at the 40-visit calibration budget.
+    /// Keyed on the profile KIND, so the style year never moves a rung, and a
+    /// legacy spelling (`preaz_9d`) is read as the key it stands for.
     /// Pro → strong is a product choice — change this one line to retune it.
     static func humanSLPlayVisitBudget(for effectiveProfile: String) -> Int {
-        (effectiveProfile == "9d" || effectiveProfile.hasPrefix("Pro "))
+        let kind = HumanSLModel(profile: effectiveProfile)?.kind
+        return (kind == "9d" || kind == HumanSLModel.proKind)
             ? humanSLPlayMaxVisitsStrongRank : humanSLPlayMaxVisitsWeakRank
     }
 

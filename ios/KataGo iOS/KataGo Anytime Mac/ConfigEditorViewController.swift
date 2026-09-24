@@ -459,14 +459,29 @@ final class ConfigEditorViewController: NSViewController {
             ConfigFormBuilder.rankMenuRow(
                 title: "Human profile",
                 current: HumanSLModel.canonicalProfile(config.humanProfileForBlack),
-                onChange: { [weak self] profile in
+                onChange: { [weak self] kind in
                     guard let self else { return }
-                    ConfigEngineSync.setBlackHumanProfile(profile, config: config,
-                                                          player: self.player, messageList: self.messageList)
+                    ConfigEngineSync.setBlackHumanProfile(
+                        RankCatalog.profile(choosing: kind, from: config.humanProfileForBlack),
+                        config: config,
+                        player: self.player, messageList: self.messageList)
                     // Defer the rebuild so the popup's own action completes before
                     // its row is torn down.
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
+
+        if let yearRow = ConfigFormBuilder.styleYearRow(
+            current: HumanSLModel.canonicalProfile(config.humanProfileForBlack),
+            onChange: { [weak self] year in
+                guard let self else { return }
+                ConfigEngineSync.setBlackHumanProfile(
+                    RankCatalog.profile(choosingYear: year, from: config.humanProfileForBlack),
+                    config: config,
+                    player: self.player, messageList: self.messageList)
+                DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
+            }) {
+            formStack.addArrangedSubview(yearRow)
+        }
 
         if HumanSLModel.canonicalProfile(config.humanProfileForBlack) == "AI" {
             formStack.addArrangedSubview(
@@ -506,14 +521,29 @@ final class ConfigEditorViewController: NSViewController {
             ConfigFormBuilder.rankMenuRow(
                 title: "Human profile",
                 current: HumanSLModel.canonicalProfile(config.humanProfileForWhite),
-                onChange: { [weak self] profile in
+                onChange: { [weak self] kind in
                     guard let self else { return }
-                    ConfigEngineSync.setWhiteHumanProfile(profile, config: config,
-                                                          player: self.player, messageList: self.messageList)
+                    ConfigEngineSync.setWhiteHumanProfile(
+                        RankCatalog.profile(choosing: kind, from: config.humanProfileForWhite),
+                        config: config,
+                        player: self.player, messageList: self.messageList)
                     // Defer the rebuild so the popup's own action completes before
                     // its row is torn down.
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
+
+        if let yearRow = ConfigFormBuilder.styleYearRow(
+            current: HumanSLModel.canonicalProfile(config.humanProfileForWhite),
+            onChange: { [weak self] year in
+                guard let self else { return }
+                ConfigEngineSync.setWhiteHumanProfile(
+                    RankCatalog.profile(choosingYear: year, from: config.humanProfileForWhite),
+                    config: config,
+                    player: self.player, messageList: self.messageList)
+                DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
+            }) {
+            formStack.addArrangedSubview(yearRow)
+        }
 
         if HumanSLModel.canonicalProfile(config.humanProfileForWhite) == "AI" {
             formStack.addArrangedSubview(

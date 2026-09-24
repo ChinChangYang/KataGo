@@ -154,13 +154,13 @@ struct TVNewGameFormTests {
     @Test("apply assigns the engine side, both directions")
     func applySetsTheEngineSide() {
         var form = TVNewGameForm(maxBoardLength: 37)
-        form.rankProfile = "3k"
+        form.rankProfile = "3k 2019"
         form.setRuleset(.japanese)
         let config = Config()
         form.apply(to: config)
         #expect(config.blackMaxTime == 0)
         #expect(config.whiteMaxTime == Config.toggleAIThinkingTime)
-        #expect(config.humanProfileForWhite == "3k")
+        #expect(config.humanProfileForWhite == "3k 2019")
         #expect(config.rule == NewGameRuleset.japanese.configRuleIndex)
 
         form.humanPlaysBlack = false
@@ -168,7 +168,7 @@ struct TVNewGameFormTests {
         form.apply(to: flipped)
         #expect(flipped.whiteMaxTime == 0)
         #expect(flipped.blackMaxTime == Config.toggleAIThinkingTime)
-        #expect(flipped.humanProfileForBlack == "3k")
+        #expect(flipped.humanProfileForBlack == "3k 2019")
     }
 
     /// Creating the record and opening its board is ENGINE-FREE: the form
@@ -193,11 +193,34 @@ struct TVNewGameFormTests {
         }
     }
 
-    @Test("suggested name carries the rank")
+    @Test("suggested name carries the rank and its style year")
     func suggestedName() {
         var form = TVNewGameForm(maxBoardLength: 37)
         #expect(form.suggestedName == "vs KataGo")
-        form.rankProfile = "3k"
-        #expect(form.suggestedName == "vs KataGo 3k")
+        form.rankProfile = "3k 2016"
+        #expect(form.suggestedName == "vs KataGo 3k 2016")
+        form.rankProfile = "Pro 1997"
+        #expect(form.suggestedName == "vs KataGo Pro 1997")
+    }
+
+    @Test("a kind pick keeps the form's style year; a year pick keeps its kind")
+    func kindAndYearPicks() {
+        var form = TVNewGameForm(maxBoardLength: 37)
+        #expect(form.rankKind == "AI")
+        #expect(form.styleYear == nil)
+        form.chooseKind("5k")
+        #expect(form.rankProfile == "5k 2016")
+        form.chooseYear(2020)
+        #expect(form.rankProfile == "5k 2020")
+        #expect(form.rankKind == "5k")
+        #expect(form.styleYear == 2020)
+        form.chooseKind("Pro")
+        #expect(form.rankProfile == "Pro 2020")
+        form.chooseYear(1850)
+        form.chooseKind("3d")
+        #expect(form.rankProfile == "3d 2016")      // clamped into the rank years
+        form.chooseKind("AI")
+        #expect(form.rankProfile == "AI")
+        #expect(form.styleYear == nil)
     }
 }

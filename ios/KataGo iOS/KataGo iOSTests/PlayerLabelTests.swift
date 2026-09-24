@@ -69,6 +69,41 @@ struct PlayerLabelTests {
     }
 }
 
+/// `Config.displayPlayerLabel(for:)` is what the board shows: the canonical
+/// profile key, so a record saved before the style year (a bare "5k") reads
+/// with the year it has always played at.
+struct DisplayPlayerLabelTests {
+
+    @Test func aHumanSideReadsHuman() {
+        let config = Config(humanSLProfile: "5k 2019", optionalBlackMaxTime: 0)
+        #expect(config.displayPlayerLabel(for: .black) == "Human")
+    }
+
+    @Test func anAISideReadsItsKeyWithItsYear() {
+        let config = Config(humanSLProfile: "5k 2019",
+                            optionalHumanProfileForWhite: "Pro 1997",
+                            optionalBlackMaxTime: 0.5,
+                            optionalWhiteMaxTime: 0.5)
+        #expect(config.displayPlayerLabel(for: .black) == "5k 2019")
+        #expect(config.displayPlayerLabel(for: .white) == "Pro 1997")
+    }
+
+    @Test func aLegacyKeyReadsCanonical() {
+        let config = Config(humanSLProfile: "5k",
+                            optionalHumanProfileForWhite: "preaz_3d",
+                            optionalBlackMaxTime: 0.5,
+                            optionalWhiteMaxTime: 0.5)
+        #expect(config.displayPlayerLabel(for: .black) == "5k 2016")
+        #expect(config.displayPlayerLabel(for: .white) == "3d 2016")
+    }
+
+    @Test func fullStrengthReadsAI() {
+        let config = Config(optionalBlackMaxTime: 1.0)
+        #expect(config.displayPlayerLabel(for: .black) == "AI")
+        #expect(config.displayPlayerLabel(for: .unknown) == "")
+    }
+}
+
 /// `Config.toggledMaxTime(for:)` computes the per-move time a side gets when its
 /// AI/Human label is tapped: human (0) → 0.5s, AI (>0) → 0. `.unknown` is a 0
 /// no-op. The Config form can still set any other value; this is only the

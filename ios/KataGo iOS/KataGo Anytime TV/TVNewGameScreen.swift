@@ -13,7 +13,7 @@
 //  renders as ONE squeezed horizontal segment row, so every option fights its
 //  siblings for width and the long ones are truncated to glyph fragments: the
 //  11 rulesets came out as "Chi... Chi... Jap... Kor..." (both Chinese presets
-//  collapsing to the same fragment) and the 259 rank profiles as an illegible
+//  collapsing to the same fragment) and the rank profiles as an illegible
 //  bar. This screen therefore shows a one-row-per-setting SUMMARY
 //  ("Ruleset ——— Chinese (OGS/KGS) ›") and pushes a full-screen chooser per
 //  setting, where an option NEVER shares a horizontal line with a sibling —
@@ -59,7 +59,7 @@ struct NewGameRoute: Hashable {}
 /// `NavigationPath`, and `.customSize` is pushed from inside the `.boardSize`
 /// destination — both resolve against the one `.navigationDestination` below.
 private enum TVNewGameChooser: Hashable {
-    case boardSize, customSize, ruleset, rank, handicap
+    case boardSize, customSize, ruleset, rank, styleYear, handicap
 }
 
 struct TVNewGameScreen: View {
@@ -102,8 +102,18 @@ struct TVNewGameScreen: View {
 
                 TVNewGameSummaryLink(
                     title: "KataGo Rank",
-                    value: form.rankProfile,
+                    value: form.rankKind,
                     route: .rank)
+
+                // Full Strength has no style year, so the row is absent rather
+                // than disabled: there is nothing to choose, not something
+                // temporarily unavailable.
+                if let year = form.styleYear {
+                    TVNewGameSummaryLink(
+                        title: "Year",
+                        value: RankCatalog.yearLabel(year),
+                        route: .styleYear)
+                }
 
                 // Two values only, so this row flips in place instead of
                 // pushing a chooser — one press beats two, and the swap glyph
@@ -150,6 +160,8 @@ struct TVNewGameScreen: View {
             TVNewGameRulesetChooser(form: $form)
         case .rank:
             TVNewGameRankChooser(form: $form)
+        case .styleYear:
+            TVNewGameStyleYearChooser(form: $form)
         case .handicap:
             TVNewGameHandicapChooser(form: $form)
         }
@@ -332,24 +344,21 @@ private struct TVNewGameHandicapChooser: View {
 
 // MARK: - Rank chooser
 
-/// The 259 profiles are split by TYPE, not by scrolling: a three-way group
-/// selector, then one card / two rank ladders / a decade-then-year two-step.
-/// No single list on screen runs past 25 tokens.
+/// The profile kinds are split by TYPE, not by scrolling: a three-way group
+/// selector, then one card / two rank ladders / one card. No single list on
+/// screen runs past 25 tokens. A pick keeps the form's style year (ADR 0019),
+/// which the Year row chooses.
 private struct TVNewGameRankChooser: View {
     @Binding var form: TVNewGameForm
     @Environment(\.dismiss) private var dismiss
 
-    /// Which group is on screen. Seeded from the saved rank, so opening the
+    /// Which group is on screen. Seeded from the saved kind, so opening the
     /// chooser always lands on the family the current value belongs to.
     @State private var group: TVNewGameRankGroup
-    /// Which decade of pro years is on screen (Pro Era group only).
-    @State private var decade: Int
 
     init(form: Binding<TVNewGameForm>) {
         _form = form
-        let current = form.wrappedValue.rankProfile
-        _group = State(initialValue: TVNewGameRankCatalog.group(for: current))
-        _decade = State(initialValue: TVNewGameRankCatalog.decade(for: current))
+        _group = State(initialValue: TVNewGameRankGroup(kind: form.wrappedValue.rankKind))
     }
 
     var body: some View {
@@ -369,7 +378,7 @@ private struct TVNewGameRankChooser: View {
                 TVNewGameGroupButton(
                     title: candidate.title,
                     isCurrent: candidate == group,
-                    isChecked: candidate == TVNewGameRankCatalog.group(for: form.rankProfile)
+                    isChecked: candidate == TVNewGameRankGroup(kind: form.rankKind)
                 ) { group = candidate }
             }
         }
@@ -380,42 +389,21 @@ private struct TVNewGameRankChooser: View {
     private var content: some View {
         switch group {
         case .ai:
-            TVNewGameOptionRow(title: TVNewGameRankCatalog.aiProfile,
-                               isSelected: form.rankProfile == TVNewGameRankCatalog.aiProfile) {
-                pick(TVNewGameRankCatalog.aiProfile)
+            TVNewGameOptionRow(title: RankCatalog.aiProfile,
+                               isSelected: form.rankKind == RankCatalog.aiProfile) {
+                pick(RankCatalog.aiProfile)
             }
 
         case .human:
             VStack(alignment: .leading, spacing: 20) {
-                band("Dan", ranks: TVNewGameRankCatalog.dan)
-                band("Kyu", ranks: TVNewGameRankCatalog.kyu)
+                band("Dan", ranks: RankCatalog.dan)
+                band("Kyu", ranks: RankCatalog.kyu)
             }
 
-        case .proEra:
-            VStack(alignment: .leading, spacing: 20) {
-                TVNewGameSectionLabel("Decade")
-                LazyVGrid(columns: TVNewGameGrid.columns(8), spacing: 14) {
-                    ForEach(TVNewGameRankCatalog.decades, id: \.self) { candidate in
-                        TVNewGameCell(
-                            label: "\(candidate)s",
-                            isCurrent: candidate == decade,
-                            isChecked: TVNewGameRankCatalog.decade(containing: form.rankProfile) == candidate
-                        ) { decade = candidate }
-                    }
-                }
-                .focusSection()
-
-                TVNewGameSectionLabel("\(decade)s")
-                LazyVGrid(columns: TVNewGameGrid.columns(5), spacing: 14) {
-                    ForEach(TVNewGameRankCatalog.entries(inDecade: decade)) { entry in
-                        TVNewGameCell(label: entry.label,
-                                      isCurrent: entry.profile == form.rankProfile,
-                                      isChecked: entry.profile == form.rankProfile) {
-                            pick(entry.profile)
-                        }
-                    }
-                }
-                .focusSection()
+        case .pro:
+            TVNewGameOptionRow(title: RankCatalog.proKind,
+                               isSelected: form.rankKind == RankCatalog.proKind) {
+                pick(RankCatalog.proKind)
             }
         }
     }
@@ -426,8 +414,8 @@ private struct TVNewGameRankChooser: View {
             LazyVGrid(columns: TVNewGameGrid.columns(9), spacing: 14) {
                 ForEach(ranks, id: \.self) { rank in
                     TVNewGameCell(label: rank,
-                                  isCurrent: rank == form.rankProfile,
-                                  isChecked: rank == form.rankProfile) {
+                                  isCurrent: rank == form.rankKind,
+                                  isChecked: rank == form.rankKind) {
                         pick(rank)
                     }
                 }
@@ -436,14 +424,22 @@ private struct TVNewGameRankChooser: View {
         }
     }
 
-    private func pick(_ profile: String) {
-        form.rankProfile = profile
+    private func pick(_ kind: String) {
+        form.chooseKind(kind)
         dismiss()
     }
 }
 
 private enum TVNewGameRankGroup: Int, CaseIterable, Identifiable {
-    case ai, human, proEra
+    case ai, human, pro
+
+    init(kind: String) {
+        switch kind {
+        case RankCatalog.proKind: self = .pro
+        case RankCatalog.aiProfile: self = .ai
+        default: self = .human
+        }
+    }
 
     var id: Int { rawValue }
 
@@ -451,43 +447,78 @@ private enum TVNewGameRankGroup: Int, CaseIterable, Identifiable {
         switch self {
         case .ai: return "Full Strength"
         case .human: return "Human Rank"
-        case .proEra: return "Pro Era"
+        case .pro: return "Pro"
         }
     }
 }
 
-/// The pro-era entry the chooser's grid cells bind to: `RankCatalog.ProEntry`,
-/// whose `label` is already the verbatim year string.
-private typealias TVNewGameProEntry = RankCatalog.ProEntry
+// MARK: - Style year chooser
 
-/// The three-way presentation this screen puts on top of the shared
-/// `RankCatalog` partition (Full Strength / Human Rank / Pro Era). The
-/// grouping itself — dan, kyu, pro years by decade — is the catalog's, shared
-/// with the iOS long-press menu and the Mac rank menu.
-private enum TVNewGameRankCatalog {
-    static var aiProfile: String { RankCatalog.aiProfile }
-    static var dan: [String] { RankCatalog.dan }
-    static var kyu: [String] { RankCatalog.kyu }
-    static var decades: [Int] { RankCatalog.decades }
+/// A rank's eight KGS years fit one grid; Pro's 224 years take the
+/// decade-then-year two-step, so no list on screen runs past 25 tokens.
+private struct TVNewGameStyleYearChooser: View {
+    @Binding var form: TVNewGameForm
+    @Environment(\.dismiss) private var dismiss
 
-    static func entries(inDecade start: Int) -> [TVNewGameProEntry] {
-        RankCatalog.entries(inDecade: start)
+    /// Which decade of pro years is on screen (Pro only).
+    @State private var decade: Int
+
+    init(form: Binding<TVNewGameForm>) {
+        _form = form
+        let year = form.wrappedValue.styleYear ?? HumanSLModel.defaultStyleYear
+        _decade = State(initialValue: RankCatalog.decade(of: year))
     }
 
-    static func group(for profile: String) -> TVNewGameRankGroup {
-        if profile.hasPrefix("Pro ") { return .proEra }
-        if dan.contains(profile) || kyu.contains(profile) { return .human }
-        return .ai
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                if form.rankKind == RankCatalog.proKind {
+                    proYears
+                } else {
+                    TVNewGameSectionLabel("Year")
+                    LazyVGrid(columns: TVNewGameGrid.columns(8), spacing: 14) {
+                        ForEach(RankCatalog.rankYears, id: \.self) { year in
+                            cell(year)
+                        }
+                    }
+                    .focusSection()
+                }
+            }
+            .modifier(TVNewGamePageFrame())
+        }
+        .navigationTitle("Year")
     }
 
-    /// The decade to show when the chooser opens: the selection's own decade,
-    /// or the most recent one for a non-pro selection.
-    static func decade(for profile: String) -> Int {
-        decade(containing: profile) ?? decades.last ?? 2020
+    @ViewBuilder
+    private var proYears: some View {
+        TVNewGameSectionLabel("Decade")
+        LazyVGrid(columns: TVNewGameGrid.columns(8), spacing: 14) {
+            ForEach(RankCatalog.decades, id: \.self) { candidate in
+                TVNewGameCell(
+                    label: RankCatalog.decadeLabel(candidate),
+                    isCurrent: candidate == decade,
+                    isChecked: form.styleYear.map(RankCatalog.decade(of:)) == candidate
+                ) { decade = candidate }
+            }
+        }
+        .focusSection()
+
+        TVNewGameSectionLabel(RankCatalog.decadeLabel(decade))
+        LazyVGrid(columns: TVNewGameGrid.columns(5), spacing: 14) {
+            ForEach(RankCatalog.entries(inDecade: decade)) { entry in
+                cell(entry.year)
+            }
+        }
+        .focusSection()
     }
 
-    static func decade(containing profile: String) -> Int? {
-        RankCatalog.decade(containing: profile)
+    private func cell(_ year: Int) -> some View {
+        TVNewGameCell(label: RankCatalog.yearLabel(year),
+                      isCurrent: year == form.styleYear,
+                      isChecked: year == form.styleYear) {
+            form.chooseYear(year)
+            dismiss()
+        }
     }
 }
 

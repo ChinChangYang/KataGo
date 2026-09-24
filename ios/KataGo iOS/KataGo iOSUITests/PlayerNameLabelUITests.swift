@@ -109,7 +109,8 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
     }
 
     /// Long-presses the WHITE capsule and picks a rank from its context menu:
-    /// the side becomes the AI at that rank and the label reads the rank.
+    /// the side becomes the AI at that rank and the label reads the rank and
+    /// its style year.
     /// Restores through the same menu (Full Strength keeps the side AI) and a
     /// tap (back to Human): once a rank is set the "Time per move" stepper is
     /// replaced by the "Engine plays this side" toggle, so the config path
@@ -132,7 +133,8 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         tapMenuItem(app, "Dan")
         tapMenuItem(app, "5d")
         // The pick both sets the rank and hands White to the AI, in one step.
-        waitForLabel(app, "whitePlayerName", equals: "5d")
+        // A side leaving Full Strength starts at the 2016 style year.
+        waitForLabel(app, "whitePlayerName", equals: "5d 2016")
         waitForLabel(app, "blackPlayerName", equals: humanLabel)
 
         let shot = XCTAttachment(screenshot: app.screenshot())

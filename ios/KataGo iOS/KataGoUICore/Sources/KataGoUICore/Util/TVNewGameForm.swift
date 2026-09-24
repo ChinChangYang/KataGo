@@ -9,14 +9,15 @@ public struct TVNewGameForm: Equatable {
     /// The 11 named presets; the granular Custom editor stays iOS/macOS.
     public static let rulesetChoices: [NewGameRuleset] =
         NewGameRuleset.pickerCases.filter { $0 != .custom }
-    public static let rankChoices = HumanSLModel.allProfiles
     /// Classic handicap compensation: stones instead of points.
     public static let handicapKomi: Float = 0.5
 
     public private(set) var boardWidth: Int
     public private(set) var boardHeight: Int
     public private(set) var ruleset: NewGameRuleset = .trompTaylor
-    public var rankProfile: String = "AI"
+    /// KataGo's profile key ("AI", "5k 2019", "Pro 1997"), set through
+    /// `chooseKind` / `chooseYear`.
+    public var rankProfile: String = HumanSLModel.aiKind
     public private(set) var handicap: Int = 0
     public var humanPlaysBlack: Bool = true
     /// The LAUNCHED NN buffer (engine.maxBoardLength) — never live settings.
@@ -93,6 +94,23 @@ public struct TVNewGameForm: Equatable {
     /// the net is still loading — and while the engine is *Held* on a board it
     /// cannot serve, where starting a smaller game is the way out of the hold.
     public var canStart: Bool { sgf != nil }
+
+    /// The profile kind of `rankProfile`: "AI", a rank, or "Pro".
+    public var rankKind: String { HumanSLModel(profile: rankProfile)?.kind ?? HumanSLModel.aiKind }
+
+    /// The style year of `rankProfile`, or nil for Full Strength.
+    public var styleYear: Int? { HumanSLModel(profile: rankProfile)?.year }
+
+    /// Picks a kind; the form keeps its style year, clamped into the kind's
+    /// range, and starts at 2016 when leaving Full Strength.
+    public mutating func chooseKind(_ kind: String) {
+        rankProfile = RankCatalog.profile(choosing: kind, from: rankProfile)
+    }
+
+    /// Picks a style year for the current kind, clamped into its range.
+    public mutating func chooseYear(_ year: Int) {
+        rankProfile = (HumanSLModel(profile: rankProfile) ?? HumanSLModel()).choosing(year: year)
+    }
 
     public var suggestedName: String {
         rankProfile == "AI" ? "vs KataGo" : "vs KataGo \(rankProfile)"
