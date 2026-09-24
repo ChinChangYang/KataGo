@@ -530,10 +530,12 @@ struct GameSplitView: View {
                 gobanState.analysisStatus = .clear
             }
 
-            // restore human profile for the next player
+            // Restore both sides' human-SL state: auto-play forced the best-AI
+            // bundle, and the per-turn send alone would leave it in place when
+            // the two sides' profiles match.
             if let gameRecord = navigationContext.selectedGameRecord,
                let config = gameRecord.config {
-                gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+                gobanState.sendEffectiveHumanAnalysisCommands(
                     nextColorForPlayCommand: player.nextColorForPlayCommand,
                     config: config,
                     messageList: messageList)

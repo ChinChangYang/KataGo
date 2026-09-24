@@ -580,7 +580,8 @@ struct AIConfigView: View {
                     blackMaxTime = config.blackMaxTime   // seed for both stepper and toggle
                 }
                 .onChange(of: humanProfileForBlack) { _, newValue in
-                    ConfigEngineSync.setBlackHumanProfile(newValue, config: config, player: player, messageList: messageList)
+                    ConfigEngineSync.setBlackHumanProfile(newValue, config: config, gobanState: gobanState,
+                                                          player: player, messageList: messageList)
                 }
 
             StyleYearPicker(humanSLProfile: $humanProfileForBlack, accessibilityID: "blackStyleYear")
@@ -622,7 +623,8 @@ struct AIConfigView: View {
                     whiteMaxTime = config.whiteMaxTime
                 }
                 .onChange(of: humanProfileForWhite) { _, newValue in
-                    ConfigEngineSync.setWhiteHumanProfile(newValue, config: config, player: player, messageList: messageList)
+                    ConfigEngineSync.setWhiteHumanProfile(newValue, config: config, gobanState: gobanState,
+                                                          player: player, messageList: messageList)
                 }
 
             StyleYearPicker(humanSLProfile: $humanProfileForWhite, accessibilityID: "whiteStyleYear")

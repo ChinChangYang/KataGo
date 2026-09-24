@@ -300,7 +300,7 @@ final class InspectorInfoViewController: NSViewController {
                     guard let self else { return }
                     ConfigEngineSync.setBlackHumanProfile(
                         RankCatalog.profile(choosing: kind, from: config.humanProfileForBlack),
-                        config: config,
+                        config: config, gobanState: self.gobanState,
                         player: self.player, messageList: self.messageList)
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
@@ -312,7 +312,7 @@ final class InspectorInfoViewController: NSViewController {
                 guard let self else { return }
                 ConfigEngineSync.setBlackHumanProfile(
                     RankCatalog.profile(choosingYear: year, from: config.humanProfileForBlack),
-                    config: config,
+                    config: config, gobanState: self.gobanState,
                     player: self.player, messageList: self.messageList)
                 DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
             }) {
@@ -359,7 +359,7 @@ final class InspectorInfoViewController: NSViewController {
                     guard let self else { return }
                     ConfigEngineSync.setWhiteHumanProfile(
                         RankCatalog.profile(choosing: kind, from: config.humanProfileForWhite),
-                        config: config,
+                        config: config, gobanState: self.gobanState,
                         player: self.player, messageList: self.messageList)
                     DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
                 }))
@@ -371,7 +371,7 @@ final class InspectorInfoViewController: NSViewController {
                 guard let self else { return }
                 ConfigEngineSync.setWhiteHumanProfile(
                     RankCatalog.profile(choosingYear: year, from: config.humanProfileForWhite),
-                    config: config,
+                    config: config, gobanState: self.gobanState,
                     player: self.player, messageList: self.messageList)
                 DispatchQueue.main.async { [weak self] in self?.rebuildForm() }
             }) {

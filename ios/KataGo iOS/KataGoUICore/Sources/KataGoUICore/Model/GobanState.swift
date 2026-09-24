@@ -81,6 +81,14 @@ public class GobanState {
     /// ReportCollector FIFO (see BroadcastController's header). Default
     /// false — iOS/macOS/visionOS behavior is untouched.
     public var suppressesHumanSLTurnCommands = false
+    /// A profile change waited out an in-flight search, so the next analysis
+    /// request or turn change must first re-state both sides
+    /// (`sendEffectiveHumanAnalysisCommands`) rather than only the side to
+    /// move: a change that made the two sides equal is skipped by the per-turn
+    /// send, and the engine would keep the old bundle for both. Set by
+    /// `ConfigEngineSync.chooseRank` and `set*HumanProfile`; cleared by the
+    /// re-send.
+    public var humanSLResendOwed = false
     /// The tvOS broadcast's one-shot gen-move license. The broadcast keeps
     /// `suppressesGenMove` true for its whole lifetime (the turn observer
     /// must never free-run the game), so its single per-cycle gen-move reply
@@ -317,6 +325,17 @@ public class GobanState {
     }
 
     public func requestAnalysis(config: Config, messageList: MessageList, nextColorForPlayCommand: PlayerColor?) {
+        // A profile change that waited out a search is paid before ANY new
+        // request, not only at the turn change: the request cancels that search
+        // anyway, and the one it starts on the same turn — an analysis setting
+        // changed, a pause and run, a closed Deep Report — must not run on the
+        // old bundle at the new profile's visit budget.
+        if humanSLResendOwed && !suppressesHumanSLTurnCommands,
+           let nextColorForPlayCommand, nextColorForPlayCommand != .unknown {
+            sendEffectiveHumanAnalysisCommands(nextColorForPlayCommand: nextColorForPlayCommand,
+                                               config: config,
+                                               messageList: messageList)
+        }
         let commands = getRequestAnalysisCommands(config: config, nextColorForPlayCommand: nextColorForPlayCommand)
         messageList.appendAndSend(commands: commands)
         waitingForAnalysis = true
@@ -643,6 +662,28 @@ public class GobanState {
         }
     }
 
+    /// Re-states both sides' *effective* human-SL state: the symmetric one-shot
+    /// when the two sides match (`[]` otherwise), then the side to move's bundle
+    /// when they differ. The turn-change send alone never re-sends a matched
+    /// pair, so this is the path for anything that may have left the engine
+    /// holding a stale bundle: a side's Human/AI flip, a profile change that
+    /// waited out a search (`humanSLResendOwed`), and leaving auto-play, which
+    /// forced the best-AI bundle. A no-op while auto-play owns the engine.
+    public func sendEffectiveHumanAnalysisCommands(nextColorForPlayCommand: PlayerColor,
+                                                   config: Config,
+                                                   messageList: MessageList) {
+        guard !isAutoPlaying else { return }
+        humanSLResendOwed = false
+        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(
+            humanSLProfile: config.effectiveHumanProfileForBlack,
+            humanProfileForWhite: config.effectiveHumanProfileForWhite,
+            humanRatioForBlack: config.humanRatioForBlack,
+            humanRatioForWhite: config.humanRatioForWhite))
+        maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: nextColorForPlayCommand,
+                                                 config: config,
+                                                 messageList: messageList)
+    }
+
     /// The side to move changed: re-establish that side's human-SL profile,
     /// ask for whatever should stream next (the gen-move bundle on an AI turn,
     /// otherwise continuous analysis), and clear stale overlay data when
@@ -657,9 +698,15 @@ public class GobanState {
     public func handleTurnChange(to newColor: PlayerColor,
                                  config: Config,
                                  messageList: MessageList) {
-        maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newColor,
-                                                 config: config,
-                                                 messageList: messageList)
+        if humanSLResendOwed && !suppressesHumanSLTurnCommands {
+            sendEffectiveHumanAnalysisCommands(nextColorForPlayCommand: newColor,
+                                               config: config,
+                                               messageList: messageList)
+        } else {
+            maybeSendAsymmetricHumanAnalysisCommands(nextColorForPlayCommand: newColor,
+                                                     config: config,
+                                                     messageList: messageList)
+        }
         maybeRequestAnalysis(config: config,
                              nextColorForPlayCommand: newColor,
                              messageList: messageList)

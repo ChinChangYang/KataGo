@@ -165,49 +165,74 @@ public enum ConfigEngineSync {
 
     // MARK: Human-SL profiles (per color)
     //
-    // iOS `ConfigView.swift` lines 442-447 (Black) and 474-479 (White):
-    //   Black: config.humanSLProfile = newValue; blackHumanSLModel.profile = newValue
-    //          if player.nextColorForPlayCommand != .white {
-    //              messageList.appendAndSend(commands: blackHumanSLModel.commands) }
-    //   White: config.humanProfileForWhite = newValue; whiteHumanSLModel.profile = newValue
-    //          if player.nextColorForPlayCommand != .black {
-    //              messageList.appendAndSend(commands: whiteHumanSLModel.commands) }
-    // The per-color GTP send is gated on whose turn is NOT next (so the running
-    // engine isn't reconfigured mid-think for the color about to move), exactly
-    // as iOS does.
+    // The settings forms' profile and Year pickers (iOS `AIConfigView`, the Mac
+    // Config Editor and Inspector). Only the side to move's bundle is live in the
+    // engine — the other side's goes out at its own turn — so a change is sent
+    // now only for the side to move, and never while the engine is thinking for
+    // it: `kata-set-param` would cancel that search, and the AI's move would
+    // never land. A change that waits is owed to the next turn change
+    // (`GobanState.humanSLResendOwed`).
 
     /// Sets Black's human-SL profile (`config.humanProfileForBlack`) and, when
-    /// the next color to play is NOT white, replays that profile's
-    /// `HumanSLModel.commands` (mirrors iOS `ConfigView` lines 442-447).
+    /// Black is to move and the engine is not thinking for it, re-states the
+    /// engine's human-SL state and re-arms analysis.
     public static func setBlackHumanProfile(_ profile: String,
                                             config: Config,
+                                            gobanState: GobanState,
                                             player: Turn,
                                             messageList: MessageList) {
-        config.humanProfileForBlack = profile
-        // Emit the *effective* profile: if Black is currently played by a person
-        // (`blackMaxTime == 0`) analysis must stay on the strongest net ("AI"),
-        // not the just-picked human-style profile.
-        if player.nextColorForPlayCommand != .white,
-           let model = HumanSLModel(profile: config.effectiveHumanProfileForBlack) {
-            messageList.appendAndSend(commands: model.commands)
-        }
+        setHumanProfile(profile, for: .black, config: config, gobanState: gobanState,
+                        player: player, messageList: messageList)
     }
 
     /// Sets White's human-SL profile (`config.humanProfileForWhite`) and, when
-    /// the next color to play is NOT black, replays that profile's
-    /// `HumanSLModel.commands` (mirrors iOS `ConfigView` lines 474-479).
+    /// White is to move and the engine is not thinking for it, re-states the
+    /// engine's human-SL state and re-arms analysis.
     public static func setWhiteHumanProfile(_ profile: String,
                                             config: Config,
+                                            gobanState: GobanState,
                                             player: Turn,
                                             messageList: MessageList) {
-        config.humanProfileForWhite = profile
-        // Emit the *effective* profile: if White is currently played by a person
-        // (`whiteMaxTime == 0`) analysis must stay on the strongest net ("AI"),
-        // not the just-picked human-style profile.
-        if player.nextColorForPlayCommand != .black,
-           let model = HumanSLModel(profile: config.effectiveHumanProfileForWhite) {
-            messageList.appendAndSend(commands: model.commands)
+        setHumanProfile(profile, for: .white, config: config, gobanState: gobanState,
+                        player: player, messageList: messageList)
+    }
+
+    private static func setHumanProfile(_ profile: String,
+                                        for color: PlayerColor,
+                                        config: Config,
+                                        gobanState: GobanState,
+                                        player: Turn,
+                                        messageList: MessageList) {
+        func stored() -> String {
+            color == .black ? config.humanProfileForBlack : config.humanProfileForWhite
         }
+        func effective() -> String {
+            HumanSLModel.canonicalProfile(color == .black ? config.effectiveHumanProfileForBlack
+                                                          : config.effectiveHumanProfileForWhite)
+        }
+        // Ignore no-op writes. Opening the AI settings seeds each picker with the
+        // canonical key, firing `.onChange` with the stored profile in another
+        // spelling ("5k" as "5k 2016"); a SwiftData write re-uploads the record.
+        guard HumanSLModel.canonicalProfile(stored()) != HumanSLModel.canonicalProfile(profile) else { return }
+        // Evaluated BEFORE the write, as in `chooseRank`.
+        let engineIsThinking = gobanState.shouldGenMove(config: config, player: player)
+        let oldEffective = effective()
+        switch color {
+        case .black: config.humanProfileForBlack = profile
+        case .white: config.humanProfileForWhite = profile
+        case .unknown: return
+        }
+        // A side a person plays is analysed by the best-AI bundle whatever its
+        // profile; auto-play owns the engine and re-states both sides as it ends.
+        guard effective() != oldEffective,
+              player.nextColorForPlayCommand != color.other,
+              !gobanState.isAutoPlaying else { return }
+        guard !engineIsThinking else {
+            gobanState.humanSLResendOwed = true
+            return
+        }
+        resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
+        rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
     }
 
     // MARK: Rank chooser (the player label's long press)
@@ -223,11 +248,11 @@ public enum ConfigEngineSync {
     /// cancelled and restarted.
     ///
     /// Deliberately its own body: `set*MaxTime` no-ops when the time is
-    /// unchanged (an AI side already at 0.5 s) and `set*HumanProfile` skips
-    /// the side to move, and either would swallow exactly the case this menu
-    /// exists for. The two helpers below are the same ones `set*MaxTime` runs,
-    /// so the sticky `maxVisits` reset rides `getRequestAnalysisCommands` as
-    /// it always has.
+    /// unchanged (an AI side already at 0.5 s) and `set*HumanProfile` only
+    /// sends for the side to move, and either would swallow exactly the case
+    /// this menu exists for. The two helpers below are the same ones
+    /// `set*MaxTime` runs, so the sticky `maxVisits` reset rides
+    /// `getRequestAnalysisCommands` as it always has.
     public static func chooseRank(_ profile: String,
                                   for color: PlayerColor,
                                   config: Config,
@@ -248,7 +273,12 @@ public enum ConfigEngineSync {
         case .unknown:
             return
         }
-        guard !engineIsThinking else { return }
+        guard !engineIsThinking else {
+            // The turn change alone skips a matched pair: a pick that made the
+            // two sides equal would never reach the engine without this.
+            gobanState.humanSLResendOwed = true
+            return
+        }
         resendEffectiveHumanAnalysisCommands(config: config, gobanState: gobanState, player: player, messageList: messageList)
         rearmAnalysis(config: config, gobanState: gobanState, player: player, messageList: messageList)
     }
@@ -318,17 +348,10 @@ public enum ConfigEngineSync {
                                                              gobanState: GobanState,
                                                              player: Turn,
                                                              messageList: MessageList) {
-        // During auto-play the auto-play path owns the engine's human-SL state
-        // (it forces the best-AI "AI" profile), so leave it untouched here —
-        // mirrors the `!isAutoPlaying` guard in
-        // `GobanState.maybeSendAsymmetricHumanAnalysisCommands`.
-        guard !gobanState.isAutoPlaying else { return }
-        messageList.appendAndSend(commands: GtpCommandBuilder.symmetricHumanAnalysisCommands(
-            humanSLProfile: config.effectiveHumanProfileForBlack,
-            humanProfileForWhite: config.effectiveHumanProfileForWhite,
-            humanRatioForBlack: config.humanRatioForBlack,
-            humanRatioForWhite: config.humanRatioForWhite))
-        gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+        // A no-op during auto-play, whose path owns the engine's human-SL state
+        // (it forces the best-AI "AI" profile) — mirrors the `!isAutoPlaying`
+        // guard in `GobanState.maybeSendAsymmetricHumanAnalysisCommands`.
+        gobanState.sendEffectiveHumanAnalysisCommands(
             nextColorForPlayCommand: player.nextColorForPlayCommand,
             config: config,
             messageList: messageList)

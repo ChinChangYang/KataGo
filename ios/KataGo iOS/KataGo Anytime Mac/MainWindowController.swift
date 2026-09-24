@@ -2151,10 +2151,12 @@ final class MainWindowController: NSWindowController {
         } else {
             gobanState.analysisStatus = .clear
 
-            // restore human profile for the next player
+            // Restore both sides' human-SL state: auto-play forced the best-AI
+            // bundle, and the per-turn send alone would leave it in place when
+            // the two sides' profiles match.
             if let gameRecord = navigationContext.selectedGameRecord {
                 let config = gameRecord.concreteConfig
-                gobanState.maybeSendAsymmetricHumanAnalysisCommands(
+                gobanState.sendEffectiveHumanAnalysisCommands(
                     nextColorForPlayCommand: session.player.nextColorForPlayCommand,
                     config: config,
                     messageList: session.messageList)
