@@ -151,7 +151,72 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         waitForLabel(app, "whitePlayerName", equals: humanLabel)
     }
 
+    /// Changes White's style year in the AI settings: the label follows the
+    /// Year picker ("5k 2016" -> "5k 2019"), and a later rank pick from the
+    /// capsule's menu keeps that year. White again, so no pick ever makes the
+    /// side to move auto-play into a branch.
+    @MainActor
+    func testChangingWhiteYearRelabelsTheSide() throws {
+        let app = makeApp()
+        launchToBoard(app)
+
+        openAIConfig(app)
+        adjustStepper(app, "blackTimePerMove", decrements: 4)
+        adjustStepper(app, "whiteTimePerMove", decrements: 4)
+        dismissConfig(app)
+        waitForLabel(app, "whitePlayerName", equals: humanLabel)
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)
+
+        let white = app.buttons["whitePlayerName"]
+        XCTAssertTrue(white.waitForExistence(timeout: 10), "White capsule button not found")
+        white.press(forDuration: 1.0)
+        tapMenuItem(app, "Kyu")
+        tapMenuItem(app, "5k")
+        waitForLabel(app, "whitePlayerName", equals: "5k 2016")
+
+        openAIConfig(app)
+        pickYear(app, "whiteStyleYear", "2019")
+        dismissConfig(app)
+        waitForLabel(app, "whitePlayerName", equals: "5k 2019")
+        waitForLabel(app, "blackPlayerName", equals: humanLabel)
+
+        // A rank pick keeps the side's style year.
+        white.press(forDuration: 1.0)
+        tapMenuItem(app, "Dan")
+        tapMenuItem(app, "3d")
+        waitForLabel(app, "whitePlayerName", equals: "3d 2019")
+
+        let shot = XCTAttachment(screenshot: app.screenshot())
+        shot.name = "WhiteYearChanged"
+        shot.lifetime = .keepAlways
+        add(shot)
+
+        // Restore, as in testLongPressingWhiteLabelPicksARank: Full Strength
+        // drops the year, then a tap makes White Human again.
+        white.press(forDuration: 1.0)
+        tapMenuItem(app, "Full Strength (AI)")
+        waitForLabel(app, "whitePlayerName", equals: "AI")
+        white.tap()
+        waitForLabel(app, "whitePlayerName", equals: humanLabel)
+    }
+
     // MARK: - Navigation helpers
+
+    /// Opens the menu-style Year picker `identifier` on the AI screen and picks
+    /// `year`, then waits for the picker to show it.
+    @MainActor
+    private func pickYear(_ app: XCUIApplication, _ identifier: String, _ year: String) {
+        let picker = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
+        scrollUntilExists(app, picker)
+        XCTAssertTrue(picker.waitForExistence(timeout: 10), "Year picker '\(identifier)' not found")
+        picker.tap()
+        tapMenuItem(app, year)
+
+        let shown = NSPredicate(format: "label CONTAINS %@ OR value CONTAINS %@", year, year)
+        let expectation = XCTNSPredicateExpectation(predicate: shown, object: picker)
+        XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 10), .completed,
+                       "Year picker '\(identifier)' did not show \(year)")
+    }
 
     /// Taps a context-menu item once it is stably present: an open SwiftUI
     /// menu collapses when an ancestor re-renders under engine churn, and a
