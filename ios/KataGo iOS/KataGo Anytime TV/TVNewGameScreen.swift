@@ -476,7 +476,7 @@ private struct TVNewGameStyleYearChooser: View {
                     proYears
                 } else {
                     TVNewGameSectionLabel("Year")
-                    LazyVGrid(columns: TVNewGameGrid.columns(8), spacing: 14) {
+                    LazyVGrid(columns: TVNewGameGrid.columns(TVNewGameGrid.yearColumns), spacing: 14) {
                         ForEach(RankCatalog.rankYears, id: \.self) { year in
                             cell(year)
                         }
@@ -492,7 +492,7 @@ private struct TVNewGameStyleYearChooser: View {
     @ViewBuilder
     private var proYears: some View {
         TVNewGameSectionLabel("Decade")
-        LazyVGrid(columns: TVNewGameGrid.columns(8), spacing: 14) {
+        LazyVGrid(columns: TVNewGameGrid.columns(TVNewGameGrid.yearColumns), spacing: 14) {
             ForEach(RankCatalog.decades, id: \.self) { candidate in
                 TVNewGameCell(
                     label: RankCatalog.decadeLabel(candidate),
@@ -504,7 +504,7 @@ private struct TVNewGameStyleYearChooser: View {
         .focusSection()
 
         TVNewGameSectionLabel(RankCatalog.decadeLabel(decade))
-        LazyVGrid(columns: TVNewGameGrid.columns(5), spacing: 14) {
+        LazyVGrid(columns: TVNewGameGrid.columns(TVNewGameGrid.yearColumns), spacing: 14) {
             ForEach(RankCatalog.entries(inDecade: decade)) { entry in
                 cell(entry.year)
             }
@@ -733,6 +733,13 @@ private struct TVNewGamePageFrame: ViewModifier {
 }
 
 private enum TVNewGameGrid {
+    /// For four-digit tokens ("2016", "1850s"). A checked `.bordered` cell
+    /// measures about 240 pt at 1920 × 1080 ("✓ 1850s"), and the page is
+    /// 1420 pt wide, so five columns (~273 pt each) is the most that fits.
+    /// With eight, the cells overran their columns and clipped each other's
+    /// labels. Two-character ranks stay at nine.
+    static let yearColumns = 5
+
     static func columns(_ count: Int, spacing: CGFloat = 14) -> [GridItem] {
         Array(repeating: GridItem(.flexible(), spacing: spacing), count: count)
     }
