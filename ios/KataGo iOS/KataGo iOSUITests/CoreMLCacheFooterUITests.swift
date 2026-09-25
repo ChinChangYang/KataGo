@@ -443,17 +443,31 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
         // ----- The per-game "View" tab is gone; the others remain. Game
         // Settings now lives under Settings, so dismiss the Global Settings
-        // sheet (swipe down ON THE NAV BAR — the list is scrollable, so a bare
-        // list swipeDown would scroll instead of dismiss) and reopen it via
-        // More ▸ Settings ▸ Game Settings. -----
-        app.navigationBars["Global Settings"].swipeDown(velocity: .fast)
-
+        // sheet and reopen it via More ▸ Settings ▸ Game Settings. -----
+        //
+        // On iOS 27 a swipe on the nav bar no longer dismisses this sheet
+        // (three in a row left it up, 2026-09-25). Swipe the list instead:
+        // the first swipe scrolls it back from Thumbnails to the top, and the
+        // next one, starting at the top, dismisses. "More" never leaves the
+        // hierarchy while the sheet covers it, so wait for the sheet itself.
+        let globalSettingsBar = app.navigationBars["Global Settings"]
+        for _ in 0..<4 where globalSettingsBar.exists {
+            app.swipeDown(velocity: .fast)
+            _ = globalSettingsBar.waitForNonExistence(timeout: 3)
+        }
+        XCTAssertTrue(globalSettingsBar.waitForNonExistence(timeout: 5),
+                      "Global Settings sheet did not dismiss")
+        // Re-tap More until its menu shows: a tap that lands while the sheet
+        // is still animating away is swallowed.
         let moreAgain = app.buttons["More"].firstMatch
         XCTAssertTrue(moreAgain.waitForExistence(timeout: 15),
                       "More menu button not found after dismissing Global Settings")
-        moreAgain.tap()
         let settingsMenu = app.buttons["Settings"].firstMatch
-        XCTAssertTrue(settingsMenu.waitForExistence(timeout: 10), "Settings submenu not found")
+        for _ in 0..<3 where !settingsMenu.exists {
+            moreAgain.tap()
+            _ = settingsMenu.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(settingsMenu.waitForExistence(timeout: 5), "Settings submenu not found")
         settingsMenu.tap()
         let gameSettings = app.buttons["Game Settings"].firstMatch
         XCTAssertTrue(gameSettings.waitForExistence(timeout: 10), "Game Settings row not found")

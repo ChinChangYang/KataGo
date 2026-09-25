@@ -129,7 +129,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
 
         let white = app.buttons["whitePlayerName"]
         XCTAssertTrue(white.waitForExistence(timeout: 10), "White capsule button not found")
-        white.press(forDuration: 1.0)
+        openRankMenu(app, white, showing: "Dan")
         tapMenuItem(app, "Dan")
         tapMenuItem(app, "5d")
         // The pick both sets the rank and hands White to the AI, in one step.
@@ -144,7 +144,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
 
         // Restore: Full Strength keeps White as the AI ("AI"), then a tap
         // makes it Human again, the baseline the other tests start from.
-        white.press(forDuration: 1.0)
+        openRankMenu(app, white, showing: "Full Strength (AI)")
         tapMenuItem(app, "Full Strength (AI)")
         waitForLabel(app, "whitePlayerName", equals: "AI")
         white.tap()
@@ -169,7 +169,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
 
         let white = app.buttons["whitePlayerName"]
         XCTAssertTrue(white.waitForExistence(timeout: 10), "White capsule button not found")
-        white.press(forDuration: 1.0)
+        openRankMenu(app, white, showing: "Kyu")
         tapMenuItem(app, "Kyu")
         tapMenuItem(app, "5k")
         waitForLabel(app, "whitePlayerName", equals: "5k 2016")
@@ -181,7 +181,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         waitForLabel(app, "blackPlayerName", equals: humanLabel)
 
         // A rank pick keeps the side's style year.
-        white.press(forDuration: 1.0)
+        openRankMenu(app, white, showing: "Dan")
         tapMenuItem(app, "Dan")
         tapMenuItem(app, "3d")
         waitForLabel(app, "whitePlayerName", equals: "3d 2019")
@@ -193,7 +193,7 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
 
         // Restore, as in testLongPressingWhiteLabelPicksARank: Full Strength
         // drops the year, then a tap makes White Human again.
-        white.press(forDuration: 1.0)
+        openRankMenu(app, white, showing: "Full Strength (AI)")
         tapMenuItem(app, "Full Strength (AI)")
         waitForLabel(app, "whitePlayerName", equals: "AI")
         white.tap()
@@ -216,6 +216,19 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         let expectation = XCTNSPredicateExpectation(predicate: shown, object: picker)
         XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 10), .completed,
                        "Year picker '\(identifier)' did not show \(year)")
+    }
+
+    /// Long-presses `capsule` until its rank menu shows `firstItem`. On iOS 27
+    /// a press occasionally opens nothing (the Year test's cleanup press, a
+    /// few seconds after the previous menu closed, in one full run on
+    /// 2026-09-25), so press again, a bounded number of times.
+    @MainActor
+    private func openRankMenu(_ app: XCUIApplication, _ capsule: XCUIElement, showing firstItem: String) {
+        let item = app.buttons[firstItem].firstMatch
+        for _ in 0..<3 where !item.exists {
+            capsule.press(forDuration: 1.0)
+            _ = item.waitForExistence(timeout: 5)
+        }
     }
 
     /// Taps a context-menu item once it is stably present: an open SwiftUI
