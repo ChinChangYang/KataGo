@@ -38,13 +38,21 @@
 #   crashes xcodebuild's result importer and leaves an .xcresult with no
 #   Info.plist that xcresulttool cannot open.
 # - xcodebuild's exit status is not trusted. The verdict is the
-#   "** TEST SUCCEEDED **" / "** TEST FAILED **" line. A failed run in which
-#   no test failed, with a known simulator-launch signature, is an
-#   infrastructure failure to retry rather than a test failure. The usual
-#   case is "Simulator device failed to launch … No such process" on the first
-#   app launch after a cold boot, which hit about half the runs on this
-#   project's own simulator (2026-09-26). If other test bundles did run, and
-#   passed, only the bundles that never launched are rerun.
+#   "** TEST SUCCEEDED **" / "** TEST FAILED **" line. The counts and the
+#   failures come from the result bundle's own summary. Counting log lines is
+#   off both ways: the app's console output shares the log and can split a
+#   test's result line in two (too few), and the UI launch test logs one
+#   passed line per launch configuration where the bundle counts one test
+#   (too many). The log is the fallback when the bundle cannot be read.
+#   A failed run in which no test failed, with a known simulator-launch
+#   signature, is an infrastructure failure to retry rather than a test
+#   failure; a test runner that started and then crashed or exited is not.
+#   The usual case is "Simulator device failed to launch … No such process" on
+#   the first app launch after a cold boot, which hit about 4 in 10 runs on
+#   this project's own simulator (2026-09-26). If other test bundles did run,
+#   and passed, only the bundles that never launched are rerun, unless the
+#   extra arguments already pick tests with -only-testing or -skip-testing;
+#   then the whole selection is rerun.
 # - It refuses to start while another xcodebuild is using this project: two
 #   builds sharing one DerivedData fail spuriously.
 
@@ -185,7 +193,11 @@ finish() {
 # --- One xcodebuild run --------------------------------------------------------
 
 # Signatures of a run the simulator never let start.
-INFRA_PATTERN='Simulator device failed to launch|failed preflight checks|RequestDenied|Unable to boot the Simulator|Failed to install or launch the test runner|never finished bootstrapping|Test runner never began executing tests|No such process'
+INFRA_PATTERN='Simulator device failed to launch|failed preflight checks|RequestDenied|Unable to boot the Simulator|Failed to install or launch the test runner|No such process'
+# Signatures of a test runner that did start and then died: a failure, however
+# early. ("never finished bootstrapping" is how Xcode wraps these too, so it is
+# not an infrastructure signature.)
+CRASH_PATTERN='crashed before establishing connection|crashed while preparing to run tests|exited with code|Test crashed with signal|failed to load the test bundle'
 
 # Runs xcodebuild once, logging to $1 and writing the result bundle to $2.
 # Prints nothing; the caller reads the log.
@@ -260,18 +272,68 @@ only_testing_given() {
     return 1
 }
 
-# Number of tests the log shows as having run (XCTest and Swift Testing).
+# Number of tests the log shows as having run (XCTest and Swift Testing). Only
+# a fallback, and only roughly right: split result lines make it short, and the
+# launch test's one line per configuration makes it long.
 executed_count() {
     grep -E "^Test Case '.*' (passed|failed) \(|Test [^ ].* (passed|failed) after " "$1" \
         | grep -vc 'Test run with'
 }
 
-report() {
-    local log="$1"
-    grep -E 'Test run with [0-9]+ tests? in [0-9]+ suites? (passed|failed)|Executed [0-9]+ tests?, with [0-9]+ failures?' "$log" \
-        | grep -v 'Executed 0 tests' | tail -4 >&2
-    grep -E "^Test Case '.*' failed \(|Test [^ ].* failed after |Restarting after unexpected exit|: error: " "$log" \
-        | sort -u | head -40 >&2
+# Reads the summary of result bundle $1 into
+#   B_PASSED B_FAILED B_SKIPPED  test counts; B_FAILED leaves out the test
+#                                bundles the simulator never launched
+#   B_STRANDED                   those bundles' test targets, one per line
+#   B_FAILURES                   "target: test: first line of the failure",
+#                                one per line
+# Returns non-zero when the bundle cannot be read, e.g. because xcodebuild died
+# before finishing it.
+bundle_summary() {
+    local json parsed counts
+    B_PASSED=0 B_FAILED=0 B_SKIPPED=0 B_STRANDED="" B_FAILURES=""
+    [ -d "$1" ] || return 1
+    json="$(with_timeout 120 xcrun xcresulttool get test-results summary --path "$1" 2>/dev/null)" \
+        || return 1
+    # A bundle that never launched shows up as one failure named
+    # "<app> encountered an error" whose text is the launch error.
+    parsed="$(printf '%s' "$json" | xcrun python3 -c '
+import json, re, sys
+d = json.load(sys.stdin)
+launch, crash = re.compile(sys.argv[1]), re.compile(sys.argv[2])
+stranded, failures = set(), []
+for f in d.get("testFailures", []):
+    target, name, text = f.get("targetName", ""), f.get("testName", ""), f.get("failureText", "")
+    if name.endswith(" encountered an error") and launch.search(text) and not crash.search(text):
+        stranded.add(target)
+    else:
+        failures.append("%s: %s: %s" % (target, name, (text.splitlines() or [""])[0]))
+launch_errors = len(d.get("testFailures", [])) - len(failures)
+print("counts %d %d %d" % (d["passedTests"], d["failedTests"] - launch_errors, d["skippedTests"]))
+for t in sorted(stranded):
+    print("stranded " + t)
+for f in failures:
+    print("failed " + f)
+' "$INFRA_PATTERN" "$CRASH_PATTERN" 2>/dev/null)" || return 1
+    counts="$(printf '%s\n' "$parsed" | sed -n 's/^counts //p')"
+    case "$counts" in
+        [0-9]*" "[0-9]*" "[0-9]*) ;;
+        *) return 1 ;;
+    esac
+    read -r B_PASSED B_FAILED B_SKIPPED <<< "$counts"
+    B_STRANDED="$(printf '%s\n' "$parsed" | sed -n 's/^stranded //p')"
+    B_FAILURES="$(printf '%s\n' "$parsed" | sed -n 's/^failed //p')"
+    return 0
+}
+
+# The failed tests: from the result bundle when it could be read and names
+# any, else from the log.
+report_failures() {
+    if [ "$have_bundle" -eq 1 ] && [ -n "$B_FAILURES" ]; then
+        printf '%s\n' "$B_FAILURES" | head -40 >&2
+    else
+        grep -E "^Test Case '.*' failed \(|Test [^ ].* failed after |Restarting after unexpected exit|: error: " "$1" \
+            | sort -u | head -40 >&2
+    fi
 }
 
 # --- Main --------------------------------------------------------------------
@@ -295,17 +357,32 @@ while :; do
     say "Attempt $attempt: $PLAN on $UDID ${RUN_ARGS[*]-} (log: $log)"
     run_once "$log" "$bundle"
 
-    ran="$(executed_count "$log")"
+    if bundle_summary "$bundle"; then
+        have_bundle=1
+        ran=$((B_PASSED + B_FAILED + B_SKIPPED))
+        counts="$B_PASSED passed, $B_FAILED failed, $B_SKIPPED skipped"
+    else
+        have_bundle=0
+        ran="$(executed_count "$log")"
+        counts="the result bundle is unreadable; the log shows about $ran tests"
+    fi
+
     if grep -q '\*\* TEST SUCCEEDED \*\*' "$log"; then
-        report "$log"
         [ -n "$earlier" ] && say "Earlier: $earlier"
-        say "TEST SUCCEEDED ($ran tests ran). Result bundle: $bundle"
+        say "TEST SUCCEEDED ($counts). Result bundle: $bundle"
         exit 0
     fi
 
-    if [ "$(failure_count "$log")" -eq 0 ] && grep -qE "$INFRA_PATTERN" "$log"; then
-        stranded="$(stranded_bundles "$log")"
-        say "No test failed, but the simulator would not launch a test bundle ($ran tests ran):"
+    # Infrastructure: the simulator refused to launch something, and no test
+    # failed. Both the log and, when it can be read, the result bundle must
+    # agree on that; a real failure misread as infrastructure could be rerun
+    # away.
+    if [ "$(failure_count "$log")" -eq 0 ] && grep -qE "$INFRA_PATTERN" "$log" \
+        && ! grep -qE "$CRASH_PATTERN" "$log" \
+        && { [ "$have_bundle" -eq 0 ] || [ "$B_FAILED" -eq 0 ]; }; then
+        stranded="$B_STRANDED"
+        [ -n "$stranded" ] || stranded="$(stranded_bundles "$log")"
+        say "No test failed, but the simulator would not launch a test bundle ($counts):"
         grep -E "$INFRA_PATTERN" "$log" | sort -u | head -5 >&2
         if [ "$attempt" -gt "$RETRIES" ]; then
             say "Giving up after $attempt attempts (infrastructure)."
@@ -317,15 +394,18 @@ while :; do
             while IFS= read -r target; do
                 RUN_ARGS+=("-only-testing:$target")
             done <<< "$stranded"
-            earlier="${earlier:+$earlier; }attempt $attempt: $ran tests ran, none failed, $(echo $stranded | tr '\n' ' ')never launched ($log)"
+            earlier="${earlier:+$earlier; }attempt $attempt: $counts; never launched: $(printf '%s\n' "$stranded" | paste -sd ',' - | sed 's/,/, /g') ($log)"
         fi
         recover_simulator || { say "The simulator is not usable"; exit 2; }
         continue
     fi
 
     if grep -q '\*\* TEST FAILED \*\*' "$log"; then
-        report "$log"
-        say "TEST FAILED ($ran tests ran). Log: $log  Result bundle: $bundle"
+        report_failures "$log"
+        stranded="$B_STRANDED"
+        [ "$have_bundle" -eq 1 ] || stranded="$(stranded_bundles "$log")"
+        [ -z "$stranded" ] || say "Never launched, so not run: $(printf '%s\n' "$stranded" | paste -sd ',' - | sed 's/,/, /g')"
+        say "TEST FAILED ($counts). Log: $log  Result bundle: $bundle"
         exit 1
     fi
 

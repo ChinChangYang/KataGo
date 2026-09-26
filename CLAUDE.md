@@ -48,10 +48,18 @@ xcodebuild build -project "KataGo Anytime.xcodeproj" -scheme "KataGo Anytime Wat
 ```
 
 ### Running Tests
-Tests only run on iOS Simulator (the test target does not support macOS or visionOS).
+Tests only run on iOS Simulator (the test target does not support macOS or visionOS). Run them through the script, not a bare `xcodebuild test`: it tests on a simulator of its own ("KataGo iPhone 17", created on first use) because other projects on this Mac test on the stock "iPhone 17", and two test runs on one simulator fail each other with 0 tests run. It also boots and smoke-tests that simulator first, retries simulator-launch failures, and judges the run by the `** TEST … **` line.
 ```bash
-xcodebuild test -project "ios/KataGo iOS/KataGo Anytime.xcodeproj" -scheme "KataGo Anytime" -destination 'platform=iOS Simulator,name=iPhone 17'
+# Unit tests (FastTestPlan, the scheme default)
+ios/KataGo\ iOS/scripts/run_tests.sh
+
+# Unit + UI tests
+ios/KataGo\ iOS/scripts/run_tests.sh -p FullTestPlan
+
+# One class; anything after -- goes to xcodebuild
+ios/KataGo\ iOS/scripts/run_tests.sh -p FullTestPlan -- -only-testing:"KataGo AnytimeUITests/BackendConfigSheetUITests"
 ```
+Exit status: 0 passed, 1 tests failed, 2 no verdict (an infrastructure failure after the retries, a simulator that will not boot, or xcodebuild ending without a `** TEST … **` line, which is not retried), 3 could not start (another xcodebuild is using this project, or a bad option). The counts it prints come from the `.xcresult`, which counts the UI launch test once where the log shows it once per launch configuration. The log and `.xcresult` land in `$TMPDIR/katago-tests/<timestamp>` unless `-o` says otherwise; `-h` lists every option.
 
 ### Required Resources
 The app loads its networks from `ios/KataGo iOS/Resources/`. The `.bin.gz` networks are gitignored and must be supplied before building:
