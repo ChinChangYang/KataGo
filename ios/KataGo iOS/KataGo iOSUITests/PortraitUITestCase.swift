@@ -165,6 +165,106 @@ class PortraitUITestCase: XCTestCase {
         return true
     }
 
+    // MARK: - Scrolling and sheets
+
+    /// True when `element` is on screen and has stopped moving: it exists, the
+    /// midpoint of its frame lies inside the app, and the frame is the same
+    /// on a second look 0.1 s later.
+    ///
+    /// `exists` alone lies on iOS 27, where a below-the-fold Form or List cell
+    /// is already in the accessibility tree. The second look catches a sheet
+    /// that is still sliding up, or a scroll that is still settling.
+    ///
+    /// Deliberately NOT `isHittable`, which lies both ways: an accessibility
+    /// container reported hittable while scrolled off (iOS 26), and a label
+    /// inside a control is never hittable, because the hit test lands on the
+    /// control around it — the "Thumbnails" picker label read not-hittable
+    /// through eight swipes while plainly on screen (2026-09-26). So this says
+    /// nothing about whether a sheet COVERS the element; prove a sheet gone
+    /// with an element the sheet owns (see `dismissSheet`), and check
+    /// `isHittable` yourself where tapping a covered element would do harm.
+    ///
+    /// Frames come from snapshots, which throw rather than failing the test
+    /// when the element has just stopped matching (a row recycled while a
+    /// scroll settles, a sheet being torn down); `frame` itself would fail it.
+    @MainActor
+    func isOnScreen(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+        guard element.exists, let first = try? element.snapshot().frame, !first.isEmpty,
+              app.frame.contains(CGPoint(x: first.midX, y: first.midY)) else { return false }
+        usleep(100_000)
+        guard let second = try? element.snapshot().frame else { return false }
+        return second == first
+    }
+
+    /// Polls `isOnScreen` until it holds or `timeout` passes.
+    @MainActor
+    @discardableResult
+    func waitForOnScreen(_ element: XCUIElement,
+                         in app: XCUIApplication,
+                         timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !isOnScreen(element, in: app) && Date() < deadline { usleep(150_000) }
+        return isOnScreen(element, in: app)
+    }
+
+    /// Scrolls with `swipe` until `element` is on screen, at most `maxSwipes`
+    /// times, and returns whether it got there. The caller still asserts.
+    ///
+    /// The loop is gated on being ON SCREEN, never on `exists`. On iOS 26 an
+    /// off-screen cell was missing from the tree, so `while !exists { swipe }`
+    /// worked; on iOS 27 the cell is already there, so that loop never swiped
+    /// and the next tap or `isHittable` met a row below the fold. The first
+    /// wait is longer to cover a sheet that is still being presented; after
+    /// each swipe it only has to let the scroll settle.
+    @MainActor
+    @discardableResult
+    func reveal(_ element: XCUIElement,
+                in app: XCUIApplication,
+                by swipe: () -> Void,
+                maxSwipes: Int = 8) -> Bool {
+        var swipes = 0
+        var settle: TimeInterval = 3
+        while !waitForOnScreen(element, in: app, timeout: settle) && swipes < maxSwipes {
+            swipe()
+            swipes += 1
+            settle = 1.5
+        }
+        return isOnScreen(element, in: app)
+    }
+
+    /// Swipes the frontmost sheet down until `sentinel`, an element only that
+    /// sheet owns (usually its navigation bar), is gone. Fails the test if it
+    /// never goes, or if the sentinel is not there to begin with: a sentinel
+    /// that is already missing would report a dismissal that never happened
+    /// (the usual cause is a screen pushed inside the sheet, which hides the
+    /// root's navigation bar — pop it first).
+    ///
+    /// It swipes the sheet's CONTENT, not its navigation bar: on iOS 27 a
+    /// nav-bar swipe no longer dismisses a sheet whose list has been scrolled.
+    /// A content swipe on a scrolled list first scrolls it back to the top,
+    /// which is why this loops. Proof of dismissal has to be the sheet's own
+    /// element leaving; anything behind the sheet ("More", "Forward to End")
+    /// stays in the accessibility tree the whole time the sheet covers it.
+    @MainActor
+    func dismissSheet(_ app: XCUIApplication,
+                      until sentinel: XCUIElement,
+                      maxSwipes: Int = 4,
+                      file: StaticString = #filePath,
+                      line: UInt = #line) {
+        XCTAssertTrue(sentinel.waitForExistence(timeout: 5),
+                      "The sheet to dismiss is not showing its sentinel",
+                      file: file, line: line)
+        var swipes = 0
+        while sentinel.exists && swipes < maxSwipes {
+            app.swipeDown(velocity: .fast)
+            swipes += 1
+            _ = sentinel.waitForNonExistence(timeout: 3)
+        }
+        XCTAssertTrue(sentinel.waitForNonExistence(timeout: 5),
+                      "The sheet did not dismiss after \(swipes) swipes",
+                      file: file, line: line)
+    }
+
     /// Arguments `makeApp()` adds to every launch.
     ///
     /// Spelled as a literal rather than imported from the app target, which is

@@ -207,8 +207,8 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
     @MainActor
     private func pickYear(_ app: XCUIApplication, _ identifier: String, _ year: String) {
         let picker = app.descendants(matching: .any).matching(identifier: identifier).firstMatch
-        scrollUntilExists(app, picker)
-        XCTAssertTrue(picker.waitForExistence(timeout: 10), "Year picker '\(identifier)' not found")
+        XCTAssertTrue(reveal(picker, in: app, by: { app.swipeUp() }, maxSwipes: 6),
+                      "Year picker '\(identifier)' never came on screen")
         picker.tap()
         tapMenuItem(app, year)
 
@@ -216,14 +216,21 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         let expectation = XCTNSPredicateExpectation(predicate: shown, object: picker)
         XCTAssertEqual(XCTWaiter().wait(for: [expectation], timeout: 10), .completed,
                        "Year picker '\(identifier)' did not show \(year)")
+        // The value flips as the item is chosen, while the menu is still
+        // closing; let it finish, so the next tap is not swallowed by it.
+        _ = waitForOnScreen(picker, in: app, timeout: 5)
     }
 
     /// Long-presses `capsule` until its rank menu shows `firstItem`. On iOS 27
     /// a press occasionally opens nothing (the Year test's cleanup press, a
     /// few seconds after the previous menu closed, in one full run on
-    /// 2026-09-25), so press again, a bounded number of times.
+    /// 2026-09-25), so press again, a bounded number of times. The capsule
+    /// must be on screen and settled first; that a sheet no longer covers it
+    /// is `dismissConfig`'s job to prove.
     @MainActor
     private func openRankMenu(_ app: XCUIApplication, _ capsule: XCUIElement, showing firstItem: String) {
+        XCTAssertTrue(waitForOnScreen(capsule, in: app, timeout: 10),
+                      "The capsule is not on screen to long-press")
         let item = app.buttons[firstItem].firstMatch
         for _ in 0..<3 where !item.exists {
             capsule.press(forDuration: 1.0)
@@ -347,8 +354,10 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         // to AI (whitePlayerName), so a bare app.buttons["AI"] can match the
         // capsule instead of the Game Settings navigation row — which is exactly
         // why the post-AI cleanup openAIConfig was failing.
+        // On screen, not merely present: the sheet can still be sliding up.
         let aiRow = app.collectionViews.buttons["AI"].firstMatch
-        XCTAssertTrue(aiRow.waitForExistence(timeout: 10), "AI row not found in Game Settings")
+        XCTAssertTrue(waitForOnScreen(aiRow, in: app, timeout: 10),
+                      "AI row not on screen in Game Settings")
         aiRow.tap()
 
         // The AI screen's nav bar is a scroll-independent "screen shown" signal;
@@ -366,11 +375,17 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         let aiBar = app.navigationBars["AI"]
         if aiBar.waitForExistence(timeout: 5) {
             aiBar.buttons.element(boundBy: 0).tap()  // leading = Back
+            XCTAssertTrue(aiBar.waitForNonExistence(timeout: 5),
+                          "The AI screen did not pop back to Game Settings")
         }
-        // The Game Settings list is short (not scrollable), so a swipe down
-        // dismisses the sheet (same approach as the screenshot test).
-        app.swipeDown(velocity: .fast)
-        XCTAssertTrue(app.buttons["Forward to End"].waitForExistence(timeout: 15),
+        // Proof is the sheet's own bar leaving. The board behind it stays in
+        // the accessibility tree while covered, so "Forward to End" existing
+        // proved nothing: a sheet that never left passed that check, and the
+        // next capsule tap or press then went nowhere. The capsule check after
+        // it only confirms the board has settled on screen; it cannot see
+        // whether a sheet covers the capsule.
+        dismissSheet(app, until: app.navigationBars["Game Settings"])
+        XCTAssertTrue(waitForOnScreen(app.buttons["whitePlayerName"], in: app, timeout: 15),
                       "Did not return to the board after dismissing the config sheet")
     }
 
@@ -388,22 +403,6 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         return element.exists
     }
 
-    /// Swipe up on the config sheet until `element` enters the accessibility
-    /// hierarchy. Off-screen SwiftUI `List` cells (e.g. the White "Time per
-    /// move" stepper at the bottom of the AI screen) aren't queryable until
-    /// scrolled into view — the dominant source of this suite's flakiness.
-    /// No-ops when the element is already present.
-    @MainActor
-    private func scrollUntilExists(_ app: XCUIApplication,
-                                   _ element: XCUIElement,
-                                   maxSwipes: Int = 6) {
-        var swipes = 0
-        while !element.exists && swipes < maxSwipes {
-            app.swipeUp()
-            swipes += 1
-        }
-    }
-
     // MARK: - Stepper helper
 
     @MainActor
@@ -411,9 +410,11 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
                                _ identifier: String,
                                decrements: Int = 0,
                                increments: Int = 0) {
+        // The White "Time per move" stepper sits at the bottom of the AI
+        // screen, below the fold.
         let stepper = app.steppers[identifier]
-        scrollUntilExists(app, stepper)
-        XCTAssertTrue(stepper.waitForExistence(timeout: 10), "Stepper '\(identifier)' not found")
+        XCTAssertTrue(reveal(stepper, in: app, by: { app.swipeUp() }, maxSwipes: 6),
+                      "Stepper '\(identifier)' never came on screen")
 
         let decrement = stepper.buttons["Decrement"].exists
             ? stepper.buttons["Decrement"]

@@ -65,14 +65,11 @@ final class GlobalSettingsMenuUITests: PortraitUITestCase {
         // Accessibility ▸ Voice Control must be reachable from here: the whole
         // point of the screen is that a user who does not know what to say can
         // find out, so a broken link is the one failure mode that matters.
-        // The section sits below Sound & Haptics, and List rows are lazy, so
-        // scroll until it materializes.
+        // The section sits below Sound & Haptics, so scroll until the row is
+        // on screen (on iOS 27 it is in the tree long before that).
         let voiceControl = app.buttons["Voice Control"].firstMatch
-        for _ in 0..<6 where !voiceControl.exists {
-            app.swipeUp()
-        }
-        XCTAssertTrue(voiceControl.waitForExistence(timeout: 10),
-                      "Accessibility ▸ Voice Control row not found in Global Settings")
+        XCTAssertTrue(reveal(voiceControl, in: app, by: { app.swipeUp() }, maxSwipes: 6),
+                      "Accessibility ▸ Voice Control row never came on screen in Global Settings")
         voiceControl.tap()
         XCTAssertTrue(app.navigationBars["Voice Control"].waitForExistence(timeout: 10),
                       "Voice Control help screen did not open")
@@ -88,6 +85,11 @@ final class GlobalSettingsMenuUITests: PortraitUITestCase {
     }
 
     /// Scrolls the current screen until some element's label contains `phrase`.
+    ///
+    /// A presence check, not an on-screen one: nothing taps the match, so the
+    /// `exists`-gated loop is right here. It swipes on iOS 26, where List rows
+    /// below the fold are not in the tree yet, and does nothing on iOS 27,
+    /// where they already are. Anything that TAPS a row must use `reveal`.
     @MainActor private func assertVisible(in app: XCUIApplication,
                                          containing phrase: String,
                                          _ message: String,

@@ -101,9 +101,17 @@ final class PhotoImportGridUITests: PortraitUITestCase {
         // Import lands on the created game's board, whose toolbar title is a
         // Button (voice-actionable rename) — not a static text — so reveal the
         // Games list and assert the library cell, matching PhotoImportUITests'
-        // post-import pattern.
+        // post-import pattern. The sheet has no bar buttons of its own, so the
+        // leading one below is the board's, behind the sheet: prove the sheet
+        // left (its title is gone) and the button is uncovered before tapping.
+        XCTAssertTrue(app.staticTexts[sheetTitle].waitForNonExistence(timeout: 10),
+                      "PhotoImportSheet did not dismiss after tapping Import")
         let back = app.navigationBars.buttons.element(boundBy: 0)
-        if back.waitForExistence(timeout: 10) { back.tap() }
+        XCTAssertTrue(waitForOnScreen(back, in: app, timeout: 10),
+                      "The board's leading bar button is not on screen after Import")
+        back.tap()
+        XCTAssertTrue(app.navigationBars["Games"].waitForExistence(timeout: 10),
+                      "The Games list did not appear after Back")
 
         let cell = app.staticTexts["UITest Crop Board"].firstMatch
         XCTAssertTrue(cell.waitForExistence(timeout: 30),

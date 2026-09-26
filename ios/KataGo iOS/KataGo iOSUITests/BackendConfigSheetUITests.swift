@@ -62,13 +62,16 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                       "Max board size should default to 19x19, "
                       + "selected was: \(selectedBoardSize(in: app) ?? "none")")
 
-        // Change to 13x13 and confirm the selection moves there.
+        // Change to 13x13 and confirm the selection moves there. The section
+        // is third in the form, so bring it on screen first.
+        XCTAssertTrue(reveal(segment(in: app, "13x13"), in: app, by: { app.swipeUp() }, maxSwipes: 3),
+                      "Max Board Size option '13x13' never came on screen")
         segment(in: app, "13x13").tap()
         XCTAssertTrue(segment(in: app, "13x13").isSelected,
                       "Tapping 13x13 did not select it")
 
         // Dismiss and reopen; the choice must persist (per-model UserDefaults).
-        app.buttons["Done"].tap()
+        closeBackendSheet(in: app)
         openBackendSheet(in: app)
         let thirteen = segment(in: app, "13x13")
         XCTAssertTrue(thirteen.waitForExistence(timeout: 10) && thirteen.isSelected,
@@ -80,6 +83,8 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         // through the picker. It is NOT what makes the suite safe: an abort at
         // any assertion above skips it, which is why the reset lives in
         // `makeApp()` instead.
+        XCTAssertTrue(reveal(segment(in: app, "19x19"), in: app, by: { app.swipeUp() }, maxSwipes: 3),
+                      "Max Board Size option '19x19' never came on screen")
         segment(in: app, "19x19").tap()
         XCTAssertTrue(segment(in: app, "19x19").isSelected,
                       "Selecting 19x19 again did not select it")
@@ -115,7 +120,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         segment(in: app, "GPU+ANE").tap()
         XCTAssertTrue(segment(in: app, "GPU+ANE").isSelected,
                       "Tapping GPU+ANE did not select it")
-        app.buttons["Done"].tap()
+        closeBackendSheet(in: app)
         openBackendSheet(in: app)
         let mux = segment(in: app, "GPU+ANE")
         XCTAssertTrue(mux.waitForExistence(timeout: 10) && mux.isSelected,
@@ -128,7 +133,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         segment(in: app, "CoreML/NE").tap()
         XCTAssertTrue(segment(in: app, "CoreML/NE").isSelected,
                       "Tapping CoreML/NE did not select it")
-        app.buttons["Done"].tap()
+        closeBackendSheet(in: app)
         openBackendSheet(in: app)
         let coreml = segment(in: app, "CoreML/NE")
         XCTAssertTrue(coreml.waitForExistence(timeout: 10) && coreml.isSelected,
@@ -151,19 +156,13 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         // on screen, not merely present: on iOS 27 a below-the-fold Form cell is
         // already in the accessibility tree, and right after the tap the sheet
         // can still be sliding up — on 2026-09-26 `exists` held at once while
-        // `isHittable` read false. Scroll only if it stays out of reach.
-        // Value/clamping/persistence behaviour is covered by the BackendSettings
-        // unit tests; here we just verify the stepper is wired into the sheet and
-        // reachable.
+        // `isHittable` read false. `reveal` scrolls only while it stays out of
+        // reach. Value/clamping/persistence behaviour is covered by the
+        // BackendSettings unit tests; here we just verify the stepper is wired
+        // into the sheet and reachable.
         let stepper = app.steppers["SearchThreadsStepper"]
-        var swipes = 0
-        while !waitForHittable(stepper, timeout: 3), swipes < 4 {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(stepper.exists, "Search Threads stepper not found")
-        XCTAssertTrue(stepper.isHittable,
-                      "Search Threads stepper is not hittable after \(swipes) swipes")
+        XCTAssertTrue(reveal(stepper, in: app, by: { app.swipeUp() }, maxSwipes: 4),
+                      "Search Threads stepper never came on screen (exists: \(stepper.exists))")
     }
 
     /// The Core ML Routing control must be present and enabled for the
@@ -200,21 +199,37 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
     // MARK: - Helpers
 
     /// From the model detail view, tap the gear button that presents
-    /// BackendConfigSheet. (Navigation into the detail view happens once in the
-    /// test body; the detail view persists across sheet dismissals.)
+    /// BackendConfigSheet, and return once the sheet is on screen.
+    /// (Navigation into the detail view happens once in the test body; the
+    /// detail view persists across sheet dismissals.)
+    ///
+    /// The gear must be on screen, not merely present: it exists behind the
+    /// sheet the whole time the sheet is up. A tap that lands while a sheet is
+    /// still leaving can be swallowed, so tap again — but only while the gear
+    /// is uncovered (hittable), since a tap on a covered gear would hit the
+    /// sheet's own Done button in the same corner.
     @MainActor
     private func openBackendSheet(in app: XCUIApplication) {
         let gear = app.buttons["Backend Settings"]
-        XCTAssertTrue(gear.waitForExistence(timeout: 10), "Backend Settings gear button not found")
-        gear.tap()
+        XCTAssertTrue(waitForOnScreen(gear, in: app, timeout: 10),
+                      "Backend Settings gear button not on screen")
+        let backend = segment(in: app, "CoreML/NE")
+        for _ in 0..<3 where !backend.exists && isOnScreen(gear, in: app) && gear.isHittable {
+            gear.tap()
+            _ = backend.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(waitForOnScreen(backend, in: app, timeout: 10),
+                      "Backend Settings sheet did not open")
     }
 
-    /// Poll until `element` is on screen and tappable, or the timeout.
+    /// Taps Done and waits for the sheet to go. Only the sheet has a Backend
+    /// segment, so that leaving is the proof; the gear the next reopen taps is
+    /// in the tree the whole time and proves nothing.
     @MainActor
-    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
-        let deadline = Date().addingTimeInterval(timeout)
-        while !(element.exists && element.isHittable) && Date() < deadline { usleep(150_000) }
-        return element.exists && element.isHittable
+    private func closeBackendSheet(in app: XCUIApplication) {
+        app.buttons["Done"].tap()
+        XCTAssertTrue(segment(in: app, "CoreML/NE").waitForNonExistence(timeout: 10),
+                      "Backend Settings sheet did not close after Done")
     }
 
     @MainActor

@@ -155,10 +155,12 @@ final class PhotoImportUITests: PortraitUITestCase {
         let back = app.navigationBars.buttons.element(boundBy: 0)
         if back.waitForExistence(timeout: 10) { back.tap() }
 
+        // On screen, not merely present, so the screenshot below shows it.
         let cell = app.staticTexts[importedGameName].firstMatch
-        reveal(app, cell, by: { app.swipeUp() })
         XCTAssertTrue(cell.waitForExistence(timeout: 15),
                       "Imported game '\(importedGameName)' not found in the library — the recognized board was not imported")
+        XCTAssertTrue(reveal(cell, in: app, by: { app.swipeUp() }),
+                      "Imported game '\(importedGameName)' never came on screen in the library")
 
         let libraryShot = XCTAttachment(screenshot: app.screenshot())
         libraryShot.name = "PhotoImportCreatedGame"
@@ -186,20 +188,6 @@ final class PhotoImportUITests: PortraitUITestCase {
         let offset = CGVector(dx: (CGFloat(col) + 2) / denominator,
                               dy: (CGFloat(row) + 2) / denominator)
         board.coordinate(withNormalizedOffset: offset).tap()
-    }
-
-    /// Swipe until `element` is present, up to `maxSwipes` (off-screen SwiftUI
-    /// List/Form cells aren't in the a11y tree).
-    @MainActor
-    private func reveal(_ app: XCUIApplication,
-                        _ element: XCUIElement,
-                        by swipe: () -> Void,
-                        maxSwipes: Int = 8) {
-        var n = 0
-        while !element.exists && n < maxSwipes {
-            swipe()
-            n += 1
-        }
     }
 
     /// Poll until `element` leaves the accessibility tree, or the timeout.

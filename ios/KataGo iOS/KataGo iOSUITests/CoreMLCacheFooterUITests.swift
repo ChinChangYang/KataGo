@@ -75,13 +75,20 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // entry cap ("Main: N of N"), leaving no room for the count to grow —
         // launching another model would just evict+replace. Clear it first so the
         // increment is observable (mirrors the file-header note about starting
-        // from a clean cache). "Clear Cache" is only present when non-empty.
-        revealClearCacheButton(in: app)
+        // from a clean cache). "Clear Cache" is only present when non-empty, so
+        // bring its footer (always there) on screen, and then the button if the
+        // cache has entries.
+        revealCacheFooter(in: app)
         let initialClear = app.buttons["Clear Cache"]
         if initialClear.waitForExistence(timeout: 10) {
+            XCTAssertTrue(revealClearCacheButton(in: app), "Clear Cache never came on screen")
             initialClear.tap()
             let confirmClear = app.buttons["Clear"]
-            if confirmClear.waitForExistence(timeout: 5) { confirmClear.tap() }
+            if confirmClear.waitForExistence(timeout: 5) {
+                confirmClear.tap()
+                XCTAssertTrue(confirmClear.waitForNonExistence(timeout: 15),
+                              "The Clear confirmation never dismissed")
+            }
         }
 
         // ----- Step 1: launch built-in, return, capture baseline count -----
@@ -95,7 +102,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         waitForEngineThenChangeModel(in: app, label: "built-in")
         waitForPicker(in: app, title: builtInTitle)
 
-        let afterStep1 = readMainStats(in: app)
+        let afterStep1 = readMainStats(in: app, atLeast: 1)
         let countAfterStep1 = parseCount(afterStep1)
         XCTAssertGreaterThanOrEqual(countAfterStep1, 1,
                                     "Step 1: expected at least one compiled model after " +
@@ -111,7 +118,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         waitForEngineThenChangeModel(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
 
-        let afterStep2 = readMainStats(in: app)
+        let afterStep2 = readMainStats(in: app, atLeast: countAfterStep1 + 1)
         let countAfterStep2 = parseCount(afterStep2)
         XCTAssertGreaterThan(countAfterStep2, countAfterStep1,
                              "Step 2 (bug repro): expected footer count to increase after " +
@@ -146,10 +153,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         app.launch()
 
         // Verify the Clear Cache button exists (totalCount > 0).
-        revealClearCacheButton(in: app)
+        revealCacheFooter(in: app)
         let clearButton = app.buttons["Clear Cache"]
         XCTAssertTrue(clearButton.waitForExistence(timeout: 15),
                       "Clear Cache button should be visible when cache has entries")
+        XCTAssertTrue(revealClearCacheButton(in: app), "Clear Cache never came on screen")
 
         // Tap Clear Cache and confirm the destructive action.
         clearButton.tap()
@@ -189,9 +197,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         XCTAssertEqual(parseCount(auxStats.label), 0,
                        "Expected 'Human SL: 0 of <cap>' after Clear, got: '\(auxStats.label)'")
 
-        // The Clear Cache button must disappear once totalCount == 0.
-        XCTAssertFalse(clearButton.waitForExistence(timeout: 5),
-                       "Clear Cache button should be hidden when cache is empty")
+        // The Clear Cache button must disappear once totalCount == 0. Wait for
+        // it to go: `waitForExistence` would return at once on a button the
+        // clear's Task has not refreshed away yet.
+        XCTAssertTrue(clearButton.waitForNonExistence(timeout: 5),
+                      "Clear Cache button should be hidden when cache is empty")
     }
 
     /// The unload path — the feedback this round exists for: Clear Cache used
@@ -232,10 +242,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         waitForEngineThenChangeModel(in: app, label: "clear-while-running")
         waitForPicker(in: app, title: builtInTitle)
 
-        revealClearCacheButton(in: app)
+        revealCacheFooter(in: app)
         let clearButton = app.buttons["Clear Cache"]
         XCTAssertTrue(clearButton.waitForExistence(timeout: 15),
                       "Clear Cache button should be visible when cache has entries")
+        XCTAssertTrue(revealClearCacheButton(in: app), "Clear Cache never came on screen")
         XCTAssertTrue(clearButton.isEnabled,
                       "Clear Cache must be ENABLED while the engine runs — " +
                       "a running engine is unloaded around the clear, not a block on it")
@@ -257,8 +268,9 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // view is already scrolled to. The picker's engine-status header would
         // say "Loading engine…" too, but it renders at the TOP of the list and
         // `revealClearCacheButton` has just scrolled to the bottom, so it is
-        // off-screen and therefore out of the accessibility tree entirely. A
-        // witness that is not on screen cannot be waited on.
+        // off screen: out of the accessibility tree entirely on iOS 26, and on
+        // iOS 27 still in the tree but not on screen. Either way it is not the
+        // element to watch.
         //
         // 1. The engine goes down. PRESENT BUT DISABLED is the state to wait
         //    for, and the precision matters: the button also disappears while
@@ -392,9 +404,11 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
                       "Global Settings sheet not shown")
 
         // Every display toggle that used to be under the per-game "View" tab.
+        // On screen, not merely present: `flipSwitch` taps a coordinate, and a
+        // coordinate tap never scrolls anything into view.
         let showCoordinate = app.switches["Show coordinate"].firstMatch
-        XCTAssertTrue(showCoordinate.waitForExistence(timeout: 10),
-                      "'Show coordinate' toggle missing from Global Settings")
+        XCTAssertTrue(reveal(showCoordinate, in: app, by: { app.swipeUp() }, maxSwipes: 2),
+                      "'Show coordinate' toggle not on screen in Global Settings")
         for title in ["Show pass", "Vertical flip", "Show chart/comments",
                       "Show ownership", "Show win rate bar"] {
             XCTAssertTrue(app.switches[title].firstMatch.waitForExistence(timeout: 5),
@@ -435,28 +449,20 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // down the same screen, so scroll it into view before asserting.
         let thumbnailsPicker = app.staticTexts
             .containing(NSPredicate(format: "label CONTAINS %@", "Thumbnails")).firstMatch
-        if !thumbnailsPicker.waitForExistence(timeout: 5) {
-            app.swipeUp()
-        }
-        XCTAssertTrue(thumbnailsPicker.waitForExistence(timeout: 5),
-                      "'Thumbnails' picker missing from Global Settings")
+        XCTAssertTrue(reveal(thumbnailsPicker, in: app, by: { app.swipeUp() }),
+                      "'Thumbnails' picker never came on screen in Global Settings")
 
         // ----- The per-game "View" tab is gone; the others remain. Game
         // Settings now lives under Settings, so dismiss the Global Settings
         // sheet and reopen it via More ▸ Settings ▸ Game Settings. -----
         //
         // On iOS 27 a swipe on the nav bar no longer dismisses this sheet
-        // (three in a row left it up, 2026-09-25). Swipe the list instead:
-        // the first swipe scrolls it back from Thumbnails to the top, and the
-        // next one, starting at the top, dismisses. "More" never leaves the
-        // hierarchy while the sheet covers it, so wait for the sheet itself.
-        let globalSettingsBar = app.navigationBars["Global Settings"]
-        for _ in 0..<4 where globalSettingsBar.exists {
-            app.swipeDown(velocity: .fast)
-            _ = globalSettingsBar.waitForNonExistence(timeout: 3)
-        }
-        XCTAssertTrue(globalSettingsBar.waitForNonExistence(timeout: 5),
-                      "Global Settings sheet did not dismiss")
+        // (three in a row left it up, 2026-09-25). `dismissSheet` swipes the
+        // list instead: the first swipe scrolls it back from Thumbnails to the
+        // top, and the next one, starting at the top, dismisses. "More" never
+        // leaves the hierarchy while the sheet covers it, so it waits for the
+        // sheet's own bar.
+        dismissSheet(app, until: app.navigationBars["Global Settings"])
         // Re-tap More until its menu shows: a tap that lands while the sheet
         // is still animating away is swallowed.
         let moreAgain = app.buttons["More"].firstMatch
@@ -516,24 +522,22 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
                       "Global Settings sheet not shown")
 
         // The About section sits at the bottom of the (now longer) Global
-        // Settings list, so scroll it into view first — off-screen SwiftUI List
-        // cells aren't in the a11y tree.
+        // Settings list, so scroll it on screen first.
         let licensesRow = app.buttons["Open-Source Licenses"].firstMatch
-        reveal(app, licensesRow, by: { app.swipeUp() })
-        XCTAssertTrue(licensesRow.waitForExistence(timeout: 10),
-                      "'Open-Source Licenses' row missing from Global Settings")
+        XCTAssertTrue(reveal(licensesRow, in: app, by: { app.swipeUp() }),
+                      "'Open-Source Licenses' row never came on screen in Global Settings")
         licensesRow.tap()
 
         // The list includes KataGo itself (near the top) and the MLX
         // trigger — which the three "KataGo …" content entries push below
-        // the fold on an iPhone, so scroll it into view first (off-screen
-        // SwiftUI List cells aren't in the a11y tree).
+        // the fold on an iPhone, so scroll it on screen first.
+        XCTAssertTrue(app.navigationBars["Open-Source Licenses"].waitForExistence(timeout: 10),
+                      "Open-Source Licenses screen did not open")
         XCTAssertTrue(app.buttons["KataGo"].firstMatch.waitForExistence(timeout: 10),
                       "'KataGo' row missing from Open-Source Licenses")
         let mlxRow = app.buttons["MLX"].firstMatch
-        reveal(app, mlxRow, by: { app.swipeUp() })
-        XCTAssertTrue(mlxRow.waitForExistence(timeout: 10),
-                      "'MLX' row missing from Open-Source Licenses")
+        XCTAssertTrue(reveal(mlxRow, in: app, by: { app.swipeUp() }),
+                      "'MLX' row never came on screen in Open-Source Licenses")
 
         // Opening a component shows its verbatim license text.
         mlxRow.tap()
@@ -611,39 +615,28 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         return false
     }
 
-    /// Scrolls the picker until the Core ML cache footer is realized.
+    /// Scrolls the picker until the Core ML cache footer is on screen.
     ///
     /// The footer is the picker's LAST section — below the model catalog, the
     /// Custom Networks section and the Opening Books row — so it sits well off
-    /// screen on an iPhone at launch. SwiftUI's List is lazy, so a row that far
-    /// down is not in the accessibility tree at all and `waitForExistence`
-    /// finds nothing however long it waits. These tests used to pass only
-    /// because the footer happened to fall inside the realized window; adding a
-    /// section above it pushed it out. Scroll for it explicitly instead of
-    /// depending on where it lands.
+    /// screen on an iPhone at launch. On iOS 26 SwiftUI's lazy List left a row
+    /// that far down out of the accessibility tree, so `waitForExistence` found
+    /// nothing however long it waited; on iOS 27 the row is in the tree while
+    /// still off screen, so existence proves nothing either way. These tests
+    /// used to pass only because the footer happened to fall inside the
+    /// realized window; adding a section above it pushed it out. Scroll for it
+    /// explicitly instead of depending on where it lands.
     @MainActor
-    private func revealCacheFooter(in app: XCUIApplication) {
-        reveal(app, app.staticTexts["CoreMLCache.footerMainStats"], by: { app.swipeUp() })
+    @discardableResult
+    private func revealCacheFooter(in app: XCUIApplication) -> Bool {
+        reveal(app.staticTexts["CoreMLCache.footerMainStats"], in: app, by: { app.swipeUp() })
     }
 
     /// Same, for the Clear Cache button, which lives in that footer.
     @MainActor
-    private func revealClearCacheButton(in app: XCUIApplication) {
-        reveal(app, app.buttons["Clear Cache"], by: { app.swipeUp() })
-    }
-
-    /// Swipe until `element` is present, up to `maxSwipes` (off-screen SwiftUI
-    /// List/Form cells aren't in the a11y tree).
-    @MainActor
-    private func reveal(_ app: XCUIApplication,
-                        _ element: XCUIElement,
-                        by swipe: () -> Void,
-                        maxSwipes: Int = 8) {
-        var n = 0
-        while !element.exists && n < maxSwipes {
-            swipe()
-            n += 1
-        }
+    @discardableResult
+    private func revealClearCacheButton(in app: XCUIApplication) -> Bool {
+        reveal(app.buttons["Clear Cache"], in: app, by: { app.swipeUp() })
     }
 
     /// Parses the "<Label>: N of M" fragment from a footer line.
@@ -660,17 +653,21 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
     @MainActor
     private func tapModelRow(in app: XCUIApplication, title: String) {
+        XCTAssertTrue(app.navigationBars["Select a Model"].waitForExistence(timeout: 30),
+                      "The model picker is not showing")
         let row = app.staticTexts[title]
         // Usually the picker is already at the top and this resolves at once.
-        // If it does not, the list may be scrolled away from the top —
-        // revealing the cache footer leaves it at the bottom, and when the
-        // cache is already empty there is no Clear Cache button to stop that
-        // scroll early. Only then scroll back up, so the common path keeps its
-        // original settle-and-wait behaviour untouched.
-        if !row.waitForExistence(timeout: 15) {
-            reveal(app, row, by: { app.swipeDown() })
-        }
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(title)")
+        // It may not be: revealing the cache footer leaves the list at the
+        // bottom, and from there the top rows are not even in the tree — iOS
+        // 27 keeps nearby off-screen rows but drops far ones (2026-09-26:
+        // "Model row not found" right after the footer reveal). So no
+        // existence assertion first: wait briefly (a fresh launch may still be
+        // filling the list, and a swipe down on a list already at its top
+        // would dismiss the sheet), then scroll back up until the row is ON
+        // SCREEN. `reveal` only swipes while the row is not on screen.
+        _ = row.waitForExistence(timeout: 5)
+        XCTAssertTrue(reveal(row, in: app, by: { app.swipeDown() }),
+                      "Model row never came on screen: \(title)")
         row.tap()
     }
 
@@ -741,29 +738,36 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
                       "Global Settings sheet not shown (\(label))")
 
         // Engine ▸ Model row. It sits near the bottom of the (long) Global
-        // Settings list, so scroll it into view.
+        // Settings list, so scroll it on screen.
         let changeModelRow = app.descendants(matching: .any)
             .matching(identifier: "GlobalSettingsView.changeModelRow").firstMatch
-        reveal(app, changeModelRow, by: { app.swipeUp() })
-        XCTAssertTrue(changeModelRow.waitForExistence(timeout: 10),
-                      "Change model row not found in Global Settings (\(label))")
+        XCTAssertTrue(reveal(changeModelRow, in: app, by: { app.swipeUp() }),
+                      "Change model row never came on screen in Global Settings (\(label))")
         changeModelRow.tap()
     }
 
-    /// The picker sheet is up once any model row is visible.
+    /// The picker sheet is up once Global Settings has closed, the picker's
+    /// own bar is showing, and the model row is on screen. The row alone is no
+    /// proof: Global Settings shows the running model's title too.
     @MainActor
     private func waitForPicker(in app: XCUIApplication, title: String) {
-        let row = app.staticTexts[title]
-        XCTAssertTrue(row.waitForExistence(timeout: 60),
+        XCTAssertTrue(app.navigationBars["Global Settings"].waitForNonExistence(timeout: 15),
+                      "Global Settings did not close after Change model")
+        XCTAssertTrue(app.navigationBars["Select a Model"].waitForExistence(timeout: 60),
                       "Model picker did not appear after Change model")
+        XCTAssertTrue(waitForOnScreen(app.staticTexts[title], in: app, timeout: 15),
+                      "Model row '\(title)' not on screen in the picker")
     }
 
+    /// Reads the main-partition footer line once it shows at least `minimum`
+    /// entries, or whatever it shows after 15 s (the caller asserts). A fresh
+    /// footer starts at 0 and fills in from an async refresh, so being on
+    /// screen does not mean the count is in yet; a single read raced it.
     @MainActor
-    private func readMainStats(in app: XCUIApplication) -> String {
-        revealCacheFooter(in: app)
+    private func readMainStats(in app: XCUIApplication, atLeast minimum: Int) -> String {
         let footer = app.staticTexts["CoreMLCache.footerMainStats"]
-        XCTAssertTrue(footer.waitForExistence(timeout: 15),
-                      "CoreMLCache.footerMainStats not found")
+        XCTAssertTrue(revealCacheFooter(in: app), "CoreMLCache.footerMainStats never came on screen")
+        _ = waitUntil(timeout: 15) { footer.exists && parseCount(footer.label) >= minimum }
         return footer.label
     }
 }

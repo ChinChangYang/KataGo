@@ -127,15 +127,19 @@ final class EngineStatusUITests: PortraitUITestCase {
 
         let changeModelRow = app.descendants(matching: .any)
             .matching(identifier: "GlobalSettingsView.changeModelRow").firstMatch
-        reveal(app, changeModelRow, by: { app.swipeUp() })
-        XCTAssertTrue(changeModelRow.waitForExistence(timeout: 10),
-                      "Change model row not found in Global Settings")
+        XCTAssertTrue(reveal(changeModelRow, in: app, by: { app.swipeUp() }),
+                      "Change model row never came on screen in Global Settings")
         changeModelRow.tap()
 
         // The picker is a sheet now, so it arrives without the board going
         // anywhere. Re-picking the SAME net must restart it (settled design,
-        // decision 10) — this is also the regression test for that.
-        XCTAssertTrue(app.staticTexts[builtInTitle].waitForExistence(timeout: 60),
+        // decision 10) — this is also the regression test for that. Gate on
+        // the sheets' own bars: Global Settings closes, then the picker opens
+        // from its dismissal. (The built-in model's title is no proof, since
+        // Global Settings itself shows it as the running model.)
+        XCTAssertTrue(app.navigationBars["Global Settings"].waitForNonExistence(timeout: 15),
+                      "Global Settings did not close after Change model")
+        XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 60),
                       "Model picker did not appear after Change model")
         launchBuiltInEngine(app)
 
@@ -303,16 +307,17 @@ final class EngineStatusUITests: PortraitUITestCase {
     }
 
     /// Swipes the auto-presented model picker away WITHOUT choosing anything,
-    /// leaving the app in *Absent* over its already-mounted board. Swiping the
-    /// NAV BAR, not the list, because the list scrolls.
+    /// leaving the app in *Absent* over its already-mounted board. Through the
+    /// shared `dismissSheet`, which swipes the list and retries: a single
+    /// nav-bar swipe is the gesture iOS 27 stopped honouring on a scrolled
+    /// sheet, and one that lands while the launch-time sheet is still sliding
+    /// up is lost.
     @MainActor
     private func dismissModelPicker(_ app: XCUIApplication) {
         let pickerBar = app.navigationBars[pickerTitle]
         XCTAssertTrue(pickerBar.waitForExistence(timeout: 30),
                       "The model picker sheet did not appear on a debug launch")
-        pickerBar.swipeDown(velocity: .fast)
-        XCTAssertTrue(pickerBar.waitForNonExistence(timeout: 15),
-                      "The model picker sheet did not dismiss")
+        dismissSheet(app, until: pickerBar)
     }
 
     /// More ▸ New Game ▸ Empty Board, with NO engine: a deterministic empty
@@ -338,8 +343,16 @@ final class EngineStatusUITests: PortraitUITestCase {
         let emptyBoard = app.buttons["Empty Board"].firstMatch
         XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
         emptyBoard.tap()
-        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
-                      "New game board did not appear (More button missing)")
+        // "More" never leaves the tree, so it proves nothing here. Prove the
+        // menu closed and the NEW game is showing: an empty board. Checking
+        // only that K 10 is empty would also pass on the previous game, and
+        // the capsule flip that follows would then go to that game instead.
+        XCTAssertTrue(emptyBoard.waitForNonExistence(timeout: 10), "The New Game menu did not close")
+        let stones = app.buttons.matching(
+            NSPredicate(format: "value == %@ OR value == %@", "Black stone", "White stone"))
+        let fresh = Date().addingTimeInterval(15)
+        while stones.count > 0 && Date() < fresh { usleep(200_000) }
+        XCTAssertEqual(stones.count, 0, "The new empty game was not selected")
     }
 
     /// Picks the built-in network in whatever model picker is currently up (the
@@ -350,25 +363,18 @@ final class EngineStatusUITests: PortraitUITestCase {
         let row = app.staticTexts[builtInTitle]
         XCTAssertTrue(row.waitForExistence(timeout: 30),
                       "Model picker row '\(builtInTitle)' not found")
+        // The picker has usually only just been presented and may still be
+        // sliding up; tap the row once it is on screen.
+        XCTAssertTrue(waitForOnScreen(row, in: app, timeout: 10),
+                      "Model picker row '\(builtInTitle)' not on screen")
         row.tap()
         let play = app.buttons["ModelDetailView.downloadPlayButton"]
         XCTAssertTrue(play.waitForExistence(timeout: 15), "Play button not found")
         play.tap()
-    }
-
-    /// Scrolls until `element` exists, or gives up after a bounded number of
-    /// swipes. Off-screen SwiftUI List cells are not in the accessibility tree,
-    /// so a row near the bottom of Global Settings has to be revealed first.
-    /// Same shape as the sibling suites' copies.
-    @MainActor
-    private func reveal(_ app: XCUIApplication,
-                        _ element: XCUIElement,
-                        by swipe: () -> Void,
-                        maxSwipes: Int = 8) {
-        var n = 0
-        while !element.exists && n < maxSwipes {
-            swipe()
-            n += 1
-        }
+        // Play closes the picker. Prove it with the picker's own button: the
+        // board, its sparkle and "More" are all in the tree behind the sheet,
+        // so none of them shows the sheet has gone.
+        XCTAssertTrue(play.waitForNonExistence(timeout: 15),
+                      "The model picker did not close after Play")
     }
 }

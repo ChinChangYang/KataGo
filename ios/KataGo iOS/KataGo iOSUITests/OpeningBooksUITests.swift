@@ -42,19 +42,17 @@ final class OpeningBooksUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        // Debug launches present "Select a Model" as a sheet over the board,
-        // so the picker is already up. The Opening Books row sits below the
-        // model catalog and the Custom Networks section, and SwiftUI's List is
-        // lazy — an unrealized row is not in the accessibility tree at all, so
-        // scroll for it rather than waiting for it.
+        // Debug launches present "Select a Model" as a sheet over the board;
+        // wait for it, so no swipe lands on the board underneath. The Opening
+        // Books row sits below the model catalog and the Custom Networks
+        // section, so scroll until it is on screen: on iOS 26 SwiftUI's lazy
+        // List left it out of the accessibility tree until then, and on iOS 27
+        // it is in the tree from the start, so existence proves nothing.
+        XCTAssertTrue(app.navigationBars["Select a Model"].waitForExistence(timeout: 30),
+                      "The model picker sheet did not appear on a debug launch")
         let link = app.buttons["ModelPickerView.openingBooksLink"].firstMatch
-        var swipes = 0
-        while !link.exists && swipes < 8 {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(link.waitForExistence(timeout: 10),
-                      "The Opening Books row was never realized in the model picker")
+        XCTAssertTrue(reveal(link, in: app, by: { app.swipeUp() }),
+                      "The Opening Books row never came on screen in the model picker")
         link.tap()
 
         // The assertion. If any of the three environment values did not reach

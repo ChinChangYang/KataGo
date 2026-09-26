@@ -105,8 +105,10 @@ final class CameraImportUITests: PortraitUITestCase {
         // enough and a timeout here means the cover really did not present.
         retry.tap()
 
+        // On screen, not merely present: Cancel is in the tree from the
+        // cover's first frame, while the cover is still sliding up.
         let cancel = app.buttons["BoardCamera.cancel"].firstMatch
-        XCTAssertTrue(cancel.waitForExistence(timeout: 15),
+        XCTAssertTrue(waitForOnScreen(cancel, in: app, timeout: 15),
                       coverFailureMessage(app))
 
         // Cancel dismisses the cover.

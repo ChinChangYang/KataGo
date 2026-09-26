@@ -53,9 +53,11 @@ final class GifExportUITests: PortraitUITestCase {
                        "Replay glyph appeared while Loop was ON (preview should never freeze)")
 
         // --- Turn Loop OFF (it's below the fold). ---
+        // On screen, not merely present: the tap below is a coordinate tap,
+        // which never scrolls anything into view.
         let loop = app.switches["Loop"].firstMatch
-        reveal(app, loop, by: { app.swipeUp() })
-        XCTAssertTrue(loop.waitForExistence(timeout: 10), "Loop toggle not found")
+        XCTAssertTrue(reveal(loop, in: app, by: { app.swipeUp() }, maxSwipes: 4),
+                      "Loop toggle never came on screen")
         // Tap the trailing edge where the switch control lives — a center tap
         // lands on the row label and does NOT flip a SwiftUI Toggle (proven in
         // CoreMLCacheFooterUITests). Default loops == true, so this turns it off.
@@ -67,14 +69,39 @@ final class GifExportUITests: PortraitUITestCase {
                        "Loop toggle did not flip")
         XCTAssertEqual(loop.value as? String, "0", "Loop toggle did not turn off")
 
-        // Scroll back up until the preview re-enters the view. XCUITest only sees
-        // on-screen cells and the freeze glyph lives inside the preview, so it must
-        // be visible. A swipe-until-present loop is deterministic; a fixed number of
-        // momentum swipes is flaky (it can overshoot/bounce). One extra swipe then
-        // settles it fully at the top (a no-op once the Form is clamped there).
-        reveal(app, preview, by: { app.swipeDown() }, maxSwipes: 10)
-        XCTAssertTrue(preview.waitForExistence(timeout: 5), "Preview not back on screen after Loop toggle")
-        app.swipeDown()
+        // Scroll back up until the whole preview is clear of the navigation
+        // bar: the freeze glyph lives inside it, and the replay tap below is a
+        // coordinate tap, which never scrolls. Swipe only while it is NOT
+        // clear. On iOS 27 the preview stays in the tree while scrolled off, so
+        // a swipe-until-present loop never swiped; and a swipe down on a Form
+        // already at its top is a dismissal gesture for the sheet, so there is
+        // no extra "settling" swipe either: the loop also stops as soon as a
+        // swipe no longer moves the preview, because the Form is then at its
+        // top. The check reads the frame, not `isHittable`, which an
+        // accessibility container like this one has misreported.
+        let bar = app.navigationBars["Export GIF"]
+        func previewTop() -> CGFloat? {
+            guard preview.exists, let frame = try? preview.snapshot().frame else { return nil }
+            return frame.minY
+        }
+        func previewClear() -> Bool {
+            guard bar.exists, preview.exists,
+                  let frame = try? preview.snapshot().frame else { return false }
+            return frame.minY >= bar.frame.maxY - 2 && frame.maxY <= app.frame.maxY
+        }
+        var swipes = 0
+        var lastTop = previewTop()
+        while !previewClear() && swipes < 6 && bar.exists {
+            app.swipeDown()
+            swipes += 1
+            let settled = Date().addingTimeInterval(1.5)
+            while !previewClear() && Date() < settled { usleep(150_000) }
+            let top = previewTop()
+            if let top, top == lastTop { break }
+            lastTop = top
+        }
+        XCTAssertTrue(bar.exists, "The Export GIF sheet closed while scrolling back to the preview")
+        XCTAssertTrue(previewClear(), "Preview not fully back on screen after the Loop toggle")
 
         // --- Loop OFF: plays once, then FREEZES on the final frame (glyph on). ---
         XCTAssertTrue(hint.waitForExistence(timeout: 20),
@@ -117,13 +144,20 @@ final class GifExportUITests: PortraitUITestCase {
         waitForBoardInSync(app)
 
         // Reveal the Games list (leading nav-bar button), then open the seed.
+        // Prove the list appeared: a Back tap dropped while analysis re-renders
+        // the board would otherwise surface later as "Seeded game not found".
         let back = app.navigationBars.buttons.element(boundBy: 0)
-        if back.waitForExistence(timeout: 5) { back.tap() }
+        XCTAssertTrue(waitForOnScreen(back, in: app, timeout: 10),
+                      "The board's leading bar button is not on screen")
+        back.tap()
+        XCTAssertTrue(app.navigationBars["Games"].waitForExistence(timeout: 10),
+                      "The Games list did not appear after Back")
 
         let cell = app.staticTexts[seedName].firstMatch  // GameLinkView Text(name)
-        reveal(app, cell, by: { app.swipeUp() })
         XCTAssertTrue(cell.waitForExistence(timeout: 15),
                       "Seeded game '\(seedName)' not found in the list")
+        XCTAssertTrue(reveal(cell, in: app, by: { app.swipeUp() }),
+                      "Seeded game '\(seedName)' never came on screen in the list")
         cell.tap()
 
         // Committed main line, both sides Human -> More visible, no branch.
@@ -138,21 +172,6 @@ final class GifExportUITests: PortraitUITestCase {
         // The preview is an accessibility container (.isButton trait) that may
         // surface under buttons or otherElements — match by identifier only.
         app.descendants(matching: .any).matching(identifier: id).firstMatch
-    }
-
-    /// Swipe (using `swipe`) until `element` is present (or hittable), up to
-    /// `maxSwipes`. Off-screen SwiftUI List/Form cells aren't in the a11y tree.
-    @MainActor
-    private func reveal(_ app: XCUIApplication,
-                        _ element: XCUIElement,
-                        by swipe: () -> Void,
-                        hittable: Bool = false,
-                        maxSwipes: Int = 8) {
-        var n = 0
-        while !(hittable ? element.isHittable : element.exists) && n < maxSwipes {
-            swipe()
-            n += 1
-        }
     }
 
     /// Poll until `element` leaves the accessibility tree, or the timeout.
