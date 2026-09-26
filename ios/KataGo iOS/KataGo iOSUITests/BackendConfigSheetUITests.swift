@@ -147,17 +147,23 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
 
         openBackendSheet(in: app)
 
-        // The Search Threads control lives lower in the form; reveal it if needed.
+        // The Search Threads control lives lower in the form. Wait for it to be
+        // on screen, not merely present: on iOS 27 a below-the-fold Form cell is
+        // already in the accessibility tree, and right after the tap the sheet
+        // can still be sliding up — on 2026-09-26 `exists` held at once while
+        // `isHittable` read false. Scroll only if it stays out of reach.
         // Value/clamping/persistence behaviour is covered by the BackendSettings
         // unit tests; here we just verify the stepper is wired into the sheet and
         // reachable.
         let stepper = app.steppers["SearchThreadsStepper"]
-        if !stepper.waitForExistence(timeout: 5) {
+        var swipes = 0
+        while !waitForHittable(stepper, timeout: 3), swipes < 4 {
             app.swipeUp()
+            swipes += 1
         }
-        XCTAssertTrue(stepper.waitForExistence(timeout: 10),
-                      "Search Threads stepper not found")
-        XCTAssertTrue(stepper.isHittable, "Search Threads stepper is not hittable")
+        XCTAssertTrue(stepper.exists, "Search Threads stepper not found")
+        XCTAssertTrue(stepper.isHittable,
+                      "Search Threads stepper is not hittable after \(swipes) swipes")
     }
 
     /// The Core ML Routing control must be present and enabled for the
@@ -201,6 +207,14 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         let gear = app.buttons["Backend Settings"]
         XCTAssertTrue(gear.waitForExistence(timeout: 10), "Backend Settings gear button not found")
         gear.tap()
+    }
+
+    /// Poll until `element` is on screen and tappable, or the timeout.
+    @MainActor
+    private func waitForHittable(_ element: XCUIElement, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !(element.exists && element.isHittable) && Date() < deadline { usleep(150_000) }
+        return element.exists && element.isHittable
     }
 
     @MainActor
