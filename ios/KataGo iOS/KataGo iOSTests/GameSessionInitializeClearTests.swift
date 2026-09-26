@@ -205,8 +205,7 @@ struct GameSessionHandshakeSplitTests {
     @Test func pendingIDDeliveredDuringModelLoadSelectsThatGame() async throws {
         let container = try ModelContainer(
             for: SharedModelContainer.schema,
-            configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                               isStoredInMemoryOnly: true)
+            configurations: SharedModelContainer.inMemoryConfig()
         )
         let configured = GameRecord(config: Config()); configured.name = "Configured"
         configured.uuid = UUID(); configured.lastModificationDate = Date(timeIntervalSince1970: 1)

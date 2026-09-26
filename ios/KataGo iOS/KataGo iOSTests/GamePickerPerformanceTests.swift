@@ -82,7 +82,7 @@ struct GamePickerPerformanceTests {
     @MainActor private func seedGameRecords(_ n: Int) throws -> URL {
         let url = try freshStoreURL("gr-\(n)")
         let container = try ModelContainer(for: SharedModelContainer.schema,
-                                           configurations: ModelConfiguration(url: url))
+                                           configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
         let ctx = container.mainContext
         let blob = heavyBlob(); let sgf = heavySgf(); let stones = heavyStones()
         for i in 0..<n {
@@ -104,7 +104,7 @@ struct GamePickerPerformanceTests {
     @MainActor private func seedProbes<T: PersistentModel>(_ type: T.Type, _ n: Int,
                                                            make: (Date, Data, String) -> T) throws -> URL {
         let url = try freshStoreURL("probe-\(n)")
-        let container = try ModelContainer(for: type, configurations: ModelConfiguration(url: url))
+        let container = try ModelContainer(for: type, configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
         let ctx = container.mainContext
         let blob = heavyBlob(); let sgf = heavySgf()
         for i in 0..<n {
@@ -129,7 +129,7 @@ struct GamePickerPerformanceTests {
             let grURL = try seedGameRecords(n)
             var grContainer: ModelContainer!
             let openT = try seconds { grContainer = try ModelContainer(for: SharedModelContainer.schema,
-                                                                       configurations: ModelConfiguration(url: grURL)) }
+                                                                       configurations: ModelConfiguration(url: grURL, cloudKitDatabase: .none)) }
             var fetchSamples: [Double] = []                                    // median; first warms caches
             for _ in 0..<4 {
                 fetchSamples.append(try seconds { _ = try GameRecord.fetchGameRecords(container: grContainer, fetchLimit: 20) })
@@ -138,8 +138,8 @@ struct GamePickerPerformanceTests {
             // Probe stores: fixed reference points unaffected by edits to GameRecord.
             let unidxURL = try seedProbes(UnindexedProbe.self, n) { UnindexedProbe(date: $0, blob: $1, payload: $2) }
             let idxURL = try seedProbes(IndexedProbe.self, n) { IndexedProbe(date: $0, blob: $1, payload: $2) }
-            let unidxC = try ModelContainer(for: UnindexedProbe.self, configurations: ModelConfiguration(url: unidxURL))
-            let idxC = try ModelContainer(for: IndexedProbe.self, configurations: ModelConfiguration(url: idxURL))
+            let unidxC = try ModelContainer(for: UnindexedProbe.self, configurations: ModelConfiguration(url: unidxURL, cloudKitDatabase: .none))
+            let idxC = try ModelContainer(for: IndexedProbe.self, configurations: ModelConfiguration(url: idxURL, cloudKitDatabase: .none))
 
             open.append(openT)
             real.append(fetchSamples.sorted()[fetchSamples.count / 2])
@@ -181,7 +181,7 @@ struct GamePickerPerformanceTests {
     @Test @MainActor func indexedModel_topN_isNewestFirst() throws {
         let url = try freshStoreURL("order")
         let container = try ModelContainer(for: SharedModelContainer.schema,
-                                           configurations: ModelConfiguration(url: url))
+                                           configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
         for i in 0..<100 {
             let r = GameRecord(config: Config())
             r.name = "Game \(i)"
@@ -215,8 +215,7 @@ struct GamePickerPerformanceTests {
 
     @MainActor private func inMemoryStore() throws -> ModelContainer {
         try ModelContainer(for: SharedModelContainer.schema,
-                           configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                                              isStoredInMemoryOnly: true))
+                           configurations: SharedModelContainer.inMemoryConfig())
     }
 
     /// Inserts `n` lightweight records with distinct, ascending modification dates

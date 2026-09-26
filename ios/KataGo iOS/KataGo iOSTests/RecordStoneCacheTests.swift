@@ -134,8 +134,7 @@ struct RecordStoneCacheTests {
     @Test func aKeyThatNamesAnotherRecordIsRefused() throws {
         let container = try ModelContainer(
             for: SharedModelContainer.schema,
-            configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                               isStoredInMemoryOnly: true)
+            configurations: SharedModelContainer.inMemoryConfig()
         )
         let mine = GameRecord.createGameRecord(sgf: Self.sgf)
         let other = GameRecord.createGameRecord(sgf: Self.sgf)

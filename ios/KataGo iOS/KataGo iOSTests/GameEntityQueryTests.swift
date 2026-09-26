@@ -122,7 +122,7 @@ struct GameEntityQueryTests {
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let url = dir.appending(path: "dup.store")
         let container = try ModelContainer(for: SharedModelContainer.schema,
-                                           configurations: ModelConfiguration(url: url))
+                                           configurations: ModelConfiguration(url: url, cloudKitDatabase: .none))
         let shared = UUID()
         let a = GameRecord.createGameRecord(name: "A"); a.uuid = shared
         let b = GameRecord.createGameRecord(name: "B"); b.uuid = shared
@@ -167,7 +167,7 @@ struct GameEntityQueryTests {
     @MainActor
     private func inMemoryContainer() throws -> ModelContainer {
         try ModelContainer(for: SharedModelContainer.schema,
-                           configurations: ModelConfiguration(schema: SharedModelContainer.schema, isStoredInMemoryOnly: true))
+                           configurations: SharedModelContainer.inMemoryConfig())
     }
 
     /// The widget's AppIntents round-trip resolves a configured game by its stored

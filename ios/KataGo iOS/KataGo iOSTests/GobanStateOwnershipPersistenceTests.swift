@@ -20,7 +20,7 @@ struct GobanStateOwnershipPersistenceTests {
 
     private static func makeInMemoryContainer() throws -> ModelContainer {
         let schema = Schema([GameRecord.self, Config.self])
-        let config = ModelConfiguration(isStoredInMemoryOnly: true)
+        let config = ModelConfiguration(isStoredInMemoryOnly: true, cloudKitDatabase: .none)
         return try ModelContainer(for: schema, configurations: [config])
     }
 

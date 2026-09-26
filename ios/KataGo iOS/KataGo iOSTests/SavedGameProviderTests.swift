@@ -8,7 +8,7 @@ struct SavedGameProviderTests {
     @MainActor
     private func container() throws -> ModelContainer {
         try ModelContainer(for: SharedModelContainer.schema,
-                           configurations: ModelConfiguration(schema: SharedModelContainer.schema, isStoredInMemoryOnly: true))
+                           configurations: SharedModelContainer.inMemoryConfig())
     }
 
     @Test @MainActor func resolve_fallsBackToMostRecentWhenUnconfigured() throws {

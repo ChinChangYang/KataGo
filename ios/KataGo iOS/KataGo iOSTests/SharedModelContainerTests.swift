@@ -9,7 +9,7 @@ struct SharedModelContainerTests {
     /// Writes one GameRecord into a SwiftData store at `url`.
     @MainActor
     private func seedStore(at url: URL, name: String) throws {
-        let config = ModelConfiguration(url: url)
+        let config = ModelConfiguration(url: url, cloudKitDatabase: .none)
         let container = try ModelContainer(for: SharedModelContainer.schema, configurations: config)
         let record = GameRecord.createGameRecord(name: name)
         container.mainContext.insert(record)
@@ -18,7 +18,7 @@ struct SharedModelContainerTests {
 
     @MainActor
     private func names(in url: URL) throws -> [String] {
-        let config = ModelConfiguration(url: url)
+        let config = ModelConfiguration(url: url, cloudKitDatabase: .none)
         let container = try ModelContainer(for: SharedModelContainer.schema, configurations: config)
         return try container.mainContext.fetch(FetchDescriptor<GameRecord>()).map { $0.name }
     }
@@ -272,7 +272,7 @@ struct SharedModelContainerTests {
     @MainActor
     private func makeInMemoryContainer() throws -> ModelContainer {
         try ModelContainer(for: SharedModelContainer.schema,
-                           configurations: ModelConfiguration(isStoredInMemoryOnly: true))
+                           configurations: SharedModelContainer.inMemoryConfig())
     }
 
     struct OpenError: Error {}
@@ -328,6 +328,47 @@ struct SharedModelContainerTests {
                                            configurations: SharedModelContainer.inMemoryConfig())
         let records = try container.mainContext.fetch(FetchDescriptor<GameRecord>())
         #expect(records.isEmpty)
+    }
+
+    // MARK: - Test stores stay off CloudKit
+
+    /// Every store a unit test opens names its CloudKit database. These tests run
+    /// inside the iCloud-entitled app, so a configuration left at the default
+    /// `.automatic` gets CloudKit mirroring attached, and a fetch or save issued
+    /// while that mirroring is still setting up aborts the whole test host with
+    /// "No eligible connection available" — in a different test each run. Open
+    /// test stores with `SharedModelContainer.inMemoryConfig()` or pass
+    /// `cloudKitDatabase: .none`.
+    @Test func everyTestStoreOptsOutOfCloudKit() throws {
+        let testsDirectory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        let files = (FileManager.default.enumerator(at: testsDirectory, includingPropertiesForKeys: nil)?
+            .allObjects as? [URL] ?? [])
+            .filter { $0.pathExtension == "swift" }
+        #expect(files.count > 100, "found \(files.count) test sources in \(testsDirectory.path)")
+
+        var offenders: [String] = []
+        for file in files {
+            let source = try String(contentsOf: file, encoding: .utf8)
+            // Split so this file's own needles are not matches.
+            for (call, required) in [("ModelContainer" + "(", "configurations:"),
+                                     ("ModelConfiguration" + "(", "cloudKitDatabase:")] {
+                var searchStart = source.startIndex
+                while let open = source.range(of: call, range: searchStart..<source.endIndex) {
+                    var depth = 1
+                    var end = open.upperBound
+                    while depth > 0, end < source.endIndex {
+                        if source[end] == "(" { depth += 1 } else if source[end] == ")" { depth -= 1 }
+                        end = source.index(after: end)
+                    }
+                    if !source[open.upperBound..<end].contains(required) {
+                        let line = source[..<open.lowerBound].filter { $0 == "\n" }.count + 1
+                        offenders.append("\(file.lastPathComponent):\(line)")
+                    }
+                    searchStart = end
+                }
+            }
+        }
+        #expect(offenders.isEmpty, "test stores left on CloudKit .automatic: \(offenders.sorted())")
     }
 
     // MARK: - CloudKit store-reset directories (F16)

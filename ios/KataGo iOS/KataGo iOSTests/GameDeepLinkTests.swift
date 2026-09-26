@@ -26,8 +26,7 @@ struct GameDeepLinkResolveTests {
     @MainActor
     private func container() throws -> ModelContainer {
         try ModelContainer(for: SharedModelContainer.schema,
-                           configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                                              isStoredInMemoryOnly: true))
+                           configurations: SharedModelContainer.inMemoryConfig())
     }
 
     @MainActor
@@ -259,8 +258,7 @@ struct OpenGameIntentRoutingTests {
     @MainActor
     private func container() throws -> ModelContainer {
         try ModelContainer(for: SharedModelContainer.schema,
-                           configurations: ModelConfiguration(schema: SharedModelContainer.schema,
-                                                              isStoredInMemoryOnly: true))
+                           configurations: SharedModelContainer.inMemoryConfig())
     }
 
     @Test @MainActor func latestGameID_returnsNewestRecord() throws {
