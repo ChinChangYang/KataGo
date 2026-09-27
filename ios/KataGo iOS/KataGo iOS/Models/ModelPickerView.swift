@@ -98,9 +98,10 @@ struct ModelDetailView: View {
             .labelStyle(.iconOnly)
         }
         .buttonStyle(.borderedProminent)
-        // Nine UI-test files tap this identifier. It must stay on ONE
-        // always-present button across every role — a button that appears and
-        // disappears takes the offline suite down with it.
+        // PortraitUITestCase.launchModel taps this identifier in its "Play"
+        // role, and every UI test that launches an engine goes through it. It
+        // must stay on ONE always-present button across every role — a button
+        // that appears and disappears takes the offline suite down with it.
         .accessibilityIdentifier("ModelDetailView.downloadPlayButton")
     }
 

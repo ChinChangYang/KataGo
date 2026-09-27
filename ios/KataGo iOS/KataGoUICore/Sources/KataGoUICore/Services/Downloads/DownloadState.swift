@@ -31,8 +31,9 @@ public enum DownloadState: String, Equatable, Sendable, CaseIterable {
 /// What the one download button in a detail view should do right now.
 ///
 /// One button, four roles — never a button that appears and disappears. The
-/// iOS UI suite taps `ModelDetailView.downloadPlayButton` in nine files and
-/// would break the moment that identifier stopped being always present.
+/// iOS UI suite's `PortraitUITestCase.launchModel`, which every UI test that
+/// launches an engine goes through, taps `ModelDetailView.downloadPlayButton`
+/// and would break the moment that identifier stopped being always present.
 public enum DownloadButtonRole: String, Equatable, Sendable, CaseIterable {
     /// The asset is on disk; the button activates it.
     case play

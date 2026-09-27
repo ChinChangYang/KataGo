@@ -138,6 +138,11 @@ class PortraitUITestCase: XCTestCase {
     ///
     /// The default timeout matches the old sentinel's: a cold simulator launch
     /// includes an on-the-fly Core ML conversion.
+    ///
+    /// It proves nothing about what covers the board: `Board.sync` is read
+    /// the same behind a sheet. Nor does it prove a new engine: behind the
+    /// picker Change model raises it already reads "inSync" for the old
+    /// engine (`switchModel` handles that).
     @MainActor
     @discardableResult
     func waitForBoardInSync(_ app: XCUIApplication,
@@ -169,7 +174,7 @@ class PortraitUITestCase: XCTestCase {
 
     /// True when `element` is on screen and has stopped moving: it exists, the
     /// midpoint of its frame lies inside the app, and the frame is the same
-    /// on a second look 0.1 s later.
+    /// on every one of `samples` looks 0.1 s apart (two by default).
     ///
     /// `exists` alone lies on iOS 27, where a below-the-fold Form or List cell
     /// is already in the accessibility tree. The second look catches a sheet
@@ -188,12 +193,14 @@ class PortraitUITestCase: XCTestCase {
     /// when the element has just stopped matching (a row recycled while a
     /// scroll settles, a sheet being torn down); `frame` itself would fail it.
     @MainActor
-    func isOnScreen(_ element: XCUIElement, in app: XCUIApplication) -> Bool {
+    func isOnScreen(_ element: XCUIElement, in app: XCUIApplication, samples: Int = 2) -> Bool {
         guard element.exists, let first = try? element.snapshot().frame, !first.isEmpty,
               app.frame.contains(CGPoint(x: first.midX, y: first.midY)) else { return false }
-        usleep(100_000)
-        guard let second = try? element.snapshot().frame else { return false }
-        return second == first
+        for _ in 1..<max(samples, 1) {
+            usleep(100_000)
+            guard let next = try? element.snapshot().frame, next == first else { return false }
+        }
+        return true
     }
 
     /// Polls `isOnScreen` until it holds or `timeout` passes.
@@ -201,10 +208,11 @@ class PortraitUITestCase: XCTestCase {
     @discardableResult
     func waitForOnScreen(_ element: XCUIElement,
                          in app: XCUIApplication,
-                         timeout: TimeInterval) -> Bool {
+                         timeout: TimeInterval,
+                         samples: Int = 2) -> Bool {
         let deadline = Date().addingTimeInterval(timeout)
-        while !isOnScreen(element, in: app) && Date() < deadline { usleep(150_000) }
-        return isOnScreen(element, in: app)
+        while !isOnScreen(element, in: app, samples: samples) && Date() < deadline { usleep(150_000) }
+        return isOnScreen(element, in: app, samples: samples)
     }
 
     /// Scrolls with `swipe` until `element` is on screen, at most `maxSwipes`
@@ -262,6 +270,386 @@ class PortraitUITestCase: XCTestCase {
         }
         XCTAssertTrue(sentinel.waitForNonExistence(timeout: 5),
                       "The sheet did not dismiss after \(swipes) swipes",
+                      file: file, line: line)
+    }
+
+    // MARK: - Menus and a quiet board
+
+    /// Taps `element` once it is on screen and has held still for about
+    /// 0.3 s, and returns whether it tapped. It never taps an element that
+    /// did not settle within `timeout`: a tap on an element that leaves
+    /// under it fails the test outright, and an open SwiftUI menu does
+    /// exactly that when its host re-renders.
+    @MainActor
+    @discardableResult
+    func tapWhenSteady(_ element: XCUIElement,
+                       in app: XCUIApplication,
+                       timeout: TimeInterval) -> Bool {
+        guard waitForOnScreen(element, in: app, timeout: timeout, samples: 4) else { return false }
+        element.tap()
+        return true
+    }
+
+    /// Turns analysis off with the board's sparkle, then waits for the board
+    /// to report in sync, so that nothing the engine does next re-renders
+    /// the toolbar under a menu the test is about to open.
+    ///
+    /// Off, not paused: a paused board still asks for one analysis whenever
+    /// the position or the turn changes, and a running sparkle animates.
+    /// Off asks for no new analysis. It does not promise a silent engine: an
+    /// analysis reply still in flight when Off lands can re-arm continuous
+    /// analysis (the waiting-edge handler in `GameSplitView` stops only a
+    /// paused board, 2026-09-27 review). That does not reach the menu,
+    /// because `PlusMenuView` reads no analysis. The state lives in memory
+    /// only; the next launch starts with analysis running again.
+    ///
+    /// It reads the sparkle's label instead of counting taps, because the
+    /// starting state varies: a fresh board runs, and leaving a board for
+    /// the Games list pauses it. It taps only from running or paused. With
+    /// the engine down a tap opens the model picker instead, and while the
+    /// engine loads the sparkle is disabled. A tap dropped while the board
+    /// re-renders is tried again.
+    @MainActor
+    func quietBoard(_ app: XCUIApplication,
+                    file: StaticString = #filePath,
+                    line: UInt = #line) {
+        let sparkle = app.buttons["Toggle Analysis"].firstMatch
+        XCTAssertTrue(waitForOnScreen(sparkle, in: app, timeout: 30),
+                      "The analysis sparkle is not on screen", file: file, line: line)
+        let deadline = Date().addingTimeInterval(30)
+        while Date() < deadline {
+            let state = sparkle.label
+            if state == "Analysis off" || state.hasPrefix("Analysis stopped") { break }
+            if state == "Analysis running" || state == "Analysis paused" {
+                sparkle.tap()
+                let moved = XCTNSPredicateExpectation(
+                    predicate: NSPredicate(format: "label != %@", state), object: sparkle)
+                _ = XCTWaiter().wait(for: [moved], timeout: 5)
+            } else {
+                usleep(500_000)
+            }
+        }
+        XCTAssertEqual(sparkle.label, "Analysis off", "Analysis did not turn off",
+                       file: file, line: line)
+        waitForBoardInSync(app, file: file, line: line)
+    }
+
+    /// Opens the toolbar's More menu and walks `path` down to its last item,
+    /// until `opened` exists: an element the item's destination owns, such
+    /// as its sheet's navigation bar. Fails the test if it never does.
+    ///
+    /// **Why it loops.** `PlusMenuView` reads the engine's sync and turn
+    /// state, so an engine reply that changes them rebuilds the menu, and an
+    /// open submenu falls back to its parent or the whole menu closes. A
+    /// drill of single taps then taps an item that has just gone (Export GIF
+    /// on a fresh install, 2026-07-08). So each pass looks at what is
+    /// showing now: it taps the deepest level of `path` that is on screen
+    /// and steady, or opens More when no level shows, and so carries on from
+    /// wherever a collapse left the menu. Call `quietBoard` first; this
+    /// absorbs the collapses that remain, it does not make a busy board safe.
+    ///
+    /// Items are looked up in collection views only. The open menu is one of
+    /// its own, and the board's title is in none (both measured 2026-09-27).
+    /// That keeps out the title, a button labelled with the game's name,
+    /// usually "New Game": an unscoped "New Game" level would "exist" before
+    /// More is ever tapped, and a tap on it renames the game. The scope is
+    /// not the menu alone, though: on the Games list the list is a collection
+    /// view too, searched before More is open. Its rows read "<name>, <time>",
+    /// so no path used today matches one; a new path level must not equal the
+    /// label of a row on screen.
+    ///
+    /// More is tapped only while hittable, so a sheet still sliding away
+    /// cannot take the tap: a More tap 1.7 s after a sheet was swiped away
+    /// hit nothing ("Computed hit point {-1, -1}") on 2026-09-25.
+    ///
+    /// A drill that needed more than the minimum number of passes prints a
+    /// MENU RETRY line, so a run's log shows how often the loop mattered.
+    @MainActor
+    func openMoreMenuItem(_ app: XCUIApplication,
+                          path: [String],
+                          until opened: XCUIElement,
+                          attempts: Int = 25,
+                          file: StaticString = #filePath,
+                          line: UInt = #line) {
+        openMoreMenuItem(app, path: path, attempts: attempts, file: file, line: line,
+                         until: { opened.exists }, waitingFor: opened)
+    }
+
+    /// The same drill, for a destination no single element marks: it stops
+    /// once `opened` returns true. `opened` must be false before the drill
+    /// starts, or nothing is tapped at all.
+    @MainActor
+    func openMoreMenuItem(_ app: XCUIApplication,
+                          path: [String],
+                          attempts: Int = 25,
+                          file: StaticString = #filePath,
+                          line: UInt = #line,
+                          until opened: () -> Bool) {
+        openMoreMenuItem(app, path: path, attempts: attempts, file: file, line: line,
+                         until: opened, waitingFor: nil)
+    }
+
+    @MainActor
+    private func openMoreMenuItem(_ app: XCUIApplication,
+                                  path: [String],
+                                  attempts: Int,
+                                  file: StaticString,
+                                  line: UInt,
+                                  until opened: () -> Bool,
+                                  waitingFor sentinel: XCUIElement?) {
+        let more = app.buttons["More"].firstMatch
+        let items = path.map { app.collectionViews.buttons[$0].firstMatch }
+        // The step after the last item: its destination appearing.
+        func waitForOpened(_ timeout: TimeInterval) -> Bool {
+            if let sentinel { return sentinel.waitForExistence(timeout: timeout) }
+            let deadline = Date().addingTimeInterval(timeout)
+            while !opened() && Date() < deadline { usleep(200_000) }
+            return opened()
+        }
+        var passes = 0
+        var opens = 0
+        while !opened() && passes < attempts {
+            passes += 1
+            if let level = items.indices.last(where: { items[$0].exists }) {
+                // A level that is still moving or flickering waits for the
+                // next pass.
+                guard tapWhenSteady(items[level], in: app, timeout: 2) else { continue }
+                if level + 1 < items.count {
+                    _ = items[level + 1].waitForExistence(timeout: 3)
+                } else {
+                    _ = waitForOpened(10)
+                }
+            } else if waitForOnScreen(more, in: app, timeout: 5), more.isHittable {
+                more.tap()
+                opens += 1
+                if let first = items.first { _ = first.waitForExistence(timeout: 5) }
+            } else {
+                usleep(500_000)
+            }
+        }
+        let route = (["More"] + path).joined(separator: " ▸ ")
+        if passes > path.count + 1 {
+            print("MENU RETRY — \(route) took \(passes) passes and opened More \(opens) times")
+        }
+        XCTAssertTrue(waitForOpened(5),
+                      "\(route) did not open after \(passes) passes (More opened \(opens) times)",
+                      file: file, line: line)
+    }
+
+    // MARK: - The model picker
+
+    /// The catalog title of the network the app bundles.
+    static let builtInModelTitle = "Built-in KataGo Network"
+
+    /// Opens `title`'s detail page in the model picker that is showing, or
+    /// does nothing when that page is already open. Fails the test if the
+    /// picker is not showing: every DEBUG launch presents it
+    /// (`RecoveryDecision` checks `isDebug` first), so a missing picker means
+    /// a Release build or `--screenshot-seed`.
+    ///
+    /// It taps the row only once the picker's Done button, which only the
+    /// picker's root has, has stopped moving: the sheet slides up at launch,
+    /// and a tap during the slide is lost. A lost tap is tried again while
+    /// the root still shows. The row is looked up in the picker's list: the
+    /// detail page shows the title twice more, and a tap on a query that
+    /// matches more than once fails the test. That list leaves the tree once
+    /// the detail is pushed (measured 2026-09-27).
+    ///
+    /// It scrolls only while the row is off screen: up when the row sits
+    /// below the middle of the screen (large Dynamic Type pushes it below
+    /// the fold), down otherwise (a test that scrolled to the Core ML footer
+    /// leaves the list at its bottom, where iOS 27 drops the top rows from
+    /// the tree). A swipe down on a list already at its top dismisses the
+    /// sheet, which is why it never swipes at a row on screen.
+    @MainActor
+    func openModelDetail(_ app: XCUIApplication,
+                         title: String = builtInModelTitle,
+                         file: StaticString = #filePath,
+                         line: UInt = #line) {
+        let root = app.navigationBars["Select a Model"]
+        let detail = app.navigationBars[title]
+        if detail.exists { return }
+        XCTAssertTrue(root.waitForExistence(timeout: 30),
+                      "The model picker is not showing (a DEBUG launch always presents it)",
+                      file: file, line: line)
+        XCTAssertTrue(waitForOnScreen(app.buttons["ModelPickerView.done"], in: app, timeout: 10),
+                      "The model picker never settled on screen", file: file, line: line)
+        let row = app.collectionViews.staticTexts[title].firstMatch
+        _ = row.waitForExistence(timeout: 5)
+        XCTAssertTrue(reveal(row, in: app, by: {
+                          if let frame = try? row.snapshot().frame, frame.midY > app.frame.midY {
+                              app.swipeUp()
+                          } else {
+                              app.swipeDown()
+                          }
+                      }),
+                      "Model row '\(title)' never came on screen in the picker",
+                      file: file, line: line)
+        var taps = 0
+        while !detail.exists && root.exists && taps < 3 {
+            guard tapWhenSteady(row, in: app, timeout: 5) else { break }
+            taps += 1
+            _ = detail.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(detail.waitForExistence(timeout: 5),
+                      "Tapping '\(title)' did not open its detail page (\(taps) taps)",
+                      file: file, line: line)
+    }
+
+    /// Picks `title` in the model picker that is showing, taps Play, and
+    /// returns once the picker has closed. Works on any picker: the one a
+    /// DEBUG launch presents, the one the sparkle opens with the engine
+    /// down, and the one Change model raises.
+    ///
+    /// The picker's close is proved by the picker's own elements leaving:
+    /// Play, and every element that shows the model's title (the root's row,
+    /// the detail's heading and bar); nothing behind the sheet shows it
+    /// (measured 2026-09-27). The board, its sparkle, "More" and `Board.sync`
+    /// all sit in the tree behind the sheet from the first frame, so none of
+    /// them can prove it closed.
+    ///
+    /// It does not wait for the engine. Some tests watch the board while the
+    /// engine loads, and the photo-import hooks raise a sheet of their own
+    /// 600 ms after the picker closes. Call `waitForBoardInSync` next when
+    /// the test needs the engine. `whileClosing` runs on every poll from the
+    /// Play tap until the picker has gone, for a test that must watch the
+    /// board from the moment the engine starts (`switchModel`).
+    ///
+    /// Play is tapped only in its Play role. The button reads "Download"
+    /// until the detail has checked the disk, and for a model that is not on
+    /// disk it would download, which UI tests never do. It is tapped again
+    /// while the picker stays up, since a tap during the push is lost.
+    @MainActor
+    func launchModel(_ app: XCUIApplication,
+                     title: String = builtInModelTitle,
+                     whileClosing: (() -> Void)? = nil,
+                     file: StaticString = #filePath,
+                     line: UInt = #line) {
+        openModelDetail(app, title: title, file: file, line: line)
+        let id = "ModelDetailView.downloadPlayButton"
+        let play = app.buttons[id]
+        let playRole = app.buttons
+            .matching(NSPredicate(format: "identifier == %@ AND label == %@", id, "Play")).firstMatch
+        guard playRole.waitForExistence(timeout: 15) else {
+            let role = (try? play.snapshot().label) ?? "no button"
+            XCTFail("'\(title)' offers \(role), not Play: it is not on disk, and UI tests stay offline",
+                    file: file, line: line)
+            return
+        }
+        var taps = 0
+        while play.exists && taps < 3 {
+            guard tapWhenSteady(play, in: app, timeout: 10) else { break }
+            taps += 1
+            let deadline = Date().addingTimeInterval(10)
+            repeat {
+                whileClosing?()
+                usleep(100_000)
+            } while play.exists && Date() < deadline
+        }
+        if taps > 1 { print("PICKER RETRY — Play on '\(title)' took \(taps) taps") }
+        XCTAssertFalse(play.exists, "The model picker did not close after \(taps) Play taps",
+                       file: file, line: line)
+        XCTAssertTrue(app.staticTexts[title].waitForNonExistence(timeout: 5),
+                      "The model picker still shows '\(title)' after Play", file: file, line: line)
+    }
+
+    /// Picks `title` in the picker Change model raised over a RUNNING engine
+    /// and waits for the replacement engine to report in sync. Fails if the
+    /// engine never restarts, or if the board leaves the tree on the way:
+    /// the board stays up through a model change.
+    ///
+    /// `waitForBoardInSync` alone proves nothing here. `Board.sync` already
+    /// read "inSync" for the old engine behind the picker, so it passes
+    /// before the restart has even begun. A restart shows on the board as
+    /// `Board.sync` reading "syncing": stopping the old engine clears the
+    /// board's sync within a run-loop turn of the Play tap, and it stays
+    /// clear for at least the engine's one-second drain. That window can
+    /// close while the sheet is still sliding away on a warm cache, so it is
+    /// watched from the tap, with one snapshot per look.
+    @MainActor
+    func switchModel(_ app: XCUIApplication,
+                     to title: String = builtInModelTitle,
+                     timeout: TimeInterval = 360,
+                     file: StaticString = #filePath,
+                     line: UInt = #line) {
+        let board = app.otherElements["Board.sync"]
+        var restarted = false
+        var inSync = false
+        var boardLeft = false
+        func look() {
+            guard let value = (try? board.snapshot())?.value as? String else {
+                if !board.exists { boardLeft = true }
+                return
+            }
+            if value == "syncing" { restarted = true }
+            inSync = value == "inSync"
+        }
+        launchModel(app, title: title, whileClosing: look, file: file, line: line)
+        let deadline = Date().addingTimeInterval(timeout)
+        repeat {
+            look()
+            if boardLeft || (restarted && inSync) { break }
+            usleep(200_000)
+        } while Date() < deadline
+        XCTAssertFalse(boardLeft, "The board left the screen during the change to '\(title)'",
+                       file: file, line: line)
+        XCTAssertTrue(restarted, "The engine never restarted after Play on '\(title)'",
+                      file: file, line: line)
+        waitForBoardInSync(app, timeout: 5, file: file, line: line)
+    }
+
+    // MARK: - The Games list and a fresh game
+
+    /// Pops the board back to the Games list and proves it: the list's own
+    /// bar is showing and the board has left the tree (within 0.3 s,
+    /// measured 2026-09-27). "More" proves neither, since the board and the
+    /// list each have one. On an iPhone the pop also clears the selection,
+    /// and leaving a board pauses its analysis (`BoardView.onDisappear`).
+    ///
+    /// Back is tapped again while the list has not appeared: a tap that
+    /// lands while the board re-renders under engine replies is lost.
+    @MainActor
+    func showGamesList(_ app: XCUIApplication,
+                       file: StaticString = #filePath,
+                       line: UInt = #line) {
+        let games = app.navigationBars["Games"]
+        let back = app.navigationBars.buttons["BackButton"].firstMatch
+        var taps = 0
+        while !games.exists && taps < 3 {
+            guard tapWhenSteady(back, in: app, timeout: 10) else { break }
+            taps += 1
+            _ = games.waitForExistence(timeout: 5)
+        }
+        XCTAssertTrue(games.waitForExistence(timeout: 5),
+                      "The Games list did not appear after Back (\(taps) taps)",
+                      file: file, line: line)
+        XCTAssertTrue(app.otherElements["Board.sync"].waitForNonExistence(timeout: 10),
+                      "The board did not leave after Back", file: file, line: line)
+    }
+
+    /// More ▸ New Game ▸ Empty Board, from the Games list, then proves the
+    /// new game's board is showing: the list's bar has gone, and the board's
+    /// title reads "New Game". Starts only from the list, which
+    /// `showGamesList` proves: from a board the new game swaps in place, and
+    /// the old board is usually a "New Game" too, so nothing would tell the
+    /// two apart. Waiting for the new board's `Board.sync` to appear proves
+    /// it is mounted; call `waitForBoardInSync` (or `quietBoard`) when the
+    /// test needs the engine to have caught up with the new game.
+    @MainActor
+    func openEmptyBoard(_ app: XCUIApplication,
+                        file: StaticString = #filePath,
+                        line: UInt = #line) {
+        let games = app.navigationBars["Games"]
+        let board = app.otherElements["Board.sync"]
+        XCTAssertTrue(games.exists && !board.exists,
+                      "An empty board is opened from the Games list; call showGamesList first",
+                      file: file, line: line)
+        openMoreMenuItem(app, path: ["New Game", "Empty Board"], until: board,
+                         file: file, line: line)
+        XCTAssertTrue(games.waitForNonExistence(timeout: 10),
+                      "The Games list stayed up after Empty Board", file: file, line: line)
+        XCTAssertTrue(waitForOnScreen(app.navigationBars.buttons["New Game"], in: app, timeout: 30),
+                      "The new game's board did not appear (no 'New Game' title)",
                       file: file, line: line)
     }
 

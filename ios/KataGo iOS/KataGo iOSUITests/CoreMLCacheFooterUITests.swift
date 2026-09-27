@@ -97,8 +97,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // model plus auxiliaries like a HumanSL policy net — so this step
         // is treated as a baseline rather than a fixed count.
 
-        tapModelRow(in: app, title: builtInTitle)
-        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+        launchModel(app)
         waitForEngineThenChangeModel(in: app, label: "built-in")
         waitForPicker(in: app, title: builtInTitle)
 
@@ -113,7 +112,6 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // cache write happened for downloaded models, so the count stayed
         // at the baseline.
 
-        tapModelRow(in: app, title: lionffenTitle)
         launchStagedModel(in: app)
         waitForEngineThenChangeModel(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
@@ -136,8 +134,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         app.launch()
 
         // Populate the cache by launching the built-in engine once.
-        tapModelRow(in: app, title: builtInTitle)
-        tapDownloadOrPlay(in: app)
+        launchModel(app)
         waitForBoardInSync(app)
 
         // Relaunch before clearing — NOT because Clear is unavailable with an
@@ -224,7 +221,13 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// that goes down and comes back up is proof the closure ran, and a
     /// teardown that failed says "The engine did not shut down." instead of
     /// returning to Ready. That is the discriminator, and both halves of it are
-    /// seconds wide rather than milliseconds.
+    /// seconds wide rather than milliseconds. The board reads both halves:
+    /// `Board.sync` stays in the tree behind the picker, goes to "syncing" when
+    /// the old engine is stopped, and reads "inSync" again only once a NEW
+    /// engine has answered its handshake. The Clear Cache button cannot: it is
+    /// disabled by the clear itself on either path, and a failed teardown
+    /// leaves it enabled again (Failed allows a direct clear), so "disabled,
+    /// then enabled" passed on the very failure this test exists to catch.
     ///
     /// "The cache really does empty" is not abandoned — it is asserted, with a
     /// stable 0 and a hidden button, by `testFooterShowsZeroAfterClear` on the
@@ -235,8 +238,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         app.launch()
 
         // Populate the cache and get the engine Ready.
-        tapModelRow(in: app, title: builtInTitle)
-        tapDownloadOrPlay(in: app)
+        launchModel(app)
         // Return to the picker with the engine STILL RUNNING underneath —
         // exactly the state in which Clear used to be blocked.
         waitForEngineThenChangeModel(in: app, label: "clear-while-running")
@@ -255,43 +257,35 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         let confirmClear = app.buttons["Clear"]
         XCTAssertTrue(confirmClear.waitForExistence(timeout: 5),
                       "Confirmation 'Clear' button did not appear")
+        // The confirmation names its path. Only the unload path, taken while an
+        // engine runs, warns that the engine will restart; `isEnabled` above
+        // holds with no engine too, so it could not tell the paths apart.
+        let unloadWarning = app.descendants(matching: .any)
+            .matching(NSPredicate(format: "label CONTAINS %@", "The engine will restart")).firstMatch
+        XCTAssertTrue(unloadWarning.waitForExistence(timeout: 5),
+                      "The confirmation does not warn that the engine will restart: " +
+                      "Clear is not taking the unload path")
         confirmClear.tap()
-
-        // Let the confirmation sheet finish dismissing before watching the
-        // button. While it is up the list underneath is out of the
-        // accessibility tree, so "the button is gone" would be true for the
-        // wrong reason and step 1 would pass vacuously.
         XCTAssertTrue(waitUntil(timeout: 15) { !confirmClear.exists },
                       "The Clear confirmation never dismissed")
 
-        // The witness is THIS button, deliberately — it is the one element the
-        // view is already scrolled to. The picker's engine-status header would
-        // say "Loading engine…" too, but it renders at the TOP of the list and
-        // `revealClearCacheButton` has just scrolled to the bottom, so it is
-        // off screen: out of the accessibility tree entirely on iOS 26, and on
-        // iOS 27 still in the tree but not on screen. Either way it is not the
-        // element to watch.
-        //
-        // 1. The engine goes down. PRESENT BUT DISABLED is the state to wait
-        //    for, and the precision matters: the button also disappears while
-        //    the cache reads empty (`totalCount > 0` gates it), but that
-        //    happens on the direct path too, so "gone" would not tell the two
-        //    apart. Disabled-with-entries is reached only through permission
-        //    `.unavailable`, i.e. `.launching`, i.e. a restart — which is what
-        //    the unload path is. It holds from the relaunch's first recompile
-        //    until Ready, seconds rather than the 1.5 s the old zero-count
-        //    assertion had to hit.
-        XCTAssertTrue(waitUntil(timeout: 60) { clearButton.exists && !clearButton.isEnabled },
-                      "Clear Cache never went disabled after confirming — the engine " +
-                      "was never unloaded, so the stopped-window clear did not run")
+        // 1. The engine goes down: `Board.sync` leaves "inSync", which it has
+        //    read for the running engine since the launch. The restart clears
+        //    it in the same main-actor turn that starts the clear, and it
+        //    stays "syncing" through the one-second drain, the stopped-window
+        //    clear and the relaunch.
+        let board = app.otherElements["Board.sync"]
+        XCTAssertTrue(waitUntil(timeout: 60) { (try? board.snapshot().value as? String) == "syncing" },
+                      "The board never left 'inSync' after confirming — the engine was " +
+                      "never unloaded, so the stopped-window clear did not run")
 
-        // 2. It comes back. This is also how a FAILED teardown is caught: a
-        //    restart that could not stop the engine reports "The engine did not
-        //    shut down." and never returns to Ready, so the button never
-        //    re-enables and this wait is what fails.
-        XCTAssertTrue(waitUntil(timeout: 300) { clearButton.exists && clearButton.isEnabled },
-                      "The engine never came back after the clear — it is still " +
-                      "launching, or the restart failed")
+        // 2. It comes back. Only a new engine that answered its handshake can
+        //    report in sync again; a restart that could not stop the engine
+        //    ends Failed with the board still "syncing", so this wait is what
+        //    fails.
+        waitForBoardInSync(app, timeout: 300)
+        XCTAssertTrue(waitUntil(timeout: 15) { clearButton.exists && clearButton.isEnabled },
+                      "Clear Cache did not come back enabled once the engine was up")
     }
 
     /// Polls `condition` until it holds or `timeout` elapses.
@@ -324,8 +318,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        tapModelRow(in: app, title: builtInTitle)
-        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+        launchModel(app)
 
         // The board draws before the engine is ready; this test is about what a
         // RUNNING engine puts on it, so wait for the engine to be in sync rather
@@ -359,8 +352,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
 
         // A game must be selected for the "Settings" menu item to appear,
         // so launch the built-in engine to reach the goban.
-        tapModelRow(in: app, title: builtInTitle)
-        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+        launchModel(app)
 
         // The board draws before the engine is ready; this test is about what a
         // RUNNING engine puts on it, so wait for the engine to be in sync rather
@@ -374,34 +366,15 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // re-render and be dropped — the run-1/3/4 forensics showed taps landing
         // geometrically ON the switch control that still never flipped its value,
         // while an otherwise identical run that happened to tap between re-renders
-        // passed. Wait until analysis is established (a winrate label), then pause
-        // it (one tap on Toggle Analysis) so the board stops churning — the same
-        // guard PlayerNameLabelUITests uses before driving its menus. Pausing is
-        // irrelevant to what this test checks (the relocated display preferences).
-        let winrate = app.staticTexts.matching(identifier: "AnalysisView.winrate").firstMatch
-        _ = winrate.waitForExistence(timeout: 120)
-        let analysisToggle = app.buttons["Toggle Analysis"].firstMatch
-        if analysisToggle.waitForExistence(timeout: 10) { analysisToggle.tap() }
-        usleep(3_000_000)  // 3s settle: let the stop ack drain and re-renders cease
-
-        // Open the "More" menu → Settings > Global Settings.
-        let moreButton = app.buttons["More"].firstMatch
-        XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
-        moreButton.tap()
-
-        let settings = app.buttons["Settings"].firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 10),
-                      "Settings menu item not found")
-        settings.tap()
-
-        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10),
-                      "Global Settings menu item not found")
-        globalSettingsItem.tap()
+        // passed. `quietBoard` turns analysis off and proves it by the sparkle's
+        // label. Analysis is irrelevant to what this test checks (the relocated
+        // display preferences).
+        quietBoard(app)
 
         // ----- Global Settings now hosts the relocated display preferences -----
-        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
-                      "Global Settings sheet not shown")
+        // More ▸ Settings ▸ Global Settings; the sheet's own bar proves it.
+        openMoreMenuItem(app, path: ["Settings", "Global Settings"],
+                         until: app.navigationBars["Global Settings"])
 
         // Every display toggle that used to be under the per-game "View" tab.
         // On screen, not merely present: `flipSwitch` taps a coordinate, and a
@@ -429,7 +402,8 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         //   1. Dropped tap under board churn — the PRIMARY cause. The forensics
         //      showed taps landing geometrically ON the switch control that still
         //      never flipped the value, while a lucky run that tapped between
-        //      re-renders passed; the quieting step above (pause analysis) removes
+        //      re-renders passed; the quieting step above (`quietBoard`, which turns
+        //      analysis off) removes
         //      this by stopping the re-renders.
         //   2. Moving frame — the Global Settings sheet presents with animation and
         //      `waitForExistence` returns mid-presentation, so an early tap can fire
@@ -461,23 +435,12 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // list instead: the first swipe scrolls it back from Thumbnails to the
         // top, and the next one, starting at the top, dismisses. "More" never
         // leaves the hierarchy while the sheet covers it, so it waits for the
-        // sheet's own bar.
+        // sheet's own bar. `openMoreMenuItem` then taps More only once it is
+        // hittable: a tap that lands while the sheet is still animating away
+        // is swallowed. The Game Settings sheet's own bar proves it opened.
         dismissSheet(app, until: app.navigationBars["Global Settings"])
-        // Re-tap More until its menu shows: a tap that lands while the sheet
-        // is still animating away is swallowed.
-        let moreAgain = app.buttons["More"].firstMatch
-        XCTAssertTrue(moreAgain.waitForExistence(timeout: 15),
-                      "More menu button not found after dismissing Global Settings")
-        let settingsMenu = app.buttons["Settings"].firstMatch
-        for _ in 0..<3 where !settingsMenu.exists {
-            moreAgain.tap()
-            _ = settingsMenu.waitForExistence(timeout: 5)
-        }
-        XCTAssertTrue(settingsMenu.waitForExistence(timeout: 5), "Settings submenu not found")
-        settingsMenu.tap()
-        let gameSettings = app.buttons["Game Settings"].firstMatch
-        XCTAssertTrue(gameSettings.waitForExistence(timeout: 10), "Game Settings row not found")
-        gameSettings.tap()
+        openMoreMenuItem(app, path: ["Settings", "Game Settings"],
+                         until: app.navigationBars["Game Settings"])
 
         XCTAssertTrue(app.buttons["Rule"].firstMatch.waitForExistence(timeout: 10),
                       "'Rule' row missing from Game Settings")
@@ -493,8 +456,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         app.launch()
 
         // A game must be selected for the "Settings" menu item to appear.
-        tapModelRow(in: app, title: builtInTitle)
-        tapDownloadOrPlay(in: app)        // built-in is bundled → play.fill
+        launchModel(app)
 
         // The board draws before the engine is ready; this test is about what a
         // RUNNING engine puts on it, so wait for the engine to be in sync rather
@@ -502,24 +464,12 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // state (see `waitForEngineThenChangeModel`).
         waitForBoardInSync(app)
 
-        // Open "More" → Settings > Global Settings.
-        let moreButton = app.buttons["More"].firstMatch
-        XCTAssertTrue(moreButton.waitForExistence(timeout: 10), "More menu button not found")
-        moreButton.tap()
-
-        let settings = app.buttons["Settings"].firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 10),
-                      "Settings menu item not found")
-        settings.tap()
-
-        let globalSettingsItem2 = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettingsItem2.waitForExistence(timeout: 10),
-                      "Global Settings menu item not found")
-        globalSettingsItem2.tap()
-
-        // Licenses live under Global Settings ▸ About.
-        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
-                      "Global Settings sheet not shown")
+        // Open "More" → Settings > Global Settings, on a quiet board so the
+        // menu is not rebuilt under the drill. Licenses live under Global
+        // Settings ▸ About.
+        quietBoard(app)
+        openMoreMenuItem(app, path: ["Settings", "Global Settings"],
+                         until: app.navigationBars["Global Settings"])
 
         // The About section sits at the bottom of the (now longer) Global
         // Settings list, so scroll it on screen first.
@@ -555,8 +505,8 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// unchanged across `stableChecks` consecutive polls. A presenting sheet
     /// animates its contents, and `waitForExistence` returns mid-animation, so a
     /// coordinate tap computed against a still-moving frame misses its target.
-    /// Mirrors PlayerNameLabelUITests' `isStablyPresent` stability-polling idea,
-    /// extended from bare `.exists` to frame + hittability. Returns early once
+    /// The same idea as `PortraitUITestCase.isOnScreen(_:in:samples:)`, plus
+    /// hittability. Returns early once
     /// settled; falls through after `timeout` so a genuinely stuck frame still
     /// lets the caller's own assertion report the failure.
     @MainActor
@@ -651,35 +601,10 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         return Int(digits) ?? -1
     }
 
-    @MainActor
-    private func tapModelRow(in app: XCUIApplication, title: String) {
-        XCTAssertTrue(app.navigationBars["Select a Model"].waitForExistence(timeout: 30),
-                      "The model picker is not showing")
-        let row = app.staticTexts[title]
-        // Usually the picker is already at the top and this resolves at once.
-        // It may not be: revealing the cache footer leaves the list at the
-        // bottom, and from there the top rows are not even in the tree — iOS
-        // 27 keeps nearby off-screen rows but drops far ones (2026-09-26:
-        // "Model row not found" right after the footer reveal). So no
-        // existence assertion first: wait briefly (a fresh launch may still be
-        // filling the list, and a swipe down on a list already at its top
-        // would dismiss the sheet), then scroll back up until the row is ON
-        // SCREEN. `reveal` only swipes while the row is not on screen.
-        _ = row.waitForExistence(timeout: 5)
-        XCTAssertTrue(reveal(row, in: app, by: { app.swipeDown() }),
-                      "Model row never came on screen: \(title)")
-        row.tap()
-    }
-
-    @MainActor
-    private func tapDownloadOrPlay(in app: XCUIApplication) {
-        let button = app.buttons["ModelDetailView.downloadPlayButton"]
-        XCTAssertTrue(button.waitForExistence(timeout: 10),
-                      "ModelDetailView.downloadPlayButton not found")
-        button.tap()
-    }
-
-    /// Launches the engine on a non-built-in model that is ALREADY on disk.
+    /// Switches the running engine to a non-built-in model that is ALREADY
+    /// on disk, from the picker Change model raised, and waits until the new
+    /// engine is in sync (`switchModel`: the board already read "inSync" for
+    /// the old engine, so only a restart seen from the Play tap proves it).
     ///
     /// The trash button is the app's own signal that the file is present: it
     /// renders only when `ModelDetailView` found the model at its
@@ -690,6 +615,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// file is not staged, fail and say so, rather than quietly going online.
     @MainActor
     private func launchStagedModel(in app: XCUIApplication) {
+        openModelDetail(app, title: lionffenTitle)
         let trash = app.buttons["ModelDetailView.trashButton"]
         XCTAssertTrue(
             trash.waitForExistence(timeout: 15),
@@ -697,7 +623,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
             "and UI tests must stay offline. The '\(stageModelArg)' launch argument " +
             "should have staged it before launch; check ModelStagingUITestSupport, " +
             "whose failures print a line beginning 'UITEST STAGING FAILED'.")
-        tapDownloadOrPlay(in: app)
+        switchModel(app, to: lionffenTitle)
     }
 
     /// After tapping play, the engine launches and the goban (GameSplitView)
@@ -707,8 +633,8 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
     /// the same board. No confirmation dialog: nothing is destroyed.
     ///
     /// Reach it via the board "More" ▸ Settings ▸ Global Settings (the same
-    /// path the passing display-preferences /
-    /// licenses tests use).
+    /// path the display-preferences and licenses tests use), on a quieted
+    /// board so that engine replies do not collapse the menu mid-drill.
     @MainActor
     private func waitForEngineThenChangeModel(in app: XCUIApplication, label: String) {
         // Wait for the board AND for the engine to have caught up with it.
@@ -724,18 +650,9 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         waitForBoardInSync(app)
 
         // Board "More" → Settings > Global Settings.
-        let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found (\(label))")
-        more.tap()
-        let settings = app.buttons["Settings"].firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found (\(label))")
-        settings.tap()
-        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10),
-                      "Global Settings menu item not found (\(label))")
-        globalSettingsItem.tap()
-        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
-                      "Global Settings sheet not shown (\(label))")
+        quietBoard(app)
+        openMoreMenuItem(app, path: ["Settings", "Global Settings"],
+                         until: app.navigationBars["Global Settings"])
 
         // Engine ▸ Model row. It sits near the bottom of the (long) Global
         // Settings list, so scroll it on screen.

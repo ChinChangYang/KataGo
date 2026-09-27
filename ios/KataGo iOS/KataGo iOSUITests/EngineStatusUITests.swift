@@ -5,7 +5,8 @@
 //  The board never waits for the engine — end to end, on a real simulator.
 //
 //  Everything else in this target waits for `Board.sync` and then drives a
-//  board it knows is live. These three tests are about the window BEFORE that:
+//  board it knows is live. These tests are about the window BEFORE that (and,
+//  in testChangeModelKeepsBoard, about the board surviving an engine swap):
 //  the state in which no engine exists at all, and the seconds (or, on a cold
 //  simulator, minutes) while a model loads — which used to be a spinning launch
 //  screen and is now a usable board with a status line over it.
@@ -41,7 +42,6 @@ import XCTest
 
 final class EngineStatusUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let pickerTitle = "Select a Model"
 
     // MARK: - The board mounts before the engine
@@ -80,7 +80,7 @@ final class EngineStatusUITests: PortraitUITestCase {
         XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
                       "Tapping the sparkle with no engine did not open the model picker")
 
-        launchBuiltInEngine(app)
+        launchModel(app)
 
         // Best-effort: on a cold cache this is on screen for minutes, on a warm
         // one it can be gone before the first poll. Never a gate — see the file
@@ -99,31 +99,16 @@ final class EngineStatusUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        launchBuiltInEngine(app)
-
-        // `Board.sync` rather than a toolbar button: it exists iff `BoardView`
-        // is mounted, which is exactly the claim. (The "Lock" button is no use
-        // here — the same button reads "Unlock" whenever the open record is a
-        // pristine New Game.)
-        let board = app.otherElements["Board.sync"]
-        XCTAssertTrue(board.waitForExistence(timeout: 240),
-                      "The board never appeared after launching the built-in engine")
+        launchModel(app)
         waitForBoardInSync(app)
 
         // More ▸ Settings ▸ Global Settings ▸ Engine ▸ Model. No confirmation
         // dialog: nothing is being destroyed, so there is nothing to confirm.
-        let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-        more.tap()
-        let settings = app.buttons["Settings"].firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 10), "Settings menu item not found")
-        settings.tap()
-        let globalSettingsItem = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettingsItem.waitForExistence(timeout: 10),
-                      "Global Settings menu item not found")
-        globalSettingsItem.tap()
-        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
-                      "Global Settings sheet not shown")
+        // The board is quieted first, so engine replies do not collapse the
+        // menu mid-drill.
+        quietBoard(app)
+        openMoreMenuItem(app, path: ["Settings", "Global Settings"],
+                         until: app.navigationBars["Global Settings"])
 
         let changeModelRow = app.descendants(matching: .any)
             .matching(identifier: "GlobalSettingsView.changeModelRow").firstMatch
@@ -141,16 +126,14 @@ final class EngineStatusUITests: PortraitUITestCase {
                       "Global Settings did not close after Change model")
         XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 60),
                       "Model picker did not appear after Change model")
-        launchBuiltInEngine(app)
 
-        // THE assertion: the board is on screen the moment the sheet closes,
-        // with the replacement engine still coming up behind it. A flow that
-        // unmounted the tree would leave a launch screen here instead.
-        XCTAssertTrue(board.waitForExistence(timeout: 20),
-                      "The board was taken down by a model change")
-
-        waitForBoardInSync(app)
-        XCTAssertTrue(board.exists, "The board disappeared once the engine came back")
+        // THE assertion, inside `switchModel`: the board stays in the tree
+        // from the Play tap until the replacement engine is in sync, and the
+        // engine really did restart in between. `Board.sync` merely existing
+        // proved neither: it was there, reading "inSync" for the old engine,
+        // the whole time the picker covered it. A flow that unmounted the
+        // tree would leave a launch screen here instead.
+        switchModel(app)
     }
 
     // MARK: - Navigation with no engine
@@ -192,7 +175,7 @@ final class EngineStatusUITests: PortraitUITestCase {
         sparkle.tap()
         XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
                       "Tapping the sparkle with no engine did not open the model picker")
-        launchBuiltInEngine(app)
+        launchModel(app)
         waitForBoardInSync(app)
     }
 
@@ -231,7 +214,7 @@ final class EngineStatusUITests: PortraitUITestCase {
         sparkle.tap()
         XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
                       "Tapping the sparkle with no engine did not open the model picker")
-        launchBuiltInEngine(app)
+        launchModel(app)
         waitForBoardInSync(app)
         XCTAssertEqual(k10.value as? String, "Black stone",
                        "The stone played before the engine arrived did not survive the resync")
@@ -268,18 +251,19 @@ final class EngineStatusUITests: PortraitUITestCase {
 
         // (Whether a second human tap is refused on the AI's turn depends on
         // the analysis preference — paused, the AI does not move and either
-        // colour may be played, and `startFreshGame`'s Back tap paused it via
-        // `BoardView.onDisappear` — so that gate is pinned by
-        // `GobanStateLocalPlayTests.aiSideBlocksTheGate`, not here.)
+        // colour may be played — so that gate is pinned by
+        // `GobanStateLocalPlayTests.aiSideBlocksTheGate`, not here.
+        // `startFreshGame` stays on the board, so the preference is still at
+        // its default, running.)
 
-        // The engine arrives — picked from the sparkle, which arms analysis
-        // back to run — is fed the record, and answers for White.
+        // The engine arrives — picked from the sparkle, which arms a cleared
+        // preference back to run — is fed the record, and answers for White.
         let sparkle = app.buttons["Toggle Analysis"].firstMatch
         XCTAssertTrue(sparkle.waitForExistence(timeout: 10), "The analysis sparkle was not on screen")
         sparkle.tap()
         XCTAssertTrue(app.navigationBars[pickerTitle].waitForExistence(timeout: 10),
                       "Tapping the sparkle with no engine did not open the model picker")
-        launchBuiltInEngine(app)
+        launchModel(app)
         waitForBoardInSync(app)
 
         let whiteStones = app.buttons.matching(NSPredicate(format: "value == %@", "White stone"))
@@ -332,49 +316,30 @@ final class EngineStatusUITests: PortraitUITestCase {
     /// the game created afterwards would never gen-move, and
     /// `testAIAnswersOnceTheEngineArrives` would wait for a stone that cannot
     /// come.
+    ///
+    /// The proof that the NEW game is showing is the stones going: "More"
+    /// never leaves the tree, the title often reads "New Game" before and
+    /// after, and checking only that K 10 is empty would also pass on the previous
+    /// game, so the capsule flip that follows would go to that game instead.
+    /// Stones going proves nothing on a board that had none, and the launch
+    /// often selects an empty "New Game" an earlier test left, so such a
+    /// board gets a stone first: A 1 exists on every board size, and a human
+    /// move needs no engine (ADR 0018).
     @MainActor
     private func startFreshGame(_ app: XCUIApplication) {
-        let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-        more.tap()
-        let newGame = app.buttons["New Game"].firstMatch
-        XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
-        newGame.tap()
-        let emptyBoard = app.buttons["Empty Board"].firstMatch
-        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
-        emptyBoard.tap()
-        // "More" never leaves the tree, so it proves nothing here. Prove the
-        // menu closed and the NEW game is showing: an empty board. Checking
-        // only that K 10 is empty would also pass on the previous game, and
-        // the capsule flip that follows would then go to that game instead.
-        XCTAssertTrue(emptyBoard.waitForNonExistence(timeout: 10), "The New Game menu did not close")
         let stones = app.buttons.matching(
             NSPredicate(format: "value == %@ OR value == %@", "Black stone", "White stone"))
-        let fresh = Date().addingTimeInterval(15)
-        while stones.count > 0 && Date() < fresh { usleep(200_000) }
-        XCTAssertEqual(stones.count, 0, "The new empty game was not selected")
-    }
-
-    /// Picks the built-in network in whatever model picker is currently up (the
-    /// auto-presented one on a debug launch, or the one Change model raises) and
-    /// starts the engine on it.
-    @MainActor
-    private func launchBuiltInEngine(_ app: XCUIApplication) {
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 30),
-                      "Model picker row '\(builtInTitle)' not found")
-        // The picker has usually only just been presented and may still be
-        // sliding up; tap the row once it is on screen.
-        XCTAssertTrue(waitForOnScreen(row, in: app, timeout: 10),
-                      "Model picker row '\(builtInTitle)' not on screen")
-        row.tap()
-        let play = app.buttons["ModelDetailView.downloadPlayButton"]
-        XCTAssertTrue(play.waitForExistence(timeout: 15), "Play button not found")
-        play.tap()
-        // Play closes the picker. Prove it with the picker's own button: the
-        // board, its sparkle and "More" are all in the tree behind the sheet,
-        // so none of them shows the sheet has gone.
-        XCTAssertTrue(play.waitForNonExistence(timeout: 15),
-                      "The model picker did not close after Play")
+        if stones.count == 0 {
+            let a1 = app.buttons["A 1"].firstMatch
+            XCTAssertTrue(tapWhenSteady(a1, in: app, timeout: 15), "A 1 is not on screen")
+            let played = XCTNSPredicateExpectation(
+                predicate: NSPredicate(format: "value != %@", "Empty"), object: a1)
+            XCTAssertEqual(XCTWaiter().wait(for: [played], timeout: 10), .completed,
+                           "A 1 was refused on the launch-selected game, so the switch to a " +
+                           "new game cannot be proven (does that game give Black to the AI?)")
+        }
+        openMoreMenuItem(app, path: ["New Game", "Empty Board"]) { stones.count == 0 }
+        XCTAssertTrue(app.collectionViews.buttons["Empty Board"].waitForNonExistence(timeout: 10),
+                      "The New Game menu did not close")
     }
 }

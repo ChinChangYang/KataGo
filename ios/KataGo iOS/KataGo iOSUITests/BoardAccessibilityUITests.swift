@@ -33,36 +33,19 @@ final class BoardAccessibilityUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        // Launch the engine with the built-in network if the model picker is up.
-        let row = app.staticTexts["Built-in KataGo Network"]
-        if row.waitForExistence(timeout: 20) {
-            row.tap()
-            let play = app.buttons["ModelDetailView.downloadPlayButton"]
-            if play.waitForExistence(timeout: 15) {
-                play.tap()
-            }
-        }
-
+        // Launch the engine with the built-in network from the model picker.
         // The board draws before the engine is ready, so wait for the ENGINE
         // to be in sync with it rather than for a toolbar button to exist.
+        launchModel(app)
         waitForBoardInSync(app)
 
         // A fresh New Game gives a deterministic empty Human-vs-Human 19x19
         // board (the auto-selected game may persist an AI-vs-AI configuration
-        // whose auto-played move locks the board into a branch state).
-        let back = app.navigationBars.buttons.element(boundBy: 0)  // leading = Back ("Games")
-        if back.waitForExistence(timeout: 5) { back.tap() }
-        let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-        more.tap()
-        let newGame = app.buttons["New Game"].firstMatch
-        XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
-        newGame.tap()
-        let emptyBoard = app.buttons["Empty Board"].firstMatch
-        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
-        emptyBoard.tap()
-        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
-                      "New game board did not appear (More button missing)")
+        // whose auto-played move locks the board into a branch state). From
+        // the Games list, where the new board is pushed and can be told from
+        // the old one.
+        showGamesList(app)
+        openEmptyBoard(app)
         return app
     }
 

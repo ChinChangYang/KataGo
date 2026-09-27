@@ -18,49 +18,27 @@ final class GlobalSettingsMenuUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        // Get past the model picker if it is up (Debug always shows it).
-        let row = app.staticTexts["Built-in KataGo Network"]
-        if row.waitForExistence(timeout: 20) {
-            row.tap()
-            let play = app.buttons["ModelDetailView.downloadPlayButton"]
-            if play.waitForExistence(timeout: 15) {
-                play.tap()
-            }
-        }
-
-        // The board draws before the engine is ready, so wait for the ENGINE
-        // to be in sync with it rather than for a toolbar button to exist.
+        // Get past the model picker (every Debug launch shows it). The board
+        // draws before the engine is ready, so wait for the ENGINE to be in
+        // sync with it rather than for a toolbar button to exist.
+        launchModel(app)
         waitForBoardInSync(app)
 
         // Pop back to the game list so no game is selected (compact width).
-        // The back button carries the previous screen's title when it fits.
-        let boardBar = app.navigationBars.firstMatch
-        let namedBack = boardBar.buttons["Games"]
-        if namedBack.waitForExistence(timeout: 5) {
-            namedBack.tap()
-        } else {
-            boardBar.buttons.element(boundBy: 0).tap()  // leading = Back
-        }
-        XCTAssertTrue(app.navigationBars["Games"].waitForExistence(timeout: 10),
-                      "Game list did not appear")
+        showGamesList(app)
+
+        // Check that premise before relying on it: the list's bar says the
+        // list is showing, not that the selection is empty. This Game is on
+        // the menu only while a game is selected.
+        openMoreMenuItem(app, path: [], until: app.collectionViews.buttons["Settings"].firstMatch)
+        XCTAssertFalse(app.collectionViews.buttons["This Game"].exists,
+                       "A game is still selected on the Games list: its More offers This Game")
 
         // The dots menu must contain Settings > Global Settings with no game
-        // selected.
-        let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-        more.tap()
-        let settings = app.buttons["Settings"].firstMatch
-        XCTAssertTrue(settings.waitForExistence(timeout: 10),
-                      "Settings menu item not found")
-        settings.tap()
-        let globalSettings = app.buttons["Global Settings"].firstMatch
-        XCTAssertTrue(globalSettings.waitForExistence(timeout: 10),
-                      "Global Settings menu item not found")
-        globalSettings.tap()
-
-        // The Global Settings sheet opens.
-        XCTAssertTrue(app.navigationBars["Global Settings"].waitForExistence(timeout: 15),
-                      "Global Settings sheet not shown")
+        // selected. The drill carries on from the menu already open, and the
+        // sheet's own bar is the proof it opened.
+        openMoreMenuItem(app, path: ["Settings", "Global Settings"],
+                         until: app.navigationBars["Global Settings"])
 
         // Accessibility ▸ Voice Control must be reachable from here: the whole
         // point of the screen is that a user who does not know what to say can

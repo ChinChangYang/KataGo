@@ -24,7 +24,6 @@ import XCTest
 
 final class PlayerNameLabelUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let humanLabel = "Human"
 
     @MainActor
@@ -238,32 +237,22 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         }
     }
 
-    /// Taps a context-menu item once it is stably present: an open SwiftUI
-    /// menu collapses when an ancestor re-renders under engine churn, and a
-    /// tap on a flickering element aborts the test.
+    /// Taps a context-menu item once it is on screen and steady: an open
+    /// SwiftUI menu collapses when an ancestor re-renders under engine
+    /// churn, and a tap on an item that just left aborts the test.
     @MainActor
     private func tapMenuItem(_ app: XCUIApplication, _ title: String) {
-        let item = app.buttons[title].firstMatch
-        XCTAssertTrue(item.waitForExistence(timeout: 10), "Menu item '\(title)' not found")
-        for _ in 0..<10 where !isStablyPresent(item) { usleep(200_000) }
-        item.tap()
+        XCTAssertTrue(tapWhenSteady(app.buttons[title].firstMatch, in: app, timeout: 10),
+                      "Menu item '\(title)' not found, or never held still")
     }
 
     @MainActor
     private func launchToBoard(_ app: XCUIApplication) {
         app.launch()
 
-        // Launch the engine with the built-in network if the model picker is up.
-        let row = app.staticTexts[builtInTitle]
-        if row.waitForExistence(timeout: 20) {
-            row.tap()
-            let play = app.buttons["ModelDetailView.downloadPlayButton"]
-            if play.waitForExistence(timeout: 15) {
-                play.tap()
-            }
-        }
-
-        // The engine-ready sentinel every class in this target shares.
+        // Launch the engine with the built-in network from the model picker,
+        // then the engine-ready sentinel every class in this target shares.
+        launchModel(app)
         waitForBoardInSync(app)
 
         // Start from a fresh New Game so the AI config is deterministic: the
@@ -274,80 +263,24 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         // AI-vs-AI game breaks this test — the same recovery the retired
         // KataGo_iOSUITests.testCaptureReadmeScreens used, before
         // Screenshots/capture_screenshots.sh took over the README images.
-        let back = app.navigationBars.buttons.element(boundBy: 0)  // leading = Back ("Games")
-        if back.waitForExistence(timeout: 5) { back.tap() }
-        let more = app.buttons["More"].firstMatch
-        XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-        more.tap()
-        let newGame = app.buttons["New Game"].firstMatch
-        XCTAssertTrue(newGame.waitForExistence(timeout: 10), "New Game menu item not found")
-        newGame.tap()
-        let emptyBoard = app.buttons["Empty Board"].firstMatch
-        XCTAssertTrue(emptyBoard.waitForExistence(timeout: 10), "Empty Board menu item not found")
-        emptyBoard.tap()
-        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
-                      "New game board did not appear (More button missing)")
+        // From the Games list, where the new board is pushed and can be told
+        // from the launch-selected one, which is usually a "New Game" too.
+        showGamesList(app)
+        openEmptyBoard(app)
 
-        // Quiet the board before the test drives the toolbar menu. The engine's
-        // new-game setup churns the board, which rebuilds the toolbar host and
-        // resets an open nested "Settings" submenu back to its parent level, so
-        // the "Game Settings" item flickers and can't be tapped ("Game Settings
-        // not found" / a tap that can't get a stable snapshot). Wait until
-        // analysis is established (a winrate label = the setup transient is over)
-        // and only THEN pause analysis (one tap on the sparkle: run -> pause, the
-        // only iOS writer of analysisStatus) so no further updates re-render the
-        // board. Pausing during the transient does NOT help — the setup churn
-        // continues regardless. The pause holds for the whole test; the config
-        // screens are analysis-independent and the player-name labels are
-        // config-driven.
-        let winrate = app.staticTexts.matching(identifier: "AnalysisView.winrate").firstMatch
-        _ = winrate.waitForExistence(timeout: 120)
-        let analysisToggle = app.buttons["Toggle Analysis"].firstMatch
-        if analysisToggle.waitForExistence(timeout: 10) { analysisToggle.tap() }
-        // Let the pause's "stop" ack drain and the cold engine's new-game setup
-        // finish so the toolbar host stops re-rendering (that churn is what
-        // collapses the nested submenu). openAIConfig additionally gates its tap
-        // on the item being stably present, so residual flicker is tolerated.
-        usleep(3_000_000)  // 3s settle
+        // Quiet the board before the test drives the toolbar menu: the new
+        // game's engine setup rebuilds the toolbar host, which collapses an
+        // open "Settings" submenu back to its parent. Analysis stays off for
+        // the whole test; the config screens do not need it, and the
+        // player-name labels are config-driven.
+        quietBoard(app)
     }
 
     /// More ▸ Settings ▸ Game Settings ▸ AI.
     @MainActor
     private func openAIConfig(_ app: XCUIApplication) {
-        // Drill More ▸ Settings ▸ Game Settings. The parent popover is stable,
-        // but tapping "Settings" opens a nested submenu that a PlusMenuView
-        // re-render (cold-engine new-game setup churn) can collapse back to the
-        // parent, so the "Game Settings" item FLICKERS on/off. Resolving a
-        // flickering element (`.tap()`/`.frame`) aborts the whole test, so gate
-        // the tap: only tap "Game Settings" once it has been continuously present
-        // for a short window (several safe `.exists` polls). Otherwise step the
-        // menu forward (drill into Settings) or re-open "More" when the popover
-        // has fully closed. Success is the Game Settings SHEET appearing.
-        // (`.exists` and `waitForExistence` never abort — only element taps do —
-        // and the parent items More/Settings are stable, so tapping them is safe.)
-        let more = app.buttons["More"].firstMatch
-        let settingsMenu = app.buttons["Settings"].firstMatch
-        let gameSettings = app.buttons["Game Settings"].firstMatch
-        let gameSettingsSheet = app.navigationBars["Game Settings"]
-        for _ in 0..<25 {
-            if gameSettingsSheet.exists { break }
-            if gameSettings.exists {
-                if isStablyPresent(gameSettings) {
-                    gameSettings.tap()                          // stable: open the sheet
-                    _ = gameSettingsSheet.waitForExistence(timeout: 3)
-                }
-                // else: flickering — loop and re-probe for a stable window.
-            } else if settingsMenu.exists {
-                settingsMenu.tap()                              // parent menu open: drill in
-                _ = gameSettings.waitForExistence(timeout: 3)
-            } else {
-                XCTAssertTrue(more.waitForExistence(timeout: 15), "More menu not found")
-                more.tap()                                      // no menu open: reopen
-                _ = settingsMenu.waitForExistence(timeout: 5)
-            }
-        }
-        XCTAssertTrue(gameSettingsSheet.waitForExistence(timeout: 5),
-                      "Game Settings sheet did not open from Settings")
+        openMoreMenuItem(app, path: ["Settings", "Game Settings"],
+                         until: app.navigationBars["Game Settings"])
 
         // Tap the "AI" row scoped to the Settings LIST. A board player capsule
         // behind the sheet is itself a Button labeled "AI" once that side is set
@@ -387,20 +320,6 @@ final class PlayerNameLabelUITests: PortraitUITestCase {
         dismissSheet(app, until: app.navigationBars["Game Settings"])
         XCTAssertTrue(waitForOnScreen(app.buttons["whitePlayerName"], in: app, timeout: 15),
                       "Did not return to the board after dismissing the config sheet")
-    }
-
-    /// True only if `element` stays present across several rapid `.exists`
-    /// polls — used to avoid resolving (tapping) an element that flickers in and
-    /// out (which would abort the test). `.exists` never aborts.
-    @MainActor
-    private func isStablyPresent(_ element: XCUIElement,
-                                 checks: Int = 5,
-                                 gapMicros: UInt32 = 60_000) -> Bool {
-        for _ in 0..<checks {
-            if !element.exists { return false }
-            usleep(gapMicros)
-        }
-        return element.exists
     }
 
     // MARK: - Stepper helper

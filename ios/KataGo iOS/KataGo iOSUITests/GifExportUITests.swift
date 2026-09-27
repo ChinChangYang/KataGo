@@ -23,7 +23,6 @@ import XCTest
 
 final class GifExportUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let seedName = "UITest GIF Game"
     private let seedLaunchArg = "--uitest-seed-gif-game"
 
@@ -32,12 +31,11 @@ final class GifExportUITests: PortraitUITestCase {
         let app = makeApp(seedLaunchArg)
         launchToSeededGameBoard(app)
 
-        // More ▸ This Game ▸ Export GIF.
-        app.buttons["More"].firstMatch.tapAfterExists(self, "More menu")
-        app.buttons["This Game"].firstMatch.tapAfterExists(self, "This Game submenu")
-        app.buttons["Export GIF"].firstMatch.tapAfterExists(self, "Export GIF item")
-        XCTAssertTrue(app.navigationBars["Export GIF"].waitForExistence(timeout: 10),
-                      "Export GIF sheet did not appear")
+        // More ▸ This Game ▸ Export GIF, on the board launchToSeededGameBoard
+        // quieted: opening a game rebuilds the menu, and a submenu collapses
+        // under a single tap (see openMoreMenuItem).
+        openMoreMenuItem(app, path: ["This Game", "Export GIF"],
+                         until: app.navigationBars["Export GIF"])
 
         let preview = descendant(app, "gifPreview")
         // The freeze glyph, matched by identifier OR label so it resolves whatever
@@ -133,25 +131,32 @@ final class GifExportUITests: PortraitUITestCase {
         app.launch()
 
         // DEBUG forces the model picker — launch the built-in network.
-        let row = app.staticTexts[builtInTitle]
-        if row.waitForExistence(timeout: 20) {
-            row.tap()
-            let play = app.buttons["ModelDetailView.downloadPlayButton"]
-            if play.waitForExistence(timeout: 15) { play.tap() }
-        }
         // Engine-ready sentinel: the board itself draws before the engine is
         // up, so a toolbar button existing proves nothing any more.
+        launchModel(app)
         waitForBoardInSync(app)
 
-        // Reveal the Games list (leading nav-bar button), then open the seed.
-        // Prove the list appeared: a Back tap dropped while analysis re-renders
-        // the board would otherwise surface later as "Seeded game not found".
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertTrue(waitForOnScreen(back, in: app, timeout: 10),
-                      "The board's leading bar button is not on screen")
-        back.tap()
-        XCTAssertTrue(app.navigationBars["Games"].waitForExistence(timeout: 10),
-                      "The Games list did not appear after Back")
+        // Back to the Games list, then open the seed. The list is proven: a
+        // Back tap dropped while analysis re-renders the board would
+        // otherwise surface later as "Seeded game not found".
+        showGamesList(app)
+
+        // Search for the seed by name. The list pre-fills its search with the
+        // SELECTED game's name, and the launch selects the newest game; the
+        // seed makes itself the newest at launch, but on 2026-09-26 the first
+        // launch after a simulator boot selected a leftover "New Game", and
+        // the pre-fill filtered the seed out ("Seeded game not found"). That
+        // launch followed one the system had made in the background at boot
+        // to service stale Listening Live Activities.
+        let search = app.searchFields.firstMatch
+        XCTAssertTrue(waitForOnScreen(search, in: app, timeout: 10),
+                      "The Games list's search field is not on screen")
+        if search.value as? String != seedName {
+            search.tap()
+            let clear = search.buttons["Clear text"]
+            if clear.exists { clear.tap() }
+            search.typeText(seedName)
+        }
 
         let cell = app.staticTexts[seedName].firstMatch  // GameLinkView Text(name)
         XCTAssertTrue(cell.waitForExistence(timeout: 15),
@@ -160,9 +165,14 @@ final class GifExportUITests: PortraitUITestCase {
                       "Seeded game '\(seedName)' never came on screen in the list")
         cell.tap()
 
-        // Committed main line, both sides Human -> More visible, no branch.
-        XCTAssertTrue(app.buttons["More"].firstMatch.waitForExistence(timeout: 60),
-                      "Seeded game board did not appear (More button missing)")
+        // The seeded game's board is showing once its name is the bar's
+        // title, which is a button. "More" existing proved nothing: the Games
+        // list has a More of its own.
+        XCTAssertTrue(waitForOnScreen(app.navigationBars.buttons[seedName], in: app, timeout: 60),
+                      "Seeded game board did not appear (no '\(seedName)' title)")
+        // Opening the game fed it to the engine, and the replies rebuild the
+        // toolbar; the export itself needs no analysis.
+        quietBoard(app)
     }
 
     // MARK: - Helpers
@@ -180,14 +190,5 @@ final class GifExportUITests: PortraitUITestCase {
         let deadline = Date().addingTimeInterval(timeout)
         while element.exists && Date() < deadline { usleep(150_000) }
         return !element.exists
-    }
-}
-
-private extension XCUIElement {
-    /// Wait for existence, assert, then tap — trims repetitive boilerplate.
-    @MainActor
-    func tapAfterExists(_ test: XCTestCase, _ name: String, timeout: TimeInterval = 15) {
-        XCTAssertTrue(waitForExistence(timeout: timeout), "\(name) not found")
-        tap()
     }
 }

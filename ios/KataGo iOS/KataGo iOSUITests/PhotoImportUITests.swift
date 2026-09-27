@@ -23,7 +23,6 @@ import XCTest
 
 final class PhotoImportUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let photoImportArg = "--uitest-photo-import"
     private let sheetTitle = "Import from Photo"
     private let importedGameName = "UITest Photo Board"
@@ -34,17 +33,14 @@ final class PhotoImportUITests: PortraitUITestCase {
         app.launch()
 
         // DEBUG forces the model picker — launch the built-in network. Once the
-        // engine is up GameSplitView mounts and the DEBUG hook auto-presents the
-        // photo-import sheet with the bundled board.
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 20), "Model picker row '\(builtInTitle)' not found")
-        row.tap()
-        let play = app.buttons["ModelDetailView.downloadPlayButton"]
-        XCTAssertTrue(play.waitForExistence(timeout: 15), "Play button not found")
-        play.tap()
+        // picker has closed, the DEBUG hook auto-presents the photo-import
+        // sheet with the bundled board; it does not wait for the engine.
+        launchModel(app)
 
-        // --- Sheet appears. Long timeout: engine launch + on-the-fly CoreML
-        // conversion is slow on the simulator's software path. ---
+        // --- Sheet appears. The hook presents it about 600 ms after the picker
+        // closes, without waiting for the engine; the long timeout is headroom
+        // for a simulator busy with the engine's launch and Core ML
+        // conversion, which run at the same time. ---
         let title = app.staticTexts[sheetTitle]
         XCTAssertTrue(title.waitForExistence(timeout: 360),
                       "PhotoImportSheet ('\(sheetTitle)') never appeared — the launch-arg hook did not reach the sheet")

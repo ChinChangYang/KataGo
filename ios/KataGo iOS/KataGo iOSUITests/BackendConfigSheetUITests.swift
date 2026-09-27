@@ -30,7 +30,6 @@ import XCTest
 // behind, but must not depend on one.
 final class BackendConfigSheetUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let boardSizes = ["9x9", "13x13", "19x19", "37x37"]
     private let backends = ["MLX/GPU", "CoreML/NE", "GPU+ANE"]
 
@@ -39,13 +38,10 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        // Navigate from the model list into the built-in model's detail view.
-        // Done once: dismissing the config sheet returns here, not to the list,
-        // so the reopen below must NOT tap the row again (the title also shows
-        // as the detail nav title → multiple matches).
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(builtInTitle)")
-        row.tap()
+        // Navigate from the model list into the built-in model's detail view,
+        // without launching it. Done once: dismissing the config sheet returns
+        // here, not to the list, so the reopen below must NOT open it again.
+        openModelDetail(app)
 
         openBackendSheet(in: app)
 
@@ -95,9 +91,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(builtInTitle)")
-        row.tap()
+        openModelDetail(app)
 
         openBackendSheet(in: app)
 
@@ -146,9 +140,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(builtInTitle)")
-        row.tap()
+        openModelDetail(app)
 
         openBackendSheet(in: app)
 
@@ -179,9 +171,7 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
         let app = makeApp()
         app.launch()
 
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 15), "Model row not found: \(builtInTitle)")
-        row.tap()
+        openModelDetail(app)
 
         openBackendSheet(in: app)
 

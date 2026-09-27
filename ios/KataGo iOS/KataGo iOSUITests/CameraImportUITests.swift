@@ -36,7 +36,6 @@ import XCTest
 
 final class CameraImportUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let cameraImportArg = "--uitest-camera-import"
     private let cameraImportFailingArg = "--uitest-camera-import-failing"
     private let deniedPermissionArg = "--uitest-camera-permission-denied"
@@ -46,10 +45,12 @@ final class CameraImportUITests: PortraitUITestCase {
     func testCameraImportShowsPreviewWithRetakeAbsent() throws {
         let app = makeApp(cameraImportArg)
         app.launch()
-        launchBuiltInEngine(app)
+        launchModel(app)
 
-        // The sheet appears. Long timeout: engine launch + on-the-fly CoreML
-        // conversion is slow on the simulator's software path.
+        // The sheet appears. The hook presents it about 600 ms after the
+        // picker closes, without waiting for the engine; the long timeout is
+        // headroom for a simulator busy with the engine's launch and Core ML
+        // conversion, which run at the same time.
         let title = app.staticTexts[sheetTitle]
         XCTAssertTrue(title.waitForExistence(timeout: 360),
                       "PhotoImportSheet ('\(sheetTitle)') never appeared — the camera launch-arg hook did not reach the sheet")
@@ -78,7 +79,7 @@ final class CameraImportUITests: PortraitUITestCase {
     func testCameraImportFailureOffersRetakeAndReopensCamera() throws {
         let app = makeApp(cameraImportFailingArg, deniedPermissionArg)
         app.launch()
-        launchBuiltInEngine(app)
+        launchModel(app)
 
         // The sheet appears, then recognition of the non-board image fails, so
         // the retry button (camera title "Retake", identifier
@@ -118,19 +119,6 @@ final class CameraImportUITests: PortraitUITestCase {
     }
 
     // MARK: - Helpers
-
-    /// DEBUG forces the model picker — launch the built-in network. Once the
-    /// engine is up, GameSplitView mounts and the DEBUG camera hook auto-presents
-    /// the photo-import sheet.
-    @MainActor
-    private func launchBuiltInEngine(_ app: XCUIApplication) {
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 20), "Model picker row '\(builtInTitle)' not found")
-        row.tap()
-        let play = app.buttons["ModelDetailView.downloadPlayButton"]
-        XCTAssertTrue(play.waitForExistence(timeout: 15), "Play button not found")
-        play.tap()
-    }
 
     /// Failure text for the reopen assertion, naming the state the app is
     /// actually in. Built only when the assertion fails (the message is an

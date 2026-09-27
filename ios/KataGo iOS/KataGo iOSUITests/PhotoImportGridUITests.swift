@@ -39,14 +39,13 @@ import XCTest
 // a `maxWidth` cap or a `layoutPriority(-1)` regression that does not exist.
 final class PhotoImportGridUITests: PortraitUITestCase {
 
-    private let builtInTitle = "Built-in KataGo Network"
     private let sheetTitle = "Import from Photo"
 
     @MainActor
     func testGridRecoveryImportsBoardAfterCornerDrags() throws {
         let app = makeApp("--uitest-crop-import")
         app.launch()
-        launchBuiltInEngine(app)
+        launchModel(app)
 
         let title = app.staticTexts[sheetTitle]
         XCTAssertTrue(title.waitForExistence(timeout: 360),
@@ -122,7 +121,7 @@ final class PhotoImportGridUITests: PortraitUITestCase {
     func testAdjustGridFromPreviewAndBackPreservesPreview() throws {
         let app = makeApp("--uitest-camera-import") // recognizable board → preview
         app.launch()
-        launchBuiltInEngine(app)
+        launchModel(app)
 
         let board = app.descendants(matching: .any)["PhotoImportSheet.board"].firstMatch
         XCTAssertTrue(board.waitForExistence(timeout: 360), "Preview board never appeared")
@@ -163,7 +162,7 @@ final class PhotoImportGridUITests: PortraitUITestCase {
                           "-UIPreferredContentSizeCategoryName",
                           "UICTContentSizeCategoryAccessibilityXXXL")
         app.launch()
-        launchBuiltInEngine(app)
+        launchModel(app)
 
         let board = app.descendants(matching: .any)["PhotoImportSheet.board"].firstMatch
         XCTAssertTrue(board.waitForExistence(timeout: 360), "Preview board never appeared")
@@ -188,19 +187,6 @@ final class PhotoImportGridUITests: PortraitUITestCase {
     }
 
     // MARK: - Helpers
-
-    /// DEBUG forces the model picker — launch the built-in network. Once the
-    /// engine is up, GameSplitView mounts and the DEBUG hook auto-presents
-    /// the photo-import sheet.
-    @MainActor
-    private func launchBuiltInEngine(_ app: XCUIApplication) {
-        let row = app.staticTexts[builtInTitle]
-        XCTAssertTrue(row.waitForExistence(timeout: 20), "Model picker row '\(builtInTitle)' not found")
-        row.tap()
-        let play = app.buttons["ModelDetailView.downloadPlayButton"]
-        XCTAssertTrue(play.waitForExistence(timeout: 15), "Play button not found")
-        play.tap()
-    }
 
     @MainActor
     private func drag(_ element: XCUIElement, from: CGVector, to: CGVector) {
