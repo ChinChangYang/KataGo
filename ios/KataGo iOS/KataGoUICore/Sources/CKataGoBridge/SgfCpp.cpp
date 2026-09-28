@@ -76,7 +76,7 @@ PlacementColorCpp PlacementCpp::getColor() const {
     return _color;
 }
 
-SgfCpp::SgfCpp(const string& str) : sgf(nullptr), _xSize(0), _ySize(0) {
+SgfCpp::SgfCpp(const string& str) : sgf(nullptr), _xSize(0), _ySize(0), _initialPlayer(PlacementColorCpp::empty) {
     try {
         sgf = Sgf::parse(str).release();
         if (sgf != NULL) {
@@ -85,6 +85,7 @@ SgfCpp::SgfCpp(const string& str) : sgf(nullptr), _xSize(0), _ySize(0) {
             _ySize = size.y;
             traverseSgf(sgf);
             collectPlacements(sgf);
+            readInitialPlayer(sgf);
         }
     } catch (...) {
         sgf = NULL;
@@ -114,6 +115,25 @@ void SgfCpp::collectPlacements(const void* sgf) {
         }
     } catch (...) {
         placements.clear();
+    }
+}
+
+void SgfCpp::readInitialPlayer(const void* sgf) {
+    // Its own try, like the placements: a PL with several values throws, and
+    // that is "no side named", not an unreadable record.
+    try {
+        const Sgf* parsed = (const Sgf*)sgf;
+        if (parsed->nodes.empty()) {
+            return;
+        }
+        Color pla = parsed->nodes[0]->getPLSpecifiedColor();
+        if (pla == P_BLACK) {
+            _initialPlayer = PlacementColorCpp::black;
+        } else if (pla == P_WHITE) {
+            _initialPlayer = PlacementColorCpp::white;
+        }
+    } catch (...) {
+        _initialPlayer = PlacementColorCpp::empty;
     }
 }
 
@@ -191,6 +211,10 @@ unsigned long SgfCpp::getMovesSize() const {
 
 unsigned long SgfCpp::getPlacementsSize() const {
     return placements.size();
+}
+
+PlacementColorCpp SgfCpp::getInitialPlayer() const {
+    return _initialPlayer;
 }
 
 PlacementCpp SgfCpp::getPlacementAt(const int index) const {

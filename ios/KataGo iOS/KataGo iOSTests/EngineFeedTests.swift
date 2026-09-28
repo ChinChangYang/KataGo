@@ -129,6 +129,84 @@ struct EngineFeedTests {
         #expect(commands.contains("play b Q16"))
     }
 
+    // MARK: - Side to move
+
+    /// The opening commands that stand the engine on the position, in order:
+    /// the setup command, the side to move when the setup does not leave it,
+    /// then the plays. Checked to come after every rule and parameter.
+    private func feedAfterSetup(_ sgf: String, targetIndex: Int = 0) throws -> [String] {
+        var r = try replay(sgf)
+        let commands = EngineFeed.openingCommands(replay: &r, config: Config(), targetIndex: targetIndex)
+        let positional = commands.filter {
+            $0.hasPrefix("set_") || $0.hasPrefix("kata-set-initial-player ") || $0.hasPrefix("play ")
+        }
+        #expect(Array(commands.suffix(positional.count)) == positional)
+        return positional
+    }
+
+    @Test("A chosen White on a mixed setup is told to the engine, which set_position leaves on Black")
+    func whiteOnAMixedSetupIsTold() throws {
+        let sgf = "(;GM[1]FF[4]SZ[9]RU[tromp-taylor]KM[7.5]PL[W]AB[cc][gg]AW[cg])"
+        var r = try replay(sgf)
+        #expect(r.position(at: 0).toMove == .white)
+        #expect(try feedAfterSetup(sgf) == ["set_position b C7 b G3 w C3", "kata-set-initial-player w"])
+    }
+
+    @Test("A chosen Black on an all-Black setup is told to the engine, which set_free_handicap leaves on White")
+    func blackOnAnAllBlackSetupIsTold() throws {
+        let sgf = "(;GM[1]FF[4]SZ[9]RU[tromp-taylor]KM[7.5]PL[B]AB[cc][gg])"
+        var r = try replay(sgf)
+        #expect(r.position(at: 0).toMove == .black)
+        #expect(try feedAfterSetup(sgf) == ["set_free_handicap C7 G3", "kata-set-initial-player b"])
+    }
+
+    @Test("White to move on an empty board is told with no setup command")
+    func whiteOnAnEmptyBoardIsTold() throws {
+        #expect(try feedAfterSetup("(;GM[1]FF[4]SZ[9]PL[W])") == ["kata-set-initial-player w"])
+    }
+
+    @Test("Nothing is told when the setup already leaves the side to move", arguments: [
+        "(;GM[1]FF[4]SZ[9]PL[B]AB[cc]AW[gg])",
+        "(;GM[1]FF[4]SZ[9]AB[cc]AW[gg])",
+        "(;GM[1]FF[4]SZ[9]PL[W]AB[cc][gg])",
+        "(;GM[1]FF[4]SZ[9]AB[cc][gg])",
+        "(;GM[1]FF[4]SZ[9])",
+        "(;GM[1]FF[4]SZ[9]HA[2]AB[cc][gg]PL[W];W[ee])",
+        // B[ee] is refused (E5 is taken) and never sent: W[dd] is the first
+        // move the engine gets, the side set_free_handicap already leaves.
+        "(;GM[1]FF[4]SZ[9]AB[ee];B[ee];W[dd];B[cc])",
+    ])
+    func nothingToTellWhenTheSetupAgrees(sgf: String) throws {
+        var r = try replay(sgf)
+        let commands = EngineFeed.openingCommands(replay: &r, config: Config(), targetIndex: r.moveCount)
+        #expect(!commands.contains { $0.hasPrefix("kata-set-initial-player") })
+    }
+
+    /// The first move decides the side before it, so it goes out in turn
+    /// rather than as a colour repeat the engine would clear its history for.
+    @Test("A first move of the other colour is told before it is played")
+    func theFirstMoveIsToldBeforeItIsPlayed() throws {
+        let sgf = "(;GM[1]FF[4]SZ[9]AB[cc]AW[gg];W[ee];B[dd])"
+        #expect(try feedAfterSetup(sgf, targetIndex: 2)
+                == ["set_position b C7 w G3", "kata-set-initial-player w", "play w E5", "play b D6"])
+    }
+
+    /// The side is compared with what the command ACTUALLY sent leaves, not
+    /// with the setup lists: an AE, or a skipped setup, changes the command.
+    @Test("The side is told against the setup command actually sent", arguments: [
+        // AE takes the only White stone: set_free_handicap (White) is sent,
+        // while the lists hold both colours, so the board says Black.
+        ("(;GM[1]FF[4]SZ[19]AB[dd]AW[pp]AE[pp])", ["set_free_handicap D16", "kata-set-initial-player b"]),
+        // AE empties the board: nothing is sent (Black), while the lists
+        // are all Black, so the board says White.
+        ("(;GM[1]FF[4]SZ[19]AB[dd]AE[dd])", ["kata-set-initial-player w"]),
+        // A zero-liberty setup is skipped (Black), while PL says White.
+        ("(;GM[1]FF[4]SZ[19]PL[W]AW[aa]AB[ba][ab])", ["kata-set-initial-player w"]),
+    ])
+    func toldAgainstTheCommandSent(sgf: String, expected: [String]) throws {
+        #expect(try feedAfterSetup(sgf) == expected)
+    }
+
     // MARK: - Passes
 
     @Test("A recorded pass is fed as `play <colour> pass`")

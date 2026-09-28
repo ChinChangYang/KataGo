@@ -47,6 +47,7 @@ public enum RecordReplayBuilder {
                          setupBlack: setup(.black),
                          setupWhite: setup(.white),
                          setupEmpty: setup(.removal),
+                         initialPlayer: operations.initialPlayer.map { $0 == .black ? .black : .white },
                          moves: moves)
     }
 }

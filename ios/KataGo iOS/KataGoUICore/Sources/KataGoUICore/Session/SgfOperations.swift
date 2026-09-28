@@ -17,6 +17,8 @@ public final class SgfOperations {
     /// The SGF root's setup stones and removals (AB/AW/AE) — the position the
     /// engine is set up with before the first move. See `SgfHelper.placements()`.
     public func placements() -> [Placement] { helper.placements() }
+    /// The SGF root's `PL[]`, nil when it names no side. See `SgfHelper.initialPlayer`.
+    public var initialPlayer: Player? { helper.initialPlayer }
     public var moveSize: Int? { helper.moveSize }
     public var xSize: Int { helper.xSize }
     public var ySize: Int { helper.ySize }

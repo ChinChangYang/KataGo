@@ -267,6 +267,67 @@ struct SgfReplayPositionTests {
         #expect(bare.position(at: 0).toMove == .black)
     }
 
+    /// Before the first move, PL[] names the side to move, as KataGo's own
+    /// SGF loader reads it: a photo import's "Next to play" is written there.
+    @Test func toMoveBeforeAnyMoveIsThePLSide() throws {
+        var mixedWhite = try replay("(;GM[1]SZ[9]PL[W]AB[cc][gg]AW[cg])")
+        #expect(mixedWhite.position(at: 0).toMove == .white)
+
+        var blackOnlyBlack = try replay("(;GM[1]SZ[9]PL[B]AB[cc][gg])")
+        #expect(blackOnlyBlack.position(at: 0).toMove == .black)
+
+        var emptyWhite = try replay("(;GM[1]SZ[9]PL[white])")
+        #expect(emptyWhite.position(at: 0).toMove == .white)
+
+        // A value KataGo does not read leaves the setup rule in charge.
+        var unreadable = try replay("(;GM[1]SZ[9]PL[x]AB[cc][gg])")
+        #expect(unreadable.position(at: 0).toMove == .white)
+    }
+
+    /// The first recorded move outranks PL[] and the setup rule, as in
+    /// KataGo's loader: index 0 is the position that move was played from.
+    @Test func theFirstMoveDecidesTheSideBeforeIt() throws {
+        var contradicted = try replay("(;GM[1]SZ[9]PL[B]AB[cc]AW[gg];W[ee])")
+        #expect(contradicted.position(at: 0).toMove == .white)
+        #expect(contradicted.position(at: 1).toMove == .black)
+
+        var mixedWhiteFirst = try replay("(;GM[1]SZ[9]AB[cc]AW[gg];W[ee])")
+        #expect(mixedWhiteFirst.position(at: 0).toMove == .white)
+
+        var blackOnlyBlackFirst = try replay("(;GM[1]SZ[9]AB[cc];B[ee])")
+        #expect(blackOnlyBlackFirst.position(at: 0).toMove == .black)
+    }
+
+    /// A refused move is never fed to the engine, and a printsgf echo drops
+    /// it, so the side it would have set is the first ACCEPTED move's.
+    @Test func aRefusedFirstMoveDoesNotDecideTheSide() throws {
+        // B[ee] lands on the setup stone at E5: refused. W[dd] is the first
+        // move played, so White was to move before it.
+        var refused = try replay("(;GM[1]SZ[9]AB[ee];B[ee];W[dd];B[cc])")
+        #expect(refused.position(at: 0).toMove == .white)
+        _ = refused.position(at: 1)        // refusals are found by replaying
+        #expect(refused.isRefused(0))
+
+        // Every move refused: PL[] and the setup rule decide, as with none.
+        var allRefused = try replay("(;GM[1]SZ[9]PL[B]AB[ee];W[ee])")
+        #expect(allRefused.position(at: 0).toMove == .black)
+    }
+
+    @Test func theValueInitialiserTakesTheInitialPlayer() {
+        var told = SgfReplay(width: 9, height: 9,
+                             setupBlack: [GoPoint(x: 2, y: 2)],
+                             setupWhite: [GoPoint(x: 6, y: 6)],
+                             initialPlayer: .white,
+                             moves: [])
+        #expect(told.position(at: 0).toMove == .white)
+
+        var untold = SgfReplay(width: 9, height: 9,
+                               setupBlack: [GoPoint(x: 2, y: 2)],
+                               setupWhite: [GoPoint(x: 6, y: 6)],
+                               moves: [])
+        #expect(untold.position(at: 0).toMove == .black)
+    }
+
     // MARK: - Trailing passes
 
     @Test func trailingPassCountCountsConsecutiveAcceptedPasses() throws {

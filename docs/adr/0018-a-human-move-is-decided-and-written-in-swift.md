@@ -120,6 +120,8 @@ record in Swift, and only then told to the engine — if one is listening.**
 - **Honour `PL[]` while here.** The replay ignores it on purpose (the engine is
   fed setup stones and moves, never a player override); honouring it here
   would put the display and the feed on different turns.
+  *Superseded 2026-09-28: honoured in the replay and told to the engine in the
+  same change, so the two stay on one turn (ADR 0008, Consequences).*
 - **Simple ko only, engine-free.** Cheaper, and wrong for every area-scoring
   preset the app ships.
 

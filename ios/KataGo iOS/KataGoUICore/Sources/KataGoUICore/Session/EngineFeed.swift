@@ -59,11 +59,30 @@ public enum EngineFeed {
             humanRatioForBlack: config.humanRatioForBlack,
             humanRatioForWhite: config.humanRatioForWhite))
 
-        if let setup = setupCommand(replay: &replay) {
+        let setup = setupCommand(replay: &replay)
+        if let setup {
             commands.append(setup)
+        }
+        if let side = initialPlayerCommand(replay: &replay, afterSetup: setup) {
+            commands.append(side)
         }
         commands.append(contentsOf: forwardCommands(replay: &replay, from: 0, to: targetIndex))
         return commands
+    }
+
+    /// `kata-set-initial-player` when the side to move at index 0 is not the
+    /// one `setup` leaves, nil otherwise. The side is the replay's, the same
+    /// one the board shows (the first move's colour, else PL[], else the
+    /// setup rule), so the display and the engine start on the same turn.
+    ///
+    /// Compared with the command actually sent, not with the setup rule: an
+    /// AE removal or a skipped zero-liberty setup changes which command goes
+    /// out, and so the side the engine is left with. With no setup at all
+    /// the engine's `clear_board` leaves Black.
+    public static func initialPlayerCommand(replay: inout SgfReplay, afterSetup setup: String?) -> String? {
+        let side = replay.position(at: 0).toMove
+        guard side != GtpCommandBuilder.sideToMove(afterSetup: setup) else { return nil }
+        return GtpCommandBuilder.initialPlayerCommand(side)
     }
 
     /// The `play` arguments for the recorded move at `index`, or nil when the

@@ -143,6 +143,21 @@ struct GobanStateLocalPlayTests {
         #expect(f.session.stones.blackPoints.contains(BoardPoint(move: "Q16", width: 19, height: 19)!))
     }
 
+    /// A photo import writes its "Next to play" choice as PL[]. On a mixed
+    /// board the setup alone would give Black, so a White stone proves the
+    /// choice reached the record position.
+    @Test("A chosen White on an imported setup plays the first stone")
+    func theChosenSideOfAnImportPlaysFirst() throws {
+        let imported = "(;GM[1]FF[4]CA[UTF-8]AP[KataGo Anytime]SZ[9]RU[tromp-taylor]KM[7.5]PL[W]"
+            + "AB[cc][gg]AW[cg])"
+        let f = try makeFixture(sgf: imported)
+        f.state.isEditing = true                     // exercise the record path
+        #expect(f.state.recordSideToMove == .white)
+        #expect(f.play("E5") == .played)
+        #expect(f.move(at: 0, in: f.record.sgf)?.color == "w")
+        #expect(f.move(at: 0, in: f.record.sgf)?.vertex == "E5")
+    }
+
     @Test("The second move is White's, from the record")
     func alternatesFromTheRecord() throws {
         let f = try makeFixture()

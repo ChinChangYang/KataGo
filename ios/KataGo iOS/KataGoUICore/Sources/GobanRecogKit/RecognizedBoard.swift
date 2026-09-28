@@ -105,16 +105,19 @@ public struct RecognizedBoard: Equatable, Sendable {
     /// The default side to move, from the on-board stone counts:
     ///   - Black == White              → Black (even position, Black started)
     ///   - Black == White + 1          → White (Black has played one more)
+    ///   - Black stones only           → White (handicap stones, White's move)
     ///   - otherwise                   → Black
     ///
     /// A physical position is usually reached after alternating play from an
     /// empty board, so equal counts mean it is Black's turn and one extra black
-    /// stone means White's; anything else (handicap, captures, a half-finished
-    /// setup) is ambiguous, so we fall back to Black and let the user override
-    /// with the picker.
+    /// stone means White's. Black stones alone are a handicap before White's
+    /// first move, the side KataGo also gives such a setup. Anything else
+    /// (captures, a half-finished setup) is ambiguous, so we fall back to
+    /// Black and let the user override with the picker.
     public var defaultNextToPlay: PlayerColor {
         if blackCount == whiteCount { return .black }
         if blackCount == whiteCount + 1 { return .white }
+        if whiteCount == 0 { return .white }
         return .black
     }
 
@@ -133,7 +136,9 @@ public struct RecognizedBoard: Equatable, Sendable {
     ///   KataGoGameStore, so the tests pin the equality).
     /// - `KM[7.5]` matches `Config.defaultKomi` so the displayed komi is
     ///   consistent after import.
-    /// - `PL[B|W]` is the chosen next-to-play.
+    /// - `PL[B|W]` is the chosen next-to-play. It decides the side to move
+    ///   before the first move on the board and in the engine (`SgfReplay`,
+    ///   `EngineFeed`), as it does in KataGo's own SGF loader.
     /// - Points are column-letter first (`chr('a'+col)+chr('a'+row)`), `aa` =
     ///   top-left = a direct map from `rows` (row 0 = topmost). `AB` (black)
     ///   then `AW` (white), each row-major, each section omitted when empty.

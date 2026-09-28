@@ -138,6 +138,10 @@ public:
     /// engine's own CompactSgf refuses such records outright.
     unsigned long getPlacementsSize() const SWIFT_COMPUTED_PROPERTY;
     PlacementCpp getPlacementAt(const int index) const;
+    /// The root node's PL[] (the side to move before the first move), read
+    /// as the engine's own loader reads it (`SgfNode::getPLSpecifiedColor`).
+    /// `empty` when absent, unreadable, or for an invalid SGF.
+    PlacementColorCpp getInitialPlayer() const SWIFT_COMPUTED_PROPERTY;
     bool isValidMoveIndex(const int index) const;
     bool isValidCommentIndex(const int index) const;
     MoveCpp getMoveAt(const int index) const;
@@ -155,9 +159,11 @@ private:
     int _ySize;
     vector<MoveCpp> moves;
     vector<PlacementCpp> placements;
+    PlacementColorCpp _initialPlayer;
     vector<string> comments;
     void traverseSgf(const void* sgf);
     void collectPlacements(const void* sgf);
+    void readInitialPlayer(const void* sgf);
     void traverseSgfHelper(const void* sgf);
     /// Shared main-line replay backing both getFinalPosition and getFrameAt.
     /// `turnIdx < 0` (or beyond the move count) means the final position.

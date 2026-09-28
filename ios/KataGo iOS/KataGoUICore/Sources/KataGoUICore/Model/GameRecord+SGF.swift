@@ -9,6 +9,7 @@
 
 import SwiftUI
 import SwiftData
+import GoRulesKit
 
 extension GameRecord {
 
@@ -139,10 +140,30 @@ extension GameRecord {
     /// and `index` there (mirroring `GobanState.commitBranch`).
     public func clone(upToMove index: Int, fromSgf sourceSgf: String, dataValidUpTo dataIndex: Int) -> GameRecord {
         let newGameRecord = clone()
-        newGameRecord.sgf = SgfTruncation.truncate(sourceSgf, toMoveCount: index)
+        newGameRecord.sgf = Self.truncatedKeepingSideToMove(sourceSgf, toMoveCount: index)
         newGameRecord.currentIndex = index
         newGameRecord.clearData(after: dataIndex)
         return newGameRecord
+    }
+
+    /// `SgfTruncation.truncate`, keeping the side to move at the cut. Only a
+    /// cut to no moves can lose it: the side before the first move is that
+    /// move's colour, which the cut drops, so the copy names it in PL[]
+    /// whenever its root would otherwise give the other side.
+    static func truncatedKeepingSideToMove(_ sgf: String, toMoveCount index: Int) -> String {
+        let cut = SgfTruncation.truncate(sgf, toMoveCount: index)
+        guard index == 0, cut != sgf,
+              var source = RecordReplayBuilder.replay(from: SgfOperations(sgf: sgf)),
+              var kept = RecordReplayBuilder.replay(from: SgfOperations(sgf: cut))
+        else { return cut }
+        let side = source.position(at: 0).toMove
+        guard kept.position(at: 0).toMove != side else { return cut }
+        let named = SgfTruncation.withRootPlayer(side, in: cut)
+        // Checked, not trusted: a spelling the text edit misreads must not
+        // save a copy worse than the plain cut.
+        guard var check = RecordReplayBuilder.replay(from: SgfOperations(sgf: named)),
+              check.position(at: 0).toMove == side else { return cut }
+        return named
     }
 
     // MARK: - Cold-launch selection

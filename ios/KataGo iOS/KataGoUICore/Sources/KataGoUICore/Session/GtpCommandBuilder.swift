@@ -140,9 +140,10 @@ public enum GtpCommandBuilder {
     /// engine's board, or nil when there are none.
     ///
     /// `set_free_handicap` when every setup stone is Black: that is the command
-    /// KataGo means for a handicap, and it applies the white handicap bonus and
-    /// leaves WHITE to move — exactly what `loadsgf` used to arrange
-    /// (`gtp.cpp` set_free_handicap). It demands an EMPTY board, so it may only
+    /// KataGo means for a handicap, and it leaves WHITE to move — exactly what
+    /// `loadsgf` used to arrange without a `PL[]` (`gtp.cpp` set_free_handicap).
+    /// The white handicap bonus follows the stone count (none for one stone),
+    /// whichever command sets them. It demands an EMPTY board, so it may only
     /// follow a `clear_board`/`boardsize`.
     ///
     /// `set_position` for anything else — a mixed setup, or White-only stones —
@@ -159,6 +160,21 @@ public enum GtpCommandBuilder {
         }
         let pairs = blackVertices.map { "b \($0)" } + whiteVertices.map { "w \($0)" }
         return "set_position " + pairs.joined(separator: " ")
+    }
+
+    /// The side the engine is left to move after `setup`, a
+    /// `setupStonesCommand` result: White after `set_free_handicap`, Black
+    /// after `set_position` or with no setup at all (`clear_board`).
+    public static func sideToMove(afterSetup setup: String?) -> PlayerColor {
+        setup?.hasPrefix("set_free_handicap ") == true ? .white : .black
+    }
+
+    /// Makes `side` the side to move of a position with no moves yet, and
+    /// the engine's initial player, so `undo` and a rules change keep it. A
+    /// fork-local command (`gtp.cpp`); the engine refuses it once a move has
+    /// been played, so it may only follow the setup.
+    public static func initialPlayerCommand(_ side: PlayerColor) -> String {
+        "kata-set-initial-player " + (side == .white ? "w" : "b")
     }
 
     public static func symmetricHumanAnalysisCommands(humanSLProfile: String,

@@ -191,6 +191,15 @@ public class SgfHelper {
         }
     }
 
+    /// The root's `PL[]`: the side to move before the first move, as the
+    /// engine's own loader reads it. Nil when absent or unreadable.
+    public var initialPlayer: Player? {
+        let color = sgfCpp.initialPlayer
+        if color == PlacementColorCpp.black { return .black }
+        if color == PlacementColorCpp.white { return .white }
+        return nil
+    }
+
     public func getComment(at index: Int) -> String? {
         guard sgfCpp.isValidCommentIndex(Int32(index)) else { return nil }
         let commentCpp = sgfCpp.getCommentAt(Int32(index))

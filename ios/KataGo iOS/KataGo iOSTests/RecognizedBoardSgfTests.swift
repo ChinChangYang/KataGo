@@ -83,6 +83,16 @@ struct RecognizedBoardSgfTests {
         #expect(board.defaultNextToPlay == .white)
     }
 
+    /// Only Black stones reads as handicap stones, with White's move.
+    @Test func defaultNextToPlayBlackOnlyIsWhite() {
+        let handicap = RecognizedBoard(size: 3, rows: ["B..", "...", "..B"],
+                                       confidence: 0.5, quadSource: "test")
+        #expect(handicap.defaultNextToPlay == .white)
+        let empty = RecognizedBoard(size: 3, rows: ["...", "...", "..."],
+                                    confidence: 0.5, quadSource: "test")
+        #expect(empty.defaultNextToPlay == .black)
+    }
+
     @Test func defaultNextToPlayOtherwiseIsBlack() {
         // Black ahead by two → ambiguous → default Black.
         let ahead2 = RecognizedBoard(size: 3, rows: ["BBB", "..W", "..."],

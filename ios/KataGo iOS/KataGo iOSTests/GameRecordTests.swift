@@ -272,6 +272,33 @@ struct GameRecordTests {
         #expect(record.currentIndex == 4)
     }
 
+    /// The side to move at the start, as the board reads it off `sgf`.
+    private func sideToMoveAtStart(_ sgf: String) throws -> PlayerColor {
+        var replay = try #require(RecordReplayBuilder.replay(from: SgfOperations(sgf: sgf)))
+        return replay.position(at: 0).toMove
+    }
+
+    /// Cutting every move drops the first one, which is what decided the side
+    /// to move before it when the setup alone gives the other side. The copy
+    /// keeps that side in PL[].
+    @Test func cloneAtTheStartKeepsTheSideToMove() throws {
+        let whiteFirst = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9]AB[cc]AW[gg];W[ee];B[dd])", currentIndex: 2, name: "Game")
+        let copy = whiteFirst.clone(upToMove: 0)
+        #expect(SgfOperations(sgf: copy.sgf).moveSize == 0)
+        #expect(try sideToMoveAtStart(copy.sgf) == .white)
+
+        // A root PL[] the first move contradicted gives way to that move.
+        let contradicted = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9]PL[B]AB[cc]AW[gg];W[ee])", currentIndex: 1, name: "Game")
+        #expect(try sideToMoveAtStart(contradicted.clone(upToMove: 0).sgf) == .white)
+
+        // When the root already gives the side, the copy is the plain cut.
+        let plain = GameRecord.createGameRecord(
+            sgf: "(;FF[4]GM[1]SZ[9];B[aa];W[bb])", currentIndex: 2, name: "Game")
+        #expect(plain.clone(upToMove: 0).sgf == "(;FF[4]GM[1]SZ[9])")
+    }
+
     @Test func cloneUpToMoveFromBranchSgfTruncatesLiveLine() async throws {
         // A branch is active: the saved record is the OLD mainline frozen at the
         // divergence point (currentIndex == 1), while the line on screen is a

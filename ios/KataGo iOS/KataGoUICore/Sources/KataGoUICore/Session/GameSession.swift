@@ -572,7 +572,8 @@ public final class GameSession {
 #if DEBUG
             // Diagnostic only, never a mutation: a self-heal here would hide
             // exactly the bug it is meant to expose.
-            logEngineRecordDivergence(boardText: boardText)
+            logEngineRecordDivergence(boardText: boardText,
+                                      engineToMove: message.contains("Black") ? .black : .white)
 #endif
             // Determine the next player color based on the message content
             player.nextColorForPlayCommand = message.contains("Black") ? .black : .white
@@ -593,14 +594,20 @@ public final class GameSession {
     }
 
 #if DEBUG
-    /// Logs one line when the engine's `showboard` ASCII disagrees with the
-    /// stones the record projected. The record wins by design — this is how a
-    /// feed bug becomes visible instead of silently drawing the wrong board.
-    private func logEngineRecordDivergence(boardText: [String]) {
+    /// Logs one line when the engine's `showboard` disagrees with the record
+    /// position: its ASCII with the stones the record projected, or its next
+    /// player with the record's side to move. The record wins by design — this
+    /// is how a feed bug becomes visible instead of silently drawing the wrong
+    /// board, or searching for the wrong side.
+    private func logEngineRecordDivergence(boardText: [String], engineToMove: PlayerColor) {
         let parsed = BoardTextParser.parse(boardText)
-        guard Set(parsed.blackStones) != Set(stones.blackPoints)
-                || Set(parsed.whiteStones) != Set(stones.whitePoints) else { return }
-        printError("engine/record divergence: engine B=\(parsed.blackStones.count) W=\(parsed.whiteStones.count) \(Int(parsed.width))x\(Int(parsed.height)); record B=\(stones.blackPoints.count) W=\(stones.whitePoints.count) \(Int(board.width))x\(Int(board.height))")
+        if Set(parsed.blackStones) != Set(stones.blackPoints)
+            || Set(parsed.whiteStones) != Set(stones.whitePoints) {
+            printError("engine/record divergence: engine B=\(parsed.blackStones.count) W=\(parsed.whiteStones.count) \(Int(parsed.width))x\(Int(parsed.height)); record B=\(stones.blackPoints.count) W=\(stones.whitePoints.count) \(Int(board.width))x\(Int(board.height))")
+        }
+        if engineToMove != gobanState.recordSideToMove {
+            printError("engine/record turn divergence: engine \(engineToMove.name) to move; record \(gobanState.recordSideToMove.name)")
+        }
     }
 #endif
 

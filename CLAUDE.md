@@ -178,6 +178,7 @@ The app uses KataGo's GTP extensions including:
 - `clear_board` - Starts every open/switch, before the setup stones
 - `set_free_handicap <vertices>` - Setup stones when every one is Black (leaves White to move, applies the handicap bonus); requires an empty board
 - `set_position <color> <vertex> …` - Setup stones for any other AB/AW combination (leaves Black to move)
+- `kata-set-initial-player <color>` - **Fork-local.** Sets the side to move of a position with no moves, after the setup, when the record's side (its first move's colour, else `PL[]`, else the all-Black rule) is not the one the setup command left; `undo` and rules changes keep it, and `printsgf` writes it back as `PL[]`
 - `play <color> <move>` - Make moves; also how the engine is fed, one recorded move at a time
 - `undo` - Backward navigation, refusal-aware (a move the replay refused was never played, so it is never undone)
 - `kata-set-rule` - Configure rules

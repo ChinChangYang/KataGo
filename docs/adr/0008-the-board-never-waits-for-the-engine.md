@@ -336,14 +336,24 @@ board displays, never a screen that replaces it.**
   `set_position` leaves Black to move and the feed does not pass a colour. Known
   gap; stage 2 can state it explicitly. `SgfReplay.toMove` ignores `PL[]` for the
   same reason — the engine is fed setup plus moves, never a player override.
+  *Superseded 2026-09-28: the side to move before the first move is KataGo's
+  own (`CompactSgf::setupInitialBoardAndHist`): the first recorded move's
+  colour, else `PL[]`, else the all-Black rule. `SgfReplay` reads it, and
+  `EngineFeed` tells the engine with the fork-local `kata-set-initial-player`
+  whenever the setup command it actually sent leaves the other side; `printsgf`
+  writes `PL[]` back for such a position, so the echo keeps it.*
 - **A setup group with zero liberties is skipped, with a log line.**
   `Board::setStonesFailIfNoLibs` would refuse the whole placement, so
   `EngineFeed.setupCommand` (`Session/EngineFeed.swift:140`) sends nothing rather
   than sending something the engine will reject.
 - **Any all-Black setup takes the handicap path.** A single-stone problem SGF
-  (`AB[dd]` alone) therefore comes up with White to move and a handicap komi
-  bonus. That is what `loadsgf` did too; it is now visible because it is the app's
-  own command rather than a side effect.
+  (`AB[dd]` alone) therefore comes up with White to move. That is what `loadsgf`
+  did too; it is now visible because it is the app's own command rather than a
+  side effect. There is no komi bonus for it: KataGo counts a lone Black stone
+  as no handicap. When `PL[B]` or a Black first move puts Black to move
+  instead, KataGo counts that move as one more handicap stone
+  (`assumeMultipleStartingBlackMovesAreHandicap`), which changes the bonus only
+  under a handicap-bonus rule.
 - **A corrupt record self-heals on the first `printsgf`, and the indices shift.**
   Because the app no longer normalises imported SGF through a `loadsgf` echo, a
   malformed record is displayed as parsed until the next played move rewrites it

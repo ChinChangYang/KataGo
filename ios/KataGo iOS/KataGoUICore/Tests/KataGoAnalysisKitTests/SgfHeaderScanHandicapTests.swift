@@ -32,6 +32,31 @@ struct SgfHeaderScanHandicapTests {
         #expect(scan.toMove(atMoveIndex: 0) == .black)
     }
 
+    /// KataGo reads PL[] off the root node alone, and the board's replay
+    /// takes it from the scan too, so a PL[] on a later node (legal SGF, for
+    /// the side to move at that node) must not decide the start.
+    @Test("PL[] counts on the root only")
+    func plIsReadOffTheRootOnly() throws {
+        let later = try #require(SgfHeaderScan(sgf: "(;FF[4]GM[1]SZ[9]AB[cc]AW[gg];C[hint]PL[W])"))
+        #expect(later.nextPlayerOverride == nil)
+        #expect(later.toMove(atMoveIndex: 0) == .black)
+
+        let root = try #require(SgfHeaderScan(sgf: "(;FF[4]GM[1]SZ[9]AB[cc]AW[gg]PL[w];C[hint])"))
+        #expect(root.nextPlayerOverride == .white)
+    }
+
+    /// KataGo reads PL[] as a single value, and its parser collects every
+    /// root PL[] into one list: two values name no side there, so none here.
+    @Test("a root PL[] with more than one value names no side")
+    func plWithSeveralValuesNamesNoSide() throws {
+        for sgf in ["(;FF[4]GM[1]SZ[9]PL[B][x]AB[cc][gg])",
+                    "(;FF[4]GM[1]SZ[9]PL[W]AB[cc]PL[B])"] {
+            let scan = try #require(SgfHeaderScan(sgf: sgf))
+            #expect(scan.nextPlayerOverride == nil, "\(sgf)")
+            #expect(scan.toMove(atMoveIndex: 0) == .white, "\(sgf)")
+        }
+    }
+
     @Test("plain empty and mixed-setup boards still open with Black")
     func plainStillBlack() throws {
         let empty = try #require(SgfHeaderScan(sgf: "(;FF[4]GM[1]SZ[19])"))

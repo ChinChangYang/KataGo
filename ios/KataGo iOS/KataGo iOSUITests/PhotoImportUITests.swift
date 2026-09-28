@@ -16,13 +16,15 @@
 //      the title does not survive the grid phase) and recognition succeeds
 //      (the preview's Import button + board-size + confidence + next-to-play
 //      picker all render);
-//    * tap-to-correct edits and Reset move the stone counts, and the
-//      next-to-play picker moves what Import will send from Black to White
-//      (read off Import's accessibility value; the PL[W] text itself is
-//      pinned by RecognizedBoardSgfTests);
+//    * tap-to-correct edits and Reset move the stone counts; the
+//      next-to-play default follows an edit, and the picker moves what
+//      Import will send (read off Import's accessibility value; the PL[]
+//      text itself is pinned by RecognizedBoardSgfTests);
 //    * tapping Import puts the imported game on the board: the title turns
-//      from the seeded game's name to "UITest Photo Board", and E 9, the
-//      correction left in place in the preview, is a black stone.
+//      from the seeded game's name to "UITest Photo Board", E 9, the
+//      correction left in place in the preview, is a black stone, and the
+//      first stone played is White, the side picked, which the mixed setup
+//      alone would not give.
 //
 //  Import de-dups by exact SGF, and this SGF is the same on every run, so
 //  after the first run Import selects the record an earlier run created,
@@ -146,28 +148,38 @@ final class PhotoImportUITests: PortraitUITestCase {
         // White segments are present.
         XCTAssertTrue(app.staticTexts["Next to play"].waitForExistence(timeout: 10),
                       "'Next to play' caption not shown above the picker")
-        XCTAssertTrue(app.buttons["Black"].firstMatch.waitForExistence(timeout: 10),
+        // Scoped to the segmented control: the board behind the sheet stays
+        // in the tree, and a tap must land on the picker.
+        let blackSegment = app.segmentedControls.buttons["Black"].firstMatch
+        XCTAssertTrue(blackSegment.waitForExistence(timeout: 10),
                       "'Black' segment of the next-to-play picker not found")
-        let whiteSegment = app.buttons["White"].firstMatch
+        let whiteSegment = app.segmentedControls.buttons["White"].firstMatch
         XCTAssertTrue(whiteSegment.exists,
                       "'White' segment of the next-to-play picker not found")
 
-        // Import's value names the side it will put to move (PL[]).
-        // Recognition set it from the counts (12 B = 12 W gives Black), and
-        // an edit does not re-derive it, so it must read Black now, or the
-        // tap below would prove nothing.
-        XCTAssertEqual(importButton.value as? String, "Black to play",
-                       "Next to play should default to Black for the recognized 12 B / 12 W position")
-
-        // Choose White before importing, so the non-default path (PL[W] in
-        // the synthesized SGF) stays exercised by the suite. Proven on
-        // Import, not on the segment: a tap moves the segmented control by
-        // itself, whether or not the state Import reads follows.
-        XCTAssertTrue(tapWhenSteady(whiteSegment, in: app, timeout: 10),
-                      "'White' segment never settled on screen")
+        // Import's value names the side it will put to move (PL[]). Until
+        // the user picks, it is the default for the position as edited: the
+        // edit made it 13 B / 12 W, Black one ahead, so White.
         let whiteToPlay = XCTNSPredicateExpectation(
             predicate: NSPredicate(format: "value == %@", "White to play"), object: importButton)
         XCTAssertEqual(XCTWaiter().wait(for: [whiteToPlay], timeout: 5), .completed,
+                       "Next to play did not follow the edit to White for 13 B / 12 W")
+
+        // The picker takes both ways. Proven on Import, not on the segment: a
+        // tap moves the segmented control by itself, whether or not the side
+        // Import sends follows. White last, so the import below exercises the
+        // side the setup alone would not give (a mixed board gives Black).
+        XCTAssertTrue(tapWhenSteady(blackSegment, in: app, timeout: 10),
+                      "'Black' segment never settled on screen")
+        let blackToPlay = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Black to play"), object: importButton)
+        XCTAssertEqual(XCTWaiter().wait(for: [blackToPlay], timeout: 5), .completed,
+                       "Tapping 'Black' did not change what Import will send")
+        XCTAssertTrue(tapWhenSteady(whiteSegment, in: app, timeout: 10),
+                      "'White' segment never settled on screen")
+        let whiteToPlayAgain = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "White to play"), object: importButton)
+        XCTAssertEqual(XCTWaiter().wait(for: [whiteToPlayAgain], timeout: 5), .completed,
                        "Tapping 'White' did not change what Import will send")
 
         let previewShot = XCTAttachment(screenshot: app.screenshot())
@@ -214,6 +226,25 @@ final class PhotoImportUITests: PortraitUITestCase {
             predicate: NSPredicate(format: "value == %@", "Black stone"), object: e9)
         XCTAssertEqual(XCTWaiter().wait(for: [editedStone], timeout: 15), .completed,
                        "E 9 is not black on the imported board: the preview's edit was not imported")
+
+        // ...and it starts with the side picked above: the first stone played
+        // is White, where the setup alone would give Black. C 9 is empty in
+        // the recognized position. The import opens locked, so the stone
+        // starts a branch, and the record keeps the SGF a later run's import
+        // de-dups against. With an engine running, a tap is refused until
+        // it has acknowledged the switch, so the tap waits for that; the
+        // stone's colour still comes from the record, not the engine. Once
+        // E 9 is black the switch has already cleared Board.sync, so a stale
+        // "inSync" from the seeded game cannot pass this wait.
+        waitForBoardInSync(app)
+        let c9 = app.buttons["C 9"].firstMatch
+        XCTAssertEqual((try? c9.snapshot())?.value as? String, "Empty",
+                       "C 9 should be empty on the imported board")
+        XCTAssertTrue(tapWhenSteady(c9, in: app, timeout: 10), "C 9 never settled on screen")
+        let firstStone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "White stone"), object: c9)
+        XCTAssertEqual(XCTWaiter().wait(for: [firstStone], timeout: 15), .completed,
+                       "The first stone on the imported board is not White: the side picked did not reach the game")
 
         // --- The library lists it. Not the proof: earlier runs left rows
         // with this name. On screen so the screenshot below shows it. ---

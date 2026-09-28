@@ -55,7 +55,9 @@ public struct PhotoImportSheet: View {
     @AppStorage(GlobalSettingsKeys.stoneStyle) private var stoneStyleIndex = Config.defaultStoneStyle
 
     @State private var phase: Phase = .recognizing
-    @State private var nextToPlay: PlayerColor = .black
+    /// The side the user picked to play next; nil while they have not, and
+    /// then the position's own default applies, following their stone edits.
+    @State private var chosenNextToPlay: PlayerColor?
     /// The user-corrected position, nil while untouched. Kept separate from the
     /// recognized board in `phase` so Reset can always restore the original and
     /// the Reset button can hide itself when edits cycle back to it (Equatable).
@@ -320,7 +322,9 @@ public struct PhotoImportSheet: View {
                 Text("Next to play")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                Picker("Next to play", selection: $nextToPlay) {
+                Picker("Next to play", selection: Binding(
+                    get: { nextToPlay(for: current) },
+                    set: { chosenNextToPlay = $0 })) {
                     Text("Black").tag(PlayerColor.black)
                     Text("White").tag(PlayerColor.white)
                 }
@@ -344,22 +348,29 @@ public struct PhotoImportSheet: View {
                     .accessibilityIdentifier("PhotoImportSheet.cancel")
             } primary: {
                 Button("Import") {
-                    onImport(current.synthesizedSGF(nextToPlay: nextToPlay), suggestedName)
+                    onImport(current.synthesizedSGF(nextToPlay: nextToPlay(for: current)), suggestedName)
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.glassProminent)
-                .accessibilityValue(importValue)
+                .accessibilityValue(importValue(for: current))
             }
         }
         .frame(maxWidth: Self.contentMaxWidth)
     }
 
+    /// The side the imported game starts with: the user's pick, else the
+    /// default for `board` as it stands, edits included.
+    private func nextToPlay(for board: RecognizedBoard) -> PlayerColor {
+        chosenNextToPlay ?? board.defaultNextToPlay
+    }
+
     /// Import's accessibility value: the side the SGF it sends puts to move
     /// (PL[]). VoiceOver hears the choice on the button that commits it, and
     /// PhotoImportUITests reads it to prove the picker took: a tap moves the
-    /// segmented control by itself, whether or not `nextToPlay` follows.
-    private var importValue: LocalizedStringKey {
-        switch nextToPlay {
+    /// segmented control by itself, whether or not the side Import sends
+    /// follows.
+    private func importValue(for board: RecognizedBoard) -> LocalizedStringKey {
+        switch nextToPlay(for: board) {
         case .black: "Black to play"
         case .white: "White to play"
         case .unknown: ""
@@ -520,10 +531,11 @@ public struct PhotoImportSheet: View {
         do {
             let board = try await recognizeOnce()
             // Each successful recognition replaces the position wholesale:
-            // stone edits belong to the old board, and the picker default
-            // re-derives (the user can still override it afterwards).
+            // stone edits belong to the old board, and a side picked for it
+            // goes too, so the picker follows the new board's default until
+            // the user picks again.
             editedBoard = nil
-            nextToPlay = board.defaultNextToPlay
+            chosenNextToPlay = nil
             phase = .preview(board)
         } catch let error as BoardRecognitionError {
             phase = phaseAfterFailure(error)

@@ -162,17 +162,23 @@ public struct SgfReplay: Sendable {
     /// on an already-occupied point is dropped, and a removal of an empty
     /// point is a no-op.
     ///
-    /// The side to move before any move is accepted is White when there are
-    /// setup stones and every one of them is Black (KataGo's
-    /// `set_free_handicap` leaves White to move), and Black otherwise
-    /// (`set_position`, or a bare empty board). The root's `PL[]` property is
-    /// deliberately ignored: the engine is fed setup stones and moves, never
-    /// a player override, so honouring PL[] here would put the display and
-    /// the engine on different turns.
+    /// The side to move before any move, in the order KataGo's own SGF loader
+    /// reads it (`CompactSgf::setupInitialBoardAndHist`): the first recorded
+    /// move's colour, else `initialPlayer` (the root's `PL[]`), else White
+    /// when there are setup stones and every one of them is Black, else Black.
+    /// A photo import's "Next to play" is written as PL[]. The engine is told
+    /// the same side (`EngineFeed.openingCommands`), so the display and the
+    /// engine start on the same turn.
+    ///
+    /// Unlike the loader, the first move that counts is the first one the
+    /// replay ACCEPTS: a refused move is never fed to the engine, and the
+    /// engine's `printsgf` echo drops it, so its colour would leave the board
+    /// on one side and the engine, once the record is echoed, on the other.
     public init(width: Int, height: Int,
                 setupBlack: [GoPoint] = [],
                 setupWhite: [GoPoint] = [],
                 setupEmpty: [GoPoint] = [],
+                initialPlayer: PlayerColor? = nil,
                 moves: [RecordedMove]) {
         self.width = max(width, 1)
         self.height = max(height, 1)
@@ -194,7 +200,19 @@ public struct SgfReplay: Sendable {
             board = board.removingStones(at: setupEmpty.compactMap { board.index(of: $0) })
         }
 
-        let toMove: PlayerColor = (!setupBlack.isEmpty && setupWhite.isEmpty) ? .white : .black
+        // A refused move changes nothing, so every move up to the first
+        // accepted one meets this same board: trying each on it, the way
+        // `apply` would, finds that move without replaying.
+        let firstAccepted = moves.first { move in
+            guard let point = move.point else { return true }
+            var trial = board
+            trial.playPass()
+            return (try? trial.play(at: point, color: move.color == .black ? .black : .white,
+                                    multiStoneSuicideLegal: true)) != nil
+        }
+        let toMove: PlayerColor = firstAccepted.map { $0.color == .black ? .black : .white }
+            ?? (initialPlayer == .unknown ? nil : initialPlayer)
+            ?? ((!setupBlack.isEmpty && setupWhite.isEmpty) ? .white : .black)
         checkpoints = [0: State(board: board, window: [], toMove: toMove, acceptedCount: 0)]
     }
 
@@ -209,6 +227,7 @@ public struct SgfReplay: Sendable {
                   setupBlack: scan.setupBlack.map { GoPoint(x: $0.x, y: $0.y) },
                   setupWhite: scan.setupWhite.map { GoPoint(x: $0.x, y: $0.y) },
                   setupEmpty: scan.setupEmpty.map { GoPoint(x: $0.x, y: $0.y) },
+                  initialPlayer: scan.nextPlayerOverride,
                   moves: scan.moves.map {
                       RecordedMove(color: $0.color,
                                    point: $0.point.map { GoPoint(x: $0.x, y: $0.y) })

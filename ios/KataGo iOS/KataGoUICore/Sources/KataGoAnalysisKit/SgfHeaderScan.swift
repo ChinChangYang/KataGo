@@ -108,17 +108,6 @@ public struct SgfHeaderScan: Sendable, Equatable {
         boardHeight = height
         komi = text.firstMatch(of: /KM\[([-\d.]+)\]/).flatMap { Float($0.1) }
         rules = text.firstMatch(of: /RU\[([^\]]*)\]/).map { String($0.1) }
-        // Matches getPLSpecifiedColor's accepted spellings exactly: w/white/
-        // b/black, case-insensitively.
-        if let plMatch = text.firstMatch(of: /PL\[([A-Za-z]+)\]/) {
-            switch plMatch.1.lowercased() {
-            case "w", "white": nextPlayerOverride = .white
-            case "b", "black": nextPlayerOverride = .black
-            default: nextPlayerOverride = nil
-            }
-        } else {
-            nextPlayerOverride = nil
-        }
 
         // Walk the sanitized mainline into (identifier, values) properties.
         // A token scan rather than a regex because SGF property identifiers
@@ -130,8 +119,13 @@ public struct SgfHeaderScan: Sendable, Equatable {
         var setupBlack: [SgfPoint] = []
         var setupWhite: [SgfPoint] = []
         var setupEmpty: [SgfPoint] = []
+        var rootPLValues: [String] = []
         for property in Self.properties(in: Self.mainlineForMoveScan(text)) {
             switch property.identifier {
+            // The root's alone, as the C++ parser reads it; a later node's
+            // PL[] names the side to move at that node.
+            case "PL" where property.node == 1:
+                rootPLValues += property.values
             case "B", "W":
                 let color: PlayerColor = property.identifier == "B" ? .black : .white
                 let raw = property.values.first ?? ""
@@ -152,6 +146,14 @@ public struct SgfHeaderScan: Sendable, Equatable {
             default:
                 break
             }
+        }
+        // As getPLSpecifiedColor reads it: a single value (the C++ parser
+        // collects every root PL[] into one list, and more than one value
+        // names no side), spelled w/white/b/black in any case.
+        switch rootPLValues.count == 1 ? rootPLValues[0].lowercased() : nil {
+        case "w", "white": nextPlayerOverride = .white
+        case "b", "black": nextPlayerOverride = .black
+        default: nextPlayerOverride = nil
         }
         self.moves = moves
         self.setupBlack = setupBlack
@@ -197,10 +199,12 @@ public struct SgfHeaderScan: Sendable, Equatable {
         return out
     }
 
-    /// One SGF property: an identifier and its bracketed values.
+    /// One SGF property: an identifier, its bracketed values, and the node
+    /// it belongs to (1 = the root; the text starts at the root's ";").
     private struct Property {
         var identifier: String
         var values: [String]
+        var node: Int
     }
 
     /// Splits a sanitized mainline string into properties. Values are read
@@ -213,10 +217,11 @@ public struct SgfHeaderScan: Sendable, Equatable {
         var values: [String] = []
         var value = ""
         var inValue = false
+        var node = 0
 
         func flush() {
             if !identifier.isEmpty {
-                result.append(Property(identifier: identifier, values: values))
+                result.append(Property(identifier: identifier, values: values, node: node))
             }
             identifier = ""
             values = []
@@ -242,6 +247,7 @@ public struct SgfHeaderScan: Sendable, Equatable {
                 identifier.append(character)
             } else if character == ";" || character == "(" || character == ")" {
                 flush()
+                if character == ";" { node += 1 }
             }
         }
         flush()
