@@ -27,6 +27,11 @@ final class ListeningSessionController: ListeningPresenting {
     private var artwork: MPMediaItemArtwork?
     /// True while `listen(to:)` stops the session it replaces.
     private var isReplacingSession = false
+    /// True once an interruption pauses a playing session, until the session
+    /// plays again, the interruption ends, or the session does. Only then may
+    /// the interruption's end resume it: a pause the user chose outlasts the
+    /// call.
+    private var resumesAfterInterruption = false
 
     /// Tests pass a stand-in for `liveActivity`: a real activity outlives the
     /// test host (see `ListeningLiveActivity`).
@@ -109,11 +114,16 @@ final class ListeningSessionController: ListeningPresenting {
     }
 
     func sessionDidUpdate(cue: ListeningCue?, isPlaying: Bool) {
+        // Not every `.began` gets an `.ended`. Playing again settles the
+        // pause an unended one made, so a later call cannot resume a pause
+        // the user chose after it.
+        if isPlaying { resumesAfterInterruption = false }
         updateNowPlaying()
         liveActivity.update(activityState())
     }
 
     func sessionDidEnd(finished: Bool) {
+        resumesAfterInterruption = false
         tearDownRemoteCommands()
         removeSessionNotificationObservers()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
@@ -216,20 +226,28 @@ final class ListeningSessionController: ListeningPresenting {
     }
 
     /// Nav prompts and calls: pause on `.began`, and resume on `.ended` only
-    /// when the system says the app should — after re-asserting the
-    /// listening session, which the interruption deactivated.
+    /// when the interruption is what paused the session and the system says
+    /// the app should — after re-asserting the listening session, which the
+    /// interruption deactivated. A session played again during the
+    /// interruption takes the audio session back too; a paused one leaves it
+    /// to the audio it interrupted.
     func handleInterruption(typeRaw: UInt?, optionsRaw: UInt?) {
         guard let typeRaw,
               let type = AVAudioSession.InterruptionType(rawValue: typeRaw) else { return }
         switch type {
         case .began:
+            // A second `.began`, the first never ended, finds the session
+            // paused by the first, and keeps its claim.
+            if engine.state == .playing { resumesAfterInterruption = true }
             engine.pause()
         case .ended:
+            let resumes = resumesAfterInterruption
+            resumesAfterInterruption = false
             let options = AVAudioSession.InterruptionOptions(rawValue: optionsRaw ?? 0)
-            if options.contains(.shouldResume) {
-                AppAudioSessionPolicy.beginListening()
-                engine.play()
-            }
+            guard options.contains(.shouldResume),
+                  resumes || engine.state == .playing else { return }
+            AppAudioSessionPolicy.beginListening()
+            engine.play()
         @unknown default:
             break
         }

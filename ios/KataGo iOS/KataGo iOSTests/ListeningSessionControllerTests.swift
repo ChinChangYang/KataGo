@@ -4,7 +4,7 @@
 //
 //  Interruption and route-change handling, driven with the raw userInfo
 //  values the notifications carry — the simulator cannot fake a phone call
-//  or a CarPlay unplug, but the handlers are pure over these values.
+//  or a CarPlay unplug, but the handlers take nothing else from them.
 //
 //  The same applies to the Now Playing artwork below: the simulator finishes a
 //  whole script in seconds with no audio device, so the lock-screen card never
@@ -48,14 +48,25 @@ struct ListeningSessionControllerTests {
         return controller
     }
 
+    private func interruptionBegan(_ controller: ListeningSessionController) {
+        controller.handleInterruption(
+            typeRaw: AVAudioSession.InterruptionType.began.rawValue, optionsRaw: nil)
+    }
+
+    private func interruptionEnded(_ controller: ListeningSessionController,
+                                   shouldResume: Bool) {
+        controller.handleInterruption(
+            typeRaw: AVAudioSession.InterruptionType.ended.rawValue,
+            optionsRaw: shouldResume ? AVAudioSession.InterruptionOptions.shouldResume.rawValue : 0)
+    }
+
     @Test func interruptionBeganPausesTheSession() {
         let liveActivity = LiveActivityRecorder()
         let controller = startedController(liveActivity)
         #expect(controller.engine.state == .playing)
         #expect(liveActivity.updates.last?.isPlaying == true)
 
-        controller.handleInterruption(
-            typeRaw: AVAudioSession.InterruptionType.began.rawValue, optionsRaw: nil)
+        interruptionBegan(controller)
         #expect(controller.engine.state == .paused)
         // The card follows: its play/pause glyph reads this.
         #expect(liveActivity.updates.last?.isPlaying == false)
@@ -63,24 +74,84 @@ struct ListeningSessionControllerTests {
 
     @Test func interruptionEndedWithShouldResumeResumes() {
         let controller = startedController()
-        controller.handleInterruption(
-            typeRaw: AVAudioSession.InterruptionType.began.rawValue, optionsRaw: nil)
+        interruptionBegan(controller)
         #expect(controller.engine.state == .paused)
 
-        controller.handleInterruption(
-            typeRaw: AVAudioSession.InterruptionType.ended.rawValue,
-            optionsRaw: AVAudioSession.InterruptionOptions.shouldResume.rawValue)
+        interruptionEnded(controller, shouldResume: true)
         #expect(controller.engine.state == .playing)
     }
 
     @Test func interruptionEndedWithoutShouldResumeStaysPaused() {
         let controller = startedController()
-        controller.handleInterruption(
-            typeRaw: AVAudioSession.InterruptionType.began.rawValue, optionsRaw: nil)
+        interruptionBegan(controller)
 
-        controller.handleInterruption(
-            typeRaw: AVAudioSession.InterruptionType.ended.rawValue, optionsRaw: 0)
+        interruptionEnded(controller, shouldResume: false)
         #expect(controller.engine.state == .paused)
+    }
+
+    /// A pause the user chose outlasts a call: the call's end resumes only
+    /// a session its start paused.
+    @Test func anInterruptionLeavesAUserPauseAlone() {
+        let controller = startedController()
+        controller.engine.pause()
+
+        interruptionBegan(controller)
+        interruptionEnded(controller, shouldResume: true)
+        #expect(controller.engine.state == .paused)
+        controller.endSession()
+    }
+
+    /// Not every `.began` gets an `.ended`. One left open must not let a
+    /// later call resume a pause the user chose after playing again.
+    @Test func anInterruptionThatNeverEndedCannotResumeALaterUserPause() {
+        let controller = startedController()
+        interruptionBegan(controller)
+        controller.engine.play()
+        controller.engine.pause()
+
+        interruptionBegan(controller)
+        interruptionEnded(controller, shouldResume: true)
+        #expect(controller.engine.state == .paused)
+        controller.endSession()
+    }
+
+    /// A second `.began`, the first never ended, finds the session paused
+    /// by the first and not by the user: the end still resumes it.
+    @Test func anInterruptionOverAnotherStillResumes() {
+        let controller = startedController()
+        interruptionBegan(controller)
+        interruptionBegan(controller)
+
+        interruptionEnded(controller, shouldResume: true)
+        #expect(controller.engine.state == .playing)
+        controller.endSession()
+    }
+
+    /// Left paused by an interruption the system said not to resume from,
+    /// the session is as good as paused by the user: the next interruption
+    /// must not resume it.
+    @Test func anInterruptionEndedWithoutResumeLeavesTheNextAlone() {
+        let controller = startedController()
+        interruptionBegan(controller)
+        interruptionEnded(controller, shouldResume: false)
+
+        interruptionBegan(controller)
+        interruptionEnded(controller, shouldResume: true)
+        #expect(controller.engine.state == .paused)
+        controller.endSession()
+    }
+
+    /// An interruption that ends after the session did must not take the
+    /// audio session back: nothing is left to play, and other audio would
+    /// stay silenced.
+    @Test func anInterruptionEndingAfterTheSessionLeavesTheAudioAlone() {
+        let controller = startedController()
+        interruptionBegan(controller)
+        controller.endSession()
+
+        interruptionEnded(controller, shouldResume: true)
+        #expect(controller.engine.state == .idle)
+        #expect(!AppAudioSessionPolicy.isListeningActive)
     }
 
     @Test func unplugPausesButOtherRouteChangesDoNot() {

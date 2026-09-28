@@ -33,7 +33,8 @@ public enum AppAudioSessionPolicy {
 
     /// A Listening Session's posture: non-mixable spoken audio — what earns
     /// Now Playing ownership and keeps the process alive in the background.
-    /// Also re-asserted when an interruption ends.
+    /// Also re-asserted when an interruption ends with the session to play
+    /// on.
     public static func beginListening() {
         isListeningActive = true
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
