@@ -14,6 +14,8 @@
 //  Serialized because that info center is PROCESS-GLOBAL: `listen(to:)` writes
 //  it, so two of these running at once would each read the other's session.
 //
+//  No controller here puts up a real Live Activity (see `makeController`).
+//
 
 import AVFoundation
 import Foundation
@@ -25,8 +27,21 @@ import KataGoUICore
 @MainActor
 @Suite(.serialized)
 struct ListeningSessionControllerTests {
-    private func startedController() -> ListeningSessionController {
-        let controller = ListeningSessionController()
+    /// Every controller in this suite comes from here, with a recorder in
+    /// place of ActivityKit. These tests leave sessions running, and a real
+    /// activity outlives the test host: at the simulator's next boot the
+    /// system launches the app for it, and the first test launch then
+    /// failed. The leak was 5 activities per run of this suite.
+    private func makeController(
+        _ liveActivity: LiveActivityRecorder = LiveActivityRecorder()
+    ) -> ListeningSessionController {
+        ListeningSessionController(liveActivity: liveActivity)
+    }
+
+    private func startedController(
+        _ liveActivity: LiveActivityRecorder = LiveActivityRecorder()
+    ) -> ListeningSessionController {
+        let controller = makeController(liveActivity)
         let record = GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[cc];W[gg])",
                                 config: Config(), name: "Interrupted")
         #expect(controller.listen(to: record))
@@ -34,12 +49,16 @@ struct ListeningSessionControllerTests {
     }
 
     @Test func interruptionBeganPausesTheSession() {
-        let controller = startedController()
+        let liveActivity = LiveActivityRecorder()
+        let controller = startedController(liveActivity)
         #expect(controller.engine.state == .playing)
+        #expect(liveActivity.updates.last?.isPlaying == true)
 
         controller.handleInterruption(
             typeRaw: AVAudioSession.InterruptionType.began.rawValue, optionsRaw: nil)
         #expect(controller.engine.state == .paused)
+        // The card follows: its play/pause glyph reads this.
+        #expect(liveActivity.updates.last?.isPlaying == false)
     }
 
     @Test func interruptionEndedWithShouldResumeResumes() {
@@ -77,11 +96,13 @@ struct ListeningSessionControllerTests {
     }
 
     @Test func unnarratableRecordIsRefused() {
-        let controller = ListeningSessionController()
+        let liveActivity = LiveActivityRecorder()
+        let controller = makeController(liveActivity)
         let record = GameRecord(sgf: "(;GM[1]SZ[9];B[cc];W[cc])",
                                 config: Config(), name: "Refused")
         #expect(!controller.listen(to: record))
         #expect(controller.engine.state == .idle)
+        #expect(liveActivity.startedGameNames.isEmpty)
     }
 
     // MARK: - Now Playing artwork (ADR 0014)
@@ -110,13 +131,13 @@ struct ListeningSessionControllerTests {
     /// screen capture, a stored column, or whichever game was open before.
     @Test func theArtworkIsDerivedFromTheRecord() async throws {
         let sgf = "(;GM[1]FF[4]SZ[9];B[cc];W[gg])"
-        let first = ListeningSessionController()
+        let first = makeController()
         #expect(first.listen(to: GameRecord(sgf: sgf, currentIndex: 2,
                                             config: Config(), name: "Derived")))
         let once = try await lockScreenArtworkPNG()
         first.endSession()
 
-        let second = ListeningSessionController()
+        let second = makeController()
         #expect(second.listen(to: GameRecord(sgf: sgf, currentIndex: 2,
                                              config: Config(), name: "Derived again")))
         let twice = try await lockScreenArtworkPNG()
@@ -129,7 +150,7 @@ struct ListeningSessionControllerTests {
         // is not two blanks agreeing. `currentIndex` defaults to 0, which is
         // exactly how a careless version of this test passes while proving
         // nothing.
-        let unplayed = ListeningSessionController()
+        let unplayed = makeController()
         #expect(unplayed.listen(to: GameRecord(sgf: sgf, config: Config(), name: "Move zero")))
         let atTheStart = try await lockScreenArtworkPNG()
         unplayed.endSession()
@@ -141,13 +162,13 @@ struct ListeningSessionControllerTests {
     /// The old capture path rendered whatever board was on screen, so opening
     /// B could hand A's session B's board.
     @Test func twoGamesDoNotShareOnePicture() async throws {
-        let a = ListeningSessionController()
+        let a = makeController()
         #expect(a.listen(to: GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[cc];W[gg])",
                                         currentIndex: 2, config: Config(), name: "Game A")))
         let pictureOfA = try await lockScreenArtworkPNG()
         a.endSession()
 
-        let b = ListeningSessionController()
+        let b = makeController()
         #expect(b.listen(to: GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[ee];W[cg];B[gc])",
                                         currentIndex: 3, config: Config(), name: "Game B")))
         let pictureOfB = try await lockScreenArtworkPNG()
@@ -157,15 +178,42 @@ struct ListeningSessionControllerTests {
     }
 
     /// Ending a session takes the card down with it — a stale board must not
-    /// outlive the game it depicts on the lock screen.
+    /// outlive the game it depicts on the lock screen. The Live Activity goes
+    /// with it.
     @Test func endingTheSessionClearsTheCard() {
-        let controller = ListeningSessionController()
+        let liveActivity = LiveActivityRecorder()
+        let controller = makeController(liveActivity)
         #expect(controller.listen(to: GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[cc];W[gg])",
                                                  currentIndex: 2, config: Config(),
                                                  name: "Transient")))
         #expect(MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyArtwork] != nil)
+        #expect(liveActivity.startedGameNames == ["Transient"])
+        #expect(liveActivity.isUp)
 
         controller.endSession()
         #expect(MPNowPlayingInfoCenter.default().nowPlayingInfo == nil)
+        #expect(!liveActivity.isUp)
+    }
+}
+
+/// Stands in for ActivityKit, and remembers what the session asked of it.
+@MainActor
+private final class LiveActivityRecorder: ListeningLiveActivity {
+    private(set) var startedGameNames: [String] = []
+    private(set) var updates: [ListeningActivityAttributes.ContentState] = []
+    private(set) var isUp = false
+
+    func start(_ attributes: ListeningActivityAttributes,
+               state: ListeningActivityAttributes.ContentState) {
+        startedGameNames.append(attributes.gameName)
+        isUp = true
+    }
+
+    func update(_ state: ListeningActivityAttributes.ContentState) {
+        updates.append(state)
+    }
+
+    func end(_ state: ListeningActivityAttributes.ContentState) {
+        isUp = false
     }
 }

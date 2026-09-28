@@ -30,6 +30,11 @@ struct KataGo_iOSApp: App {
 
         KataGoShortcuts.updateAppShortcutParameters()
 
+        // End the Listening Live Activities an earlier process left running.
+        // Here, before any view exists: a Listen App Intent starts its session
+        // from the root view, and the sweep must not end that one.
+        SystemListeningLiveActivity.endOrphans()
+
         // Carry the retired `isLargeThumbnail` bool onto the app-wide
         // `GlobalSettings.thumbnailSize` index. HERE, in init(), and not in a
         // `.onAppear` beside the rest of the preference seeding: the

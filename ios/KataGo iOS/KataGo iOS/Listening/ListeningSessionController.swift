@@ -22,11 +22,14 @@ final class ListeningSessionController: ListeningPresenting {
     var isPresentingSheet = false
 
     private let sounds = ListeningSounds()
+    private let liveActivity: ListeningLiveActivity
     private var observers: [NSObjectProtocol] = []
     private var artwork: MPMediaItemArtwork?
-    private var activityID: String?
 
-    init() {
+    /// Tests pass a stand-in for `liveActivity`: a real activity outlives the
+    /// test host (see `ListeningLiveActivity`).
+    init(liveActivity: ListeningLiveActivity = SystemListeningLiveActivity()) {
+        self.liveActivity = liveActivity
         engine = ListeningEngine(speaker: AVSpeechListeningSpeaker(),
                                  sounds: sounds,
                                  cursorStore: UserDefaultsListeningCursorStore())
@@ -87,12 +90,16 @@ final class ListeningSessionController: ListeningPresenting {
 
     func sessionDidStart(_ script: ListeningScript) {
         updateNowPlaying()
-        startActivity(for: script)
+        liveActivity.start(
+            ListeningActivityAttributes(gameID: script.gameID?.uuidString ?? "",
+                                        gameName: script.gameName,
+                                        totalMoves: script.moveCount),
+            state: activityState())
     }
 
     func sessionDidUpdate(cue: ListeningCue?, isPlaying: Bool) {
         updateNowPlaying()
-        updateActivity()
+        liveActivity.update(activityState())
     }
 
     func sessionDidEnd(finished: Bool) {
@@ -100,50 +107,11 @@ final class ListeningSessionController: ListeningPresenting {
         removeSessionNotificationObservers()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         artwork = nil
-        endActivity()
+        liveActivity.end(activityState())
         AppAudioSessionPolicy.endListening()
     }
 
     // MARK: - Live Activity
-
-    /// The session's one CarPlay surface: iOS 26 mirrors a running Live
-    /// Activity onto the CarPlay Dashboard with no entitlement. Session-
-    /// scoped — requested at start, ended at stop, never left to linger.
-    private func startActivity(for script: ListeningScript) {
-        endActivity()
-        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
-        let attributes = ListeningActivityAttributes(
-            gameID: script.gameID?.uuidString ?? "",
-            gameName: script.gameName,
-            totalMoves: script.moveCount)
-        activityID = try? Activity.request(
-            attributes: attributes,
-            content: ActivityContent(state: activityState(), staleDate: nil)).id
-    }
-
-    // Update/end address the activity BY ID from inside the task's own
-    // region: Activity is not Sendable, so it must not cross the hop.
-
-    private func updateActivity() {
-        guard let activityID else { return }
-        let content = ActivityContent(state: activityState(), staleDate: nil)
-        Task.detached {
-            await Activity<ListeningActivityAttributes>.activities
-                .first { $0.id == activityID }?
-                .update(content)
-        }
-    }
-
-    private func endActivity() {
-        guard let activityID else { return }
-        self.activityID = nil
-        let content = ActivityContent(state: activityState(), staleDate: nil)
-        Task.detached {
-            await Activity<ListeningActivityAttributes>.activities
-                .first { $0.id == activityID }?
-                .end(content, dismissalPolicy: .default)
-        }
-    }
 
     private func activityState() -> ListeningActivityAttributes.ContentState {
         ListeningActivityAttributes.ContentState(
@@ -260,6 +228,83 @@ final class ListeningSessionController: ListeningPresenting {
               AVAudioSession.RouteChangeReason(rawValue: reasonRaw) == .oldDeviceUnavailable
         else { return }
         engine.pause()
+    }
+}
+
+/// The session's one CarPlay surface: iOS 26 mirrors a running Live
+/// Activity onto the CarPlay Dashboard with no entitlement. Session-
+/// scoped — requested at start, ended at stop, never left running.
+///
+/// A seam so unit tests never put up a real one. A real activity outlives
+/// the test host, and at the simulator's next boot the system launches the
+/// app in the background for it; measured 2026-09-28, the first test launch
+/// after such a boot then failed ("No such process") or hung.
+@MainActor
+protocol ListeningLiveActivity: AnyObject {
+    func start(_ attributes: ListeningActivityAttributes,
+               state: ListeningActivityAttributes.ContentState)
+    func update(_ state: ListeningActivityAttributes.ContentState)
+    func end(_ state: ListeningActivityAttributes.ContentState)
+}
+
+/// ActivityKit's side of the seam.
+@MainActor
+final class SystemListeningLiveActivity: ListeningLiveActivity {
+    private var activityID: String?
+
+    func start(_ attributes: ListeningActivityAttributes,
+               state: ListeningActivityAttributes.ContentState) {
+        end(state)
+        guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+        activityID = try? Activity.request(
+            attributes: attributes,
+            content: ActivityContent(state: state, staleDate: nil)).id
+    }
+
+    // Update/end address the activity BY ID from inside the task's own
+    // region: Activity is not Sendable, so it must not cross the hop.
+
+    func update(_ state: ListeningActivityAttributes.ContentState) {
+        guard let activityID else { return }
+        let content = ActivityContent(state: state, staleDate: nil)
+        Task.detached {
+            await Activity<ListeningActivityAttributes>.activities
+                .first { $0.id == activityID }?
+                .update(content)
+        }
+    }
+
+    func end(_ state: ListeningActivityAttributes.ContentState) {
+        guard let activityID else { return }
+        self.activityID = nil
+        let content = ActivityContent(state: state, staleDate: nil)
+        Task.detached {
+            await Activity<ListeningActivityAttributes>.activities
+                .first { $0.id == activityID }?
+                .end(content, dismissalPolicy: .default)
+        }
+    }
+
+    /// End the Listening activities an earlier process left running. A
+    /// session ends its own when it stops, but a process that dies mid-session
+    /// never does, and its card stays up on a move nobody is narrating. Ended
+    /// ones are left alone: a finished session's result card lingers on
+    /// purpose, and the system takes it down.
+    ///
+    /// Call it once, at launch, before anything can start a session. The IDs
+    /// are read here, synchronously, so a session that a Listen App Intent
+    /// starts meanwhile is not swept with them.
+    static func endOrphans() {
+        let orphans = Set(Activity<ListeningActivityAttributes>.activities
+            .filter { $0.activityState != .ended && $0.activityState != .dismissed }
+            .map(\.id))
+        guard !orphans.isEmpty else { return }
+        Task.detached {
+            for activity in Activity<ListeningActivityAttributes>.activities
+            where orphans.contains(activity.id) {
+                await activity.end(nil, dismissalPolicy: .immediate)
+            }
+        }
     }
 }
 

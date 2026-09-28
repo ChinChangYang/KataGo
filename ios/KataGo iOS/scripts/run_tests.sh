@@ -47,9 +47,13 @@
 #   A failed run in which no test failed, with a known simulator-launch
 #   signature, is an infrastructure failure to retry rather than a test
 #   failure; a test runner that started and then crashed or exited is not.
-#   The usual case is "Simulator device failed to launch … No such process" on
-#   the first app launch after a cold boot, which hit about 4 in 10 runs on
-#   this project's own simulator (2026-09-26). If other test bundles did run,
+#   The usual case was "Simulator device failed to launch … No such process"
+#   on the first app launch after a boot, about 4 in 10 runs on this
+#   project's own simulator (2026-09-26). Its cause, found 2026-09-28: Live
+#   Activities that unit tests left up made the system launch the app in the
+#   background at boot. The tests no longer put up real ones; if the failure
+#   comes back, look for a leaked activity before blaming the simulator.
+#   If other test bundles did run,
 #   and passed, only the bundles that never launched are rerun, unless the
 #   extra arguments already pick tests with -only-testing or -skip-testing;
 #   then the whole selection is rerun.
@@ -171,9 +175,8 @@ prepare_simulator() {
     return 0
 }
 
-# Retry on the same booted simulator when it still answers; restart it only
-# when it does not. The launch failure this recovers from hits the first
-# launch after a boot, so a restart would only invite it again.
+# Retry on the same booted simulator when it still answers, which is cheaper;
+# restart it only when it does not.
 recover_simulator() {
     prepare_simulator || reset_simulator
 }
