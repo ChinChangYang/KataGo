@@ -25,6 +25,8 @@ final class ListeningSessionController: ListeningPresenting {
     private let liveActivity: ListeningLiveActivity
     private var observers: [NSObjectProtocol] = []
     private var artwork: MPMediaItemArtwork?
+    /// True while `listen(to:)` stops the session it replaces.
+    private var isReplacingSession = false
 
     /// Tests pass a stand-in for `liveActivity`: a real activity outlives the
     /// test host (see `ListeningLiveActivity`).
@@ -52,6 +54,15 @@ final class ListeningSessionController: ListeningPresenting {
             return true
         }
         guard let script = ListeningScriptBuilder.script(for: gameRecord) else { return false }
+        // Any earlier session, playing, paused or finished, tears down NOW.
+        // Left to `engine.start`, its `sessionDidEnd` would run after the
+        // setup below and undo it. After the guard: a record that cannot be
+        // narrated leaves the current session untouched.
+        if engine.script != nil {
+            isReplacingSession = true
+            engine.stop()
+            isReplacingSession = false
+        }
         // The artwork request handler MUST be @Sendable: MediaPlayer calls
         // it on its own queue, and a closure formed here would otherwise
         // inherit MainActor isolation and trap off-main (the @MainActor-
@@ -107,8 +118,11 @@ final class ListeningSessionController: ListeningPresenting {
         removeSessionNotificationObservers()
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
         artwork = nil
-        liveActivity.end(activityState())
-        AppAudioSessionPolicy.endListening()
+        liveActivity.end(activityState(), finished: finished)
+        // A session the next one replaces keeps the listening posture:
+        // deactivating would tell the audio it interrupted to resume, a
+        // moment before the next game takes the session back.
+        if !isReplacingSession { AppAudioSessionPolicy.endListening() }
     }
 
     // MARK: - Live Activity
@@ -233,7 +247,9 @@ final class ListeningSessionController: ListeningPresenting {
 
 /// The session's one CarPlay surface: iOS 26 mirrors a running Live
 /// Activity onto the CarPlay Dashboard with no entitlement. Session-
-/// scoped — requested at start, ended at stop, never left running.
+/// scoped — requested at start, ended at stop, never left to linger. Only a
+/// finished session's card stays up, showing the result, until the system
+/// takes it down.
 ///
 /// A seam so unit tests never put up a real one. A real activity outlives
 /// the test host, and at the simulator's next boot the system launches the
@@ -244,7 +260,7 @@ protocol ListeningLiveActivity: AnyObject {
     func start(_ attributes: ListeningActivityAttributes,
                state: ListeningActivityAttributes.ContentState)
     func update(_ state: ListeningActivityAttributes.ContentState)
-    func end(_ state: ListeningActivityAttributes.ContentState)
+    func end(_ state: ListeningActivityAttributes.ContentState, finished: Bool)
 }
 
 /// ActivityKit's side of the seam.
@@ -254,7 +270,7 @@ final class SystemListeningLiveActivity: ListeningLiveActivity {
 
     func start(_ attributes: ListeningActivityAttributes,
                state: ListeningActivityAttributes.ContentState) {
-        end(state)
+        end(state, finished: false)
         guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
         activityID = try? Activity.request(
             attributes: attributes,
@@ -274,14 +290,15 @@ final class SystemListeningLiveActivity: ListeningLiveActivity {
         }
     }
 
-    func end(_ state: ListeningActivityAttributes.ContentState) {
+    func end(_ state: ListeningActivityAttributes.ContentState, finished: Bool) {
         guard let activityID else { return }
         self.activityID = nil
         let content = ActivityContent(state: state, staleDate: nil)
+        let policy: ActivityUIDismissalPolicy = finished ? .default : .immediate
         Task.detached {
             await Activity<ListeningActivityAttributes>.activities
                 .first { $0.id == activityID }?
-                .end(content, dismissalPolicy: .default)
+                .end(content, dismissalPolicy: policy)
         }
     }
 

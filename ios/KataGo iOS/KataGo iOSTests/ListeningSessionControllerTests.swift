@@ -95,6 +95,43 @@ struct ListeningSessionControllerTests {
         #expect(controller.engine.state == .paused)
     }
 
+    /// Listen to a second game while the first still plays (a list row's
+    /// Listen, or Siri). The first session's teardown must run BEFORE the
+    /// second's setup: run after it, it took the second game's artwork,
+    /// listening posture, transport and interruption handling with it.
+    @Test func aSecondGameKeepsItsOwnSetup() async throws {
+        let liveActivity = LiveActivityRecorder()
+        let controller = makeController(liveActivity)
+        #expect(controller.listen(to: GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[cc];W[gg])",
+                                                 currentIndex: 2, config: Config(),
+                                                 name: "First")))
+        #expect(controller.listen(to: GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[ee];W[cg];B[gc])",
+                                                 currentIndex: 3, config: Config(),
+                                                 name: "Second")))
+        #expect(controller.engine.script?.gameName == "Second")
+        #expect(MPNowPlayingInfoCenter.default().nowPlayingInfo?[MPMediaItemPropertyArtwork] != nil)
+        #expect(AppAudioSessionPolicy.isListeningActive)
+        #expect(liveActivity.startedGameNames == ["First", "Second"])
+        #expect(liveActivity.isUp)
+        // The first game's card went as a stop, not a finish: it must not
+        // linger beside the second's.
+        #expect(liveActivity.endings == [false])
+
+        // Through the notification this time, not a direct call: the
+        // observer is what a phone call reaches.
+        NotificationCenter.default.post(
+            name: AVAudioSession.interruptionNotification,
+            object: AVAudioSession.sharedInstance(),
+            userInfo: [AVAudioSessionInterruptionTypeKey:
+                        AVAudioSession.InterruptionType.began.rawValue])
+        for _ in 0..<50 where controller.engine.state != .paused {
+            try await Task.sleep(for: .milliseconds(20))
+        }
+        #expect(controller.engine.state == .paused)
+
+        controller.endSession()
+    }
+
     @Test func unnarratableRecordIsRefused() {
         let liveActivity = LiveActivityRecorder()
         let controller = makeController(liveActivity)
@@ -193,6 +230,7 @@ struct ListeningSessionControllerTests {
         controller.endSession()
         #expect(MPNowPlayingInfoCenter.default().nowPlayingInfo == nil)
         #expect(!liveActivity.isUp)
+        #expect(liveActivity.endings == [false])
     }
 }
 
@@ -201,6 +239,8 @@ struct ListeningSessionControllerTests {
 private final class LiveActivityRecorder: ListeningLiveActivity {
     private(set) var startedGameNames: [String] = []
     private(set) var updates: [ListeningActivityAttributes.ContentState] = []
+    /// One entry per end: whether the session finished rather than stopped.
+    private(set) var endings: [Bool] = []
     private(set) var isUp = false
 
     func start(_ attributes: ListeningActivityAttributes,
@@ -213,7 +253,8 @@ private final class LiveActivityRecorder: ListeningLiveActivity {
         updates.append(state)
     }
 
-    func end(_ state: ListeningActivityAttributes.ContentState) {
+    func end(_ state: ListeningActivityAttributes.ContentState, finished: Bool) {
+        endings.append(finished)
         isUp = false
     }
 }
