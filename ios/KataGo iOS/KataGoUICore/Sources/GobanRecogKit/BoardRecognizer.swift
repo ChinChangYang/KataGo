@@ -24,13 +24,20 @@ public enum BoardRecognizer {
     ///   - anything else   → `throw BoardRecognitionError.recognitionFailed(reason:)`
     ///     carrying the raw `failed:<reason>` tail.
     ///   - undecodable data or a degenerate crop → `throw BoardRecognitionError.invalidImage`
+    ///
+    /// The board's `detectedQuad` is in the whole photo's space even when
+    /// cropped: the grid editor seeds its corners from it.
     public static func recognize(imageData: Data,
                                  cropNormalized: CGRect? = nil) async throws -> RecognizedBoard {
         guard let image = BoardImageIngestion.bgrImage(from: imageData,
                                                        cropNormalized: cropNormalized) else {
             throw BoardRecognitionError.invalidImage
         }
-        return try await recognize(image: image)
+        let board = try await recognize(image: image)
+        guard let cropNormalized, let crop = BoardImageIngestion.clampedCrop(cropNormalized) else {
+            return board
+        }
+        return board.placed(inCrop: crop)
     }
 
     /// Recognizes using the board's four outer grid-line intersections as the

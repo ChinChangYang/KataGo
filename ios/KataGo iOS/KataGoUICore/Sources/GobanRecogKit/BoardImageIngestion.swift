@@ -84,6 +84,24 @@ public enum BoardImageIngestion {
         return bgrImage(from: source, maxPixelSize: maxPixelSize)
     }
 
+    /// The region `bgrImage(from:cropNormalized:)` crops to: the rect
+    /// standardized and clamped to the unit square, or nil when none of it
+    /// is left.
+    public static func clampedCrop(_ cropNormalized: CGRect) -> CGRect? {
+        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
+        let standardized = cropNormalized.standardized
+        // Only reach for `.intersection` when actually clamping is needed: it
+        // recomputes width/height as maxX-minX, and binary floating point
+        // addition (e.g. 0.4 + 0.2 = 0.6000000000000001) can perturb an
+        // already-in-bounds width/height by an ULP or two — enough for the
+        // later `.integral` rounding to overshoot by a pixel. A rect already
+        // inside the unit square needs no clamping, so its bits pass through
+        // untouched.
+        let crop = unit.contains(standardized) ? standardized : standardized.intersection(unit)
+        guard crop.width > 0, crop.height > 0 else { return nil }
+        return crop
+    }
+
     /// Crop-aware variant of `bgrImage(from:maxPixelSize:)`.
     ///
     /// `cropNormalized` is a rect in [0,1]² with TOP-LEFT origin in the
@@ -99,18 +117,8 @@ public enum BoardImageIngestion {
         guard let cropNormalized else {
             return bgrImage(from: data, maxPixelSize: maxPixelSize)
         }
-        let unit = CGRect(x: 0, y: 0, width: 1, height: 1)
-        let standardized = cropNormalized.standardized
-        // Only reach for `.intersection` when actually clamping is needed: it
-        // recomputes width/height as maxX-minX, and binary floating point
-        // addition (e.g. 0.4 + 0.2 = 0.6000000000000001) can perturb an
-        // already-in-bounds width/height by an ULP or two — enough for the
-        // later `.integral` rounding to overshoot by a pixel. A rect already
-        // inside the unit square needs no clamping, so its bits pass through
-        // untouched.
-        let crop = unit.contains(standardized) ? standardized : standardized.intersection(unit)
-        guard crop.width > 0, crop.height > 0 else { return nil }
-        if crop == unit {
+        guard let crop = clampedCrop(cropNormalized) else { return nil }
+        if crop == CGRect(x: 0, y: 0, width: 1, height: 1) {
             return bgrImage(from: data, maxPixelSize: maxPixelSize)
         }
         guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }

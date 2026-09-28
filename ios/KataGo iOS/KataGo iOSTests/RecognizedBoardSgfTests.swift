@@ -8,6 +8,7 @@
 //  fast.
 //
 
+import CoreGraphics
 import Testing
 import GobanRecogKit
 import KataGoUICore
@@ -274,5 +275,97 @@ struct RecognizedBoardEditingTests {
         #expect(!flippedSgf.contains("AB"))
         #expect(flippedSgf.contains("AW[ba][cb]"))
         #expect(flippedSgf.contains("PL[B]"))
+    }
+}
+
+/// Which reads the photo-import sheet warns about and takes a second,
+/// automatic look past: a board read off the user's own grid, below the tier
+/// the automatic path demands.
+struct RecognizedBoardManualReadTests {
+
+    private func board(_ quadSource: String, confidence: Double) -> RecognizedBoard {
+        RecognizedBoard(size: 9, rows: Array(repeating: ".........", count: 9),
+                        confidence: confidence, quadSource: quadSource)
+    }
+
+    @Test func aWeakReadOffTheUsersGridIsLowConfidence() {
+        #expect(board("user", confidence: 0.01).isLowConfidenceManualRead)
+        // The stone-anchored refit of the user's grid.
+        #expect(board("user+a", confidence: 0.3).isLowConfidenceManualRead)
+    }
+
+    @Test func theAutomaticTierItselfIsNotLowConfidence() {
+        #expect(!board("user", confidence: RecognizedBoard.automaticConfidenceTier).isLowConfidenceManualRead)
+        #expect(!board("user", confidence: 0.9).isLowConfidenceManualRead)
+    }
+
+    /// An automatic read already cleared the recognizer's own floor, however
+    /// low its confidence reads.
+    @Test func anAutomaticReadIsNeverLowConfidence() {
+        #expect(!board("hull", confidence: 0.1).isLowConfidenceManualRead)
+        #expect(!board("texture", confidence: 0.05).isLowConfidenceManualRead)
+    }
+
+    private func read(size: Int, _ quadSource: String, confidence: Double) -> RecognizedBoard {
+        RecognizedBoard(size: size, rows: Array(repeating: String(repeating: ".", count: size), count: size),
+                        confidence: confidence, quadSource: quadSource)
+    }
+
+    /// A rough box at the picker's untouched default: the 9x9 found inside it
+    /// beats the 19x19 the box "fitted".
+    @Test func aSurerAutomaticReadReplacesAFitAtAnUnpickedSize() {
+        let fitted = read(size: 19, "user", confidence: 0.01)
+        let found = read(size: 9, "hull", confidence: 0.3)
+        #expect(fitted.preferring(automatic: found, pickedSize: nil) == found)
+    }
+
+    @Test func aWeakerAutomaticReadLeavesTheFit() {
+        let fitted = read(size: 19, "user", confidence: 0.3)
+        let found = read(size: 19, "hull", confidence: 0.2)
+        #expect(fitted.preferring(automatic: found, pickedSize: nil) == fitted)
+    }
+
+    /// A size the user picked is never swapped for another, however sure the
+    /// automatic read is; at their size a surer read may still replace the fit.
+    @Test func aPickedSizeIsNeverSwappedForAnother() {
+        let fitted = read(size: 13, "user", confidence: 0.3)
+        #expect(fitted.preferring(automatic: read(size: 9, "hull", confidence: 0.9), pickedSize: 13) == fitted)
+        let sameSize = read(size: 13, "hull", confidence: 0.6)
+        #expect(fitted.preferring(automatic: sameSize, pickedSize: 13) == sameSize)
+    }
+}
+
+/// A board recognized inside a crop reports its corners in the crop's own
+/// space; `placed(inCrop:)` moves them onto the photo, where the grid editor
+/// seeds its corners from them.
+struct RecognizedBoardCropPlacementTests {
+
+    private func board(detectedQuad: BoardQuad?) -> RecognizedBoard {
+        RecognizedBoard(size: 9, rows: Array(repeating: "B........", count: 9),
+                        confidence: 0.3, quadSource: "hull", detectedQuad: detectedQuad)
+    }
+
+    @Test func cornersMoveFromTheCropOntoThePhoto() throws {
+        let inCrop = BoardQuad(topLeft: CGPoint(x: 0.1, y: 0.1),
+                               topRight: CGPoint(x: 0.9, y: 0.1),
+                               bottomRight: CGPoint(x: 0.9, y: 0.9),
+                               bottomLeft: CGPoint(x: 0.1, y: 0.9))
+        let read = board(detectedQuad: inCrop)
+        let placed = read.placed(inCrop: CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5))
+
+        let corners = try #require(placed.detectedQuad).points
+        let expected = [CGPoint(x: 0.3, y: 0.3), CGPoint(x: 0.7, y: 0.3),
+                        CGPoint(x: 0.7, y: 0.7), CGPoint(x: 0.3, y: 0.7)]
+        for (corner, want) in zip(corners, expected) {
+            #expect(abs(corner.x - want.x) < 1e-9 && abs(corner.y - want.y) < 1e-9)
+        }
+        // Only the corners move.
+        #expect(placed.size == read.size && placed.rows == read.rows)
+        #expect(placed.confidence == read.confidence && placed.quadSource == read.quadSource)
+    }
+
+    @Test func aBoardWithoutCornersStaysWithout() {
+        let placed = board(detectedQuad: nil).placed(inCrop: CGRect(x: 0.25, y: 0.25, width: 0.5, height: 0.5))
+        #expect(placed.detectedQuad == nil)
     }
 }

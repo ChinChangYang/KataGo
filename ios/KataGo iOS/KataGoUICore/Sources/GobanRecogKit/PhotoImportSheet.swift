@@ -25,8 +25,9 @@
 //  board face no proposer can find at all; the quad's corners ARE the answer,
 //  handed to the lattice fit directly. It remains a superset — a rectangle is a
 //  quad — so the old "frame just the board" gesture still works, and if the
-//  quad cannot be fitted the sheet falls back to automatic detection within its
-//  bounding box, which is exactly what cropping used to do.
+//  quad cannot be fitted, or fits only at low confidence, the sheet also tries
+//  automatic detection within its bounding box (see `recognizeOnce`), which is
+//  exactly what cropping used to do.
 //
 //  The board is rendered engine-free with the shared `ReportBoardView` from the
 //  pure `RecognizedBoard.stoneVertices` mapping, which the
@@ -68,6 +69,14 @@ public struct PhotoImportSheet: View {
     /// The board size the grid phase draws and submits. Seeded from whatever
     /// the automatic pass detected, else 19.
     @State private var editingBoardSize = 19
+    /// Whether the user picked `editingBoardSize` themselves rather than
+    /// taking the seeded one. A size they chose stays theirs: the automatic
+    /// look inside their grid may not swap it for another (`recognizeOnce`).
+    @State private var boardSizePickedByUser = false
+    /// Whether the submitted grid corrects an automatic read the user has
+    /// already seen (Adjust Grid from the preview). The automatic look inside
+    /// it would likely find that read again, so it is not taken.
+    @State private var gridCorrectsAutomaticRead = false
     /// Orientation-baked screen-resolution decode shown by the grid phase;
     /// loaded once on first need.
     @State private var displayImage: CGImage?
@@ -124,6 +133,14 @@ public struct PhotoImportSheet: View {
         case firstFailure
         case retryFailure
         case fromPreview(RecognizedBoard, edited: RecognizedBoard?)
+
+        /// Whether the user reached the grid from an automatic read they saw.
+        var followsAutomaticRead: Bool {
+            switch self {
+            case .fromPreview: true
+            case .firstFailure, .retryFailure: false
+            }
+        }
     }
 
     /// - Parameters:
@@ -410,7 +427,9 @@ public struct PhotoImportSheet: View {
             }
 
             VStack(spacing: 6) {
-                Picker("Board size", selection: $editingBoardSize) {
+                Picker("Board size", selection: Binding(
+                    get: { editingBoardSize },
+                    set: { editingBoardSize = $0; boardSizePickedByUser = true })) {
                     ForEach(Self.supportedSizes, id: \.self) { size in
                         Text("\(size)×\(size)").tag(size)
                     }
@@ -447,6 +466,7 @@ public struct PhotoImportSheet: View {
             } primary: {
                 Button("Recognize") {
                     submittedQuad = editingQuad
+                    gridCorrectsAutomaticRead = context.followsAutomaticRead
                     recognitionAttempt += 1
                     phase = .recognizing
                 }
@@ -506,20 +526,39 @@ public struct PhotoImportSheet: View {
     /// inside its bounding box. That preserves exactly what the old crop phase
     /// did — "look only here, and work it out yourself" — for a user who drew a
     /// rough box around the board rather than placing corners precisely.
+    ///
+    /// A quad that fits but reads below the automatic tier gets the same look.
+    /// The recognizer accepts a user's quad at any confidence, so a rough box
+    /// usually fits: a 9x9 boxed at the picker's default size read as a 19x19
+    /// at 1% confidence. The look's read replaces the fit only when the
+    /// recognizer is surer of it, and only when it overrules nothing the user
+    /// said: not a size they picked (another size may not replace it), and
+    /// not a grid drawn to correct an automatic read they already saw (the
+    /// look would likely find that same read again). Otherwise the fit
+    /// stands, warning and all, as does it when the look finds nothing. It
+    /// costs a second run of the pipeline, and only on a read the sheet would
+    /// warn about anyway.
     private func recognizeOnce() async throws -> RecognizedBoard {
         guard let quad = submittedQuad else {
             return try await BoardRecognizer.recognize(imageData: imageData)
         }
+        let insideQuad = QuadGeometry.boundingRect(of: quad)
+        let fitted: RecognizedBoard
         do {
-            return try await BoardRecognizer.recognize(imageData: imageData,
-                                                       quadNormalized: quad,
-                                                       boardSize: editingBoardSize)
+            fitted = try await BoardRecognizer.recognize(imageData: imageData,
+                                                         quadNormalized: quad,
+                                                         boardSize: editingBoardSize)
         } catch let error as BoardRecognitionError {
             guard case .recognitionFailed = error else { throw error }
-            return try await BoardRecognizer.recognize(
-                imageData: imageData,
-                cropNormalized: QuadGeometry.boundingRect(of: quad))
+            return try await BoardRecognizer.recognize(imageData: imageData,
+                                                       cropNormalized: insideQuad)
         }
+        guard fitted.isLowConfidenceManualRead, !gridCorrectsAutomaticRead,
+              let found = try? await BoardRecognizer.recognize(imageData: imageData,
+                                                               cropNormalized: insideQuad)
+        else { return fitted }
+        return fitted.preferring(automatic: found,
+                                 pickedSize: boardSizePickedByUser ? editingBoardSize : nil)
     }
 
     /// A failed recognition opens the grid phase — the user can point at the
@@ -558,21 +597,18 @@ public struct PhotoImportSheet: View {
         }
         if let size = board?.size, Self.supportedSizes.contains(size) {
             editingBoardSize = size
+            boardSizePickedByUser = false
         }
         return true
     }
 
     /// Whether to warn about this position: only for a board the manual-grid
     /// path produced, and only below the tier the automatic path would have
-    /// demanded of it.
-    ///
-    /// Keyed on `quadSource`, not on "did the user submit a quad". A user quad
-    /// that fails to fit falls back to automatic detection in its bounding box,
-    /// and a board from THAT path already cleared the recognizer's own floor —
-    /// warning about it would be inconsistent with the identical board reached
-    /// without ever opening the grid editor. `hasPrefix` because the
-    /// stone-anchored refit appends a suffix ("user+a").
+    /// demanded of it (see `RecognizedBoard.isLowConfidenceManualRead`). A
+    /// board automatic detection found inside the user's grid is not warned
+    /// about, just as the identical board reached without ever opening the
+    /// grid editor is not.
     private func isLowConfidence(_ board: RecognizedBoard) -> Bool {
-        board.quadSource.hasPrefix("user") && board.confidence < 0.45
+        board.isLowConfidenceManualRead
     }
 }

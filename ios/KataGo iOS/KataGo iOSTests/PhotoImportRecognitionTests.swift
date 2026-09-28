@@ -257,6 +257,22 @@ struct PhotoImportIngestionTests {
         }
     }
 
+    /// The region a crop keeps is also what maps a cropped read's corners
+    /// back onto the photo, so it must be exactly the rect ingestion used:
+    /// untouched when already inside the photo, clamped when it overhangs.
+    @Test func clampedCropPassesAnInsideRectThroughAndClampsTheRest() throws {
+        let inside = CGRect(x: 0.4, y: 0.2, width: 0.2, height: 0.6)
+        #expect(BoardImageIngestion.clampedCrop(inside) == inside)
+
+        let overhanging = try #require(BoardImageIngestion.clampedCrop(
+            CGRect(x: -0.1, y: 0.5, width: 0.5, height: 0.8)))
+        #expect(abs(overhanging.minX - 0) < 1e-9 && abs(overhanging.maxX - 0.4) < 1e-9)
+        #expect(abs(overhanging.minY - 0.5) < 1e-9 && abs(overhanging.maxY - 1) < 1e-9)
+
+        #expect(BoardImageIngestion.clampedCrop(CGRect(x: 1.5, y: 0, width: 0.2, height: 0.2)) == nil)
+        #expect(BoardImageIngestion.clampedCrop(.zero) == nil)
+    }
+
     // MARK: - Display decode (crop-phase preview image)
 
     @Test func displayImageIsOrientationBakedCappedAndNilOnGarbage() throws {

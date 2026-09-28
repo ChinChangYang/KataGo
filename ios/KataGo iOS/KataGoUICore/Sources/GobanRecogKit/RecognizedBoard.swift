@@ -46,6 +46,20 @@ public struct RecognizedBoard: Equatable, Sendable {
         self.detectedQuad = detectedQuad
     }
 
+    /// This board as read inside `crop`, a region normalized to the whole
+    /// photo: `detectedQuad` moves from the crop's own [0,1]² space into the
+    /// photo's. The recognizer only ever sees the cropped pixels, so its
+    /// corners come back relative to them.
+    public func placed(inCrop crop: CGRect) -> RecognizedBoard {
+        RecognizedBoard(size: size,
+                        rows: rows,
+                        confidence: confidence,
+                        quadSource: quadSource,
+                        detectedQuad: detectedQuad.map {
+                            QuadGeometry.viewQuad(fromNormalized: $0, in: crop)
+                        })
+    }
+
     /// Number of black stones on the board.
     public var blackCount: Int { count(of: "B") }
 
@@ -54,6 +68,38 @@ public struct RecognizedBoard: Equatable, Sendable {
 
     private func count(of stone: Character) -> Int {
         rows.reduce(0) { $0 + $1.reduce(0) { $1 == stone ? $0 + 1 : $0 } }
+    }
+
+    /// The confidence the automatic path demands of the boards it is least
+    /// sure of: the recognizer's rescue floor (`CONF_FLOOR_RESCUE`,
+    /// gr_constants.h).
+    public static let automaticConfidenceTier = 0.45
+
+    /// Whether this board was read off a user-placed grid below the tier the
+    /// automatic path would have demanded of it. The recognizer accepts a
+    /// user's grid at any confidence, so nothing but the user vouches for
+    /// such a read: a rough box, or the wrong size, still "fits" and reads
+    /// nonsense.
+    ///
+    /// Keyed on `quadSource`, not on whether the user submitted a grid: a
+    /// board found by automatic detection inside the grid's bounding box has
+    /// already cleared the recognizer's own floor. `hasPrefix` because the
+    /// stone-anchored refit appends a suffix ("user+a").
+    public var isLowConfidenceManualRead: Bool {
+        quadSource.hasPrefix("user") && confidence < Self.automaticConfidenceTier
+    }
+
+    /// The read to keep, of this fit off the user's grid and `found`,
+    /// automatic detection inside that grid's bounding box: `found` only when
+    /// the recognizer is surer of it and it keeps the size the user picked
+    /// (`pickedSize`, nil when they took the seeded one). A size the user
+    /// chose stays theirs even when wrong: it is visibly wrong on the
+    /// preview, which is how they find the mistake.
+    public func preferring(automatic found: RecognizedBoard, pickedSize: Int?) -> RecognizedBoard {
+        guard found.confidence > confidence, pickedSize.map({ $0 == found.size }) ?? true else {
+            return self
+        }
+        return found
     }
 
     /// The default side to move, from the on-board stone counts:
