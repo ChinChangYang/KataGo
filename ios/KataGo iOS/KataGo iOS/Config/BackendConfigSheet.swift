@@ -138,6 +138,10 @@ struct BackendConfigSheet: View {
                     Button("Done") {
                         dismiss()
                     }
+                    // BackendConfigSheetUITests proves the sheet closed by
+                    // this button leaving: the model picker's own Done has
+                    // an identifier of its own.
+                    .accessibilityIdentifier("BackendConfigSheet.done")
                 }
             }
             .onChange(of: backend) { _, newValue in
@@ -198,6 +202,7 @@ struct BackendConfigSheet: View {
             }
             .disabled(routingProbe.phase == .running || !canProbe)
             .accessibilityIdentifier("CoreMLRouting.checkButton")
+            .accessibilityValue(routingProbe.readiness.accessibilityValue)
             .confirmationDialog("Check Core ML Routing?",
                                 isPresented: $showProbeConfirm,
                                 titleVisibility: .visible) {

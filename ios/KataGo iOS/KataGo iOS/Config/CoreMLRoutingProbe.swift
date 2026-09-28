@@ -178,6 +178,21 @@ final class CoreMLRoutingProbe {
         case needsCompile
         /// The network file is not on disk yet.
         case sourceMissing
+
+        /// The check button's accessibility value. The title cannot carry
+        /// this: `.cached` reads "Check Core ML Routing" exactly as the
+        /// provisional `.resolving` does. VoiceOver hears it after the title,
+        /// and `BackendConfigSheetUITests` waits on it, since the button is
+        /// on screen before anything has resolved. `.sourceMissing` shows a
+        /// line of text instead of the button, so its value is never heard.
+        var accessibilityValue: String {
+            switch self {
+            case .resolving: String(localized: "Looking up compile status")
+            case .cached: String(localized: "Compiled")
+            case .needsCompile: String(localized: "Not compiled")
+            case .sourceMissing: String(localized: "Not downloaded")
+            }
+        }
     }
 
     enum Phase: Equatable {

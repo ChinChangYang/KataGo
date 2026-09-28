@@ -24,6 +24,12 @@
 //  assertions hold either way; the distinction matters only when reading a
 //  failure log.
 //
+//  The sheet is proved by `PhotoImportSheet.cancel`, which every phase
+//  renders, never by its "Import from Photo" title. The grid phase drops the
+//  title, and the gray JPEG decodes but cannot be recognized, so it ends in
+//  that phase; how soon is not measured. A title that came and went before
+//  the first look would read as a sheet that never appeared.
+//
 //  Determinism: the camera cover is driven by `--uitest-camera-permission-denied`
 //  (see `CameraCaptureUITestSupport`). Without it the cover's observability
 //  depends on the Simulator's TCC history — a device that has never been asked
@@ -39,7 +45,9 @@ final class CameraImportUITests: PortraitUITestCase {
     private let cameraImportArg = "--uitest-camera-import"
     private let cameraImportFailingArg = "--uitest-camera-import-failing"
     private let deniedPermissionArg = "--uitest-camera-permission-denied"
-    private let sheetTitle = "Import from Photo"
+    /// The sheet's Cancel: every phase renders it, so it proves the sheet up
+    /// (or gone) whatever phase recognition has reached. See the header.
+    private let sheetCancelID = "PhotoImportSheet.cancel"
 
     @MainActor
     func testCameraImportShowsPreviewWithRetakeAbsent() throws {
@@ -51,9 +59,9 @@ final class CameraImportUITests: PortraitUITestCase {
         // picker closes, without waiting for the engine; the long timeout is
         // headroom for a simulator busy with the engine's launch and Core ML
         // conversion, which run at the same time.
-        let title = app.staticTexts[sheetTitle]
-        XCTAssertTrue(title.waitForExistence(timeout: 360),
-                      "PhotoImportSheet ('\(sheetTitle)') never appeared — the camera launch-arg hook did not reach the sheet")
+        let cancel = app.buttons[sheetCancelID].firstMatch
+        XCTAssertTrue(cancel.waitForExistence(timeout: 360),
+                      "PhotoImportSheet ('\(sheetCancelID)') never appeared — the camera launch-arg hook did not reach the sheet")
 
         // Recognition succeeds → preview. The board element is preview-only.
         let board = app.descendants(matching: .any)["PhotoImportSheet.board"].firstMatch
@@ -68,10 +76,11 @@ final class CameraImportUITests: PortraitUITestCase {
         XCTAssertFalse(app.buttons["Retake"].exists,
                        "'Retake' button must not appear in the preview state")
 
-        let cancel = app.buttons["PhotoImportSheet.cancel"].firstMatch
-        XCTAssertTrue(cancel.waitForExistence(timeout: 10), "Preview 'Cancel' button not found")
+        // Cancel leaving proves the sheet left: every phase renders it, so it
+        // cannot go by a phase change. The title can, because the grid phase
+        // drops it with the sheet still up.
         cancel.tap()
-        XCTAssertTrue(waitForGone(title, timeout: 10),
+        XCTAssertTrue(waitForGone(cancel, timeout: 10),
                       "PhotoImportSheet did not dismiss after Cancel")
     }
 
@@ -84,10 +93,11 @@ final class CameraImportUITests: PortraitUITestCase {
         // The sheet appears, then recognition of the non-board image fails, so
         // the retry button (camera title "Retake", identifier
         // "PhotoImportSheet.retry") is shown — see the note on the recovery
-        // state in the file header.
-        let title = app.staticTexts[sheetTitle]
-        XCTAssertTrue(title.waitForExistence(timeout: 360),
-                      "PhotoImportSheet ('\(sheetTitle)') never appeared — the failing camera launch-arg hook did not reach the sheet")
+        // state in the file header. The sheet is proved by its Cancel: this
+        // image ends in the grid phase, which has no title.
+        let sheetCancel = app.buttons[sheetCancelID].firstMatch
+        XCTAssertTrue(sheetCancel.waitForExistence(timeout: 360),
+                      "PhotoImportSheet ('\(sheetCancelID)') never appeared — the failing camera launch-arg hook did not reach the sheet")
 
         let retry = app.buttons["PhotoImportSheet.retry"].firstMatch
         XCTAssertTrue(retry.waitForExistence(timeout: 120),
@@ -104,7 +114,17 @@ final class CameraImportUITests: PortraitUITestCase {
         // The permission phase is pinned to `denied`, which renders
         // "BoardCamera.cancel" on the cover's first frame — so a plain wait is
         // enough and a timeout here means the cover really did not present.
-        retry.tap()
+        //
+        // Tapped once it holds still: the gray image can fail while the sheet
+        // is still sliding up, and a tap during the slide is lost.
+        XCTAssertTrue(tapWhenSteady(retry, in: app, timeout: 10),
+                      "Retake never settled on screen")
+
+        // The sheet leaves first: GameSplitView presents the cover from its
+        // onDismiss, so a sheet that stays up is a different fault from a
+        // cover that never comes.
+        XCTAssertTrue(waitForGone(sheetCancel, timeout: 10),
+                      "PhotoImportSheet did not dismiss after Retake")
 
         // On screen, not merely present: Cancel is in the tree from the
         // cover's first frame, while the cover is still sliding up.

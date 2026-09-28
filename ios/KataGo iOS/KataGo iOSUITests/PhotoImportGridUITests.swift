@@ -10,7 +10,9 @@
 //  defeats detection but whose central [0.25,0.75]² is the bundled wide-margin
 //  9x9 board. The sheet must land in the grid phase (not a dead-end failure),
 //  corner drags must bring the quad onto the board, and Recognize must reach
-//  the preview, from which Import creates the game. Also covers Adjust Grid →
+//  the preview, from which Import puts the game on the board (proved against
+//  a seeded game behind the sheet, since import de-dups by exact SGF; see
+//  PhotoImportUITests). Also covers Adjust Grid →
 //  Back from a successful preview (camera seam, which additionally shows
 //  Retake in the grid phase).
 //
@@ -20,13 +22,19 @@
 //  rect, the quad starts INSET by 10%, so its corners sit at 0.1 and 0.9 of
 //  the element rather than at its edges — a drag must start there to grab one.
 //
-//  The recognition this drives is the fallback path, not the user-quad fit:
-//  dragging a quad to the board's outer edge by touch cannot land on the
-//  actual corner intersections accurately enough to fit a lattice, so the
-//  user-quad attempt fails and the sheet retries automatic detection inside
-//  the quad's bounding box. That fallback is exactly what the crop phase used
+//  The recognition this drives is the fallback path, not the user-quad fit.
+//  The drags box the board roughly, around its edge rather than on its corner
+//  intersections, and the size picker stays at its default 19. The recognizer
+//  accepts a user's quad at any confidence, so that fit "succeeds" and reads
+//  nonsense: a 19x19 at about 1% confidence. Below the automatic tier the
+//  sheet also runs automatic detection inside the quad's bounding box, which
+//  finds the 9x9 and wins. That fallback is exactly what the crop phase used
 //  to do, and pinning it here is the point — it is the behaviour that must not
-//  regress when a user draws a rough box rather than placing corners.
+//  regress when a user draws a rough box rather than placing corners. The
+//  preview's size and stone counts are what pin it: until 2026-09-28 the
+//  sheet imported the fit's nonsense, and this test still passed, because it
+//  only looked for a library row named "UITest Crop Board", which any import
+//  supplies whatever it recognized.
 //
 
 import XCTest
@@ -39,16 +47,24 @@ import XCTest
 // a `maxWidth` cap or a `layoutPriority(-1)` regression that does not exist.
 final class PhotoImportGridUITests: PortraitUITestCase {
 
-    private let sheetTitle = "Import from Photo"
+    /// The sheet's Cancel: every phase renders it. The title is no proof of
+    /// the sheet, because the grid phase this class drives drops it.
+    private let sheetCancelID = "PhotoImportSheet.cancel"
+    private let importedGameName = "UITest Crop Board"
+    /// Makes the Export GIF test's 19x19 game the newest record, so the
+    /// launch selects it and the board behind the sheet is known (see
+    /// UITestSeed).
+    private let seedLaunchArg = "--uitest-seed-gif-game"
+    private let seededGameName = "UITest GIF Game"
 
     @MainActor
     func testGridRecoveryImportsBoardAfterCornerDrags() throws {
-        let app = makeApp("--uitest-crop-import")
+        let app = makeApp("--uitest-crop-import", seedLaunchArg)
         app.launch()
         launchModel(app)
 
-        let title = app.staticTexts[sheetTitle]
-        XCTAssertTrue(title.waitForExistence(timeout: 360),
+        let sheetCancel = app.buttons[sheetCancelID].firstMatch
+        XCTAssertTrue(sheetCancel.waitForExistence(timeout: 360),
                       "PhotoImportSheet never appeared — the crop-import launch-arg hook did not fire")
 
         // Full-frame recognition fails on the composed image → grid phase.
@@ -95,26 +111,57 @@ final class PhotoImportGridUITests: PortraitUITestCase {
 
         let importButton = app.buttons["Import"].firstMatch
         XCTAssertTrue(importButton.waitForExistence(timeout: 10), "Import button not found")
+        // The automatic look inside the quad read the bundled 9x9 (img_00009,
+        // 12 B + 12 W). The quad's own fit at the picker's default size reads
+        // a 19x19 of nonsense instead (see the header); imported, it would
+        // also leave T 19 on the board below.
+        XCTAssertTrue(app.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS %@", "9 × 9")).firstMatch.waitForExistence(timeout: 10),
+                      "The recognized board is not 9 × 9: the sheet kept the rough quad's own fit")
+        for count in ["12 black stones", "12 white stones"] {
+            XCTAssertTrue(app.descendants(matching: .any)
+                            .matching(NSPredicate(format: "label == %@", count)).firstMatch.exists,
+                          "The preview does not show \(count): the 9x9 was misread")
+        }
+
+        // Before Import: the board behind the sheet is the seeded 19x19 game.
+        // Import de-dups by exact SGF, so the game it selects may be one an
+        // earlier run left; the proof is the board switching to it.
+        let seededTitle = app.navigationBars.buttons[seededGameName]
+        let importedTitle = app.navigationBars.buttons[importedGameName]
+        XCTAssertTrue(seededTitle.waitForExistence(timeout: 10),
+                      "The board behind the sheet is not the seeded '\(seededGameName)': the launch selected another game")
+        XCTAssertFalse(importedTitle.exists,
+                       "'\(importedGameName)' was on the board before Import, so nothing below could prove the import")
+        let t19 = app.buttons["T 19"]
+        XCTAssertTrue(t19.exists, "The seeded 19x19 board does not expose T 19 before Import")
+        // The dismissal check below needs the preview's Cancel here first:
+        // the wait above saw the spinner's.
+        XCTAssertTrue(sheetCancel.exists,
+                      "Preview 'Cancel' ('\(sheetCancelID)') not found beside Import")
+
         importButton.tap()
 
-        // Import lands on the created game's board, whose toolbar title is a
-        // Button (voice-actionable rename) — not a static text — so reveal the
-        // Games list and assert the library cell, matching PhotoImportUITests'
-        // post-import pattern. The sheet has no bar buttons of its own, so the
-        // leading one below is the board's, behind the sheet: prove the sheet
-        // left (its title is gone) and the button is uncovered before tapping.
-        XCTAssertTrue(app.staticTexts[sheetTitle].waitForNonExistence(timeout: 10),
+        // Its Cancel is gone: every phase renders it, so unlike the title it
+        // cannot leave by the sheet falling back to the grid phase.
+        XCTAssertTrue(sheetCancel.waitForNonExistence(timeout: 10),
                       "PhotoImportSheet did not dismiss after tapping Import")
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        XCTAssertTrue(waitForOnScreen(back, in: app, timeout: 10),
-                      "The board's leading bar button is not on screen after Import")
-        back.tap()
-        XCTAssertTrue(app.navigationBars["Games"].waitForExistence(timeout: 10),
-                      "The Games list did not appear after Back")
+        // The board's title (a Button, see GobanView) now names the import...
+        XCTAssertTrue(waitForOnScreen(importedTitle, in: app, timeout: 30),
+                      "The board did not switch to '\(importedGameName)' after Import")
+        // ...and the board itself reloaded as the recognized 9x9: the
+        // seed's far corner is gone, and its intersections are still there.
+        XCTAssertTrue(t19.waitForNonExistence(timeout: 10),
+                      "T 19 is still on the board: the imported 9x9 position did not load")
+        XCTAssertTrue(app.buttons["J 9"].exists,
+                      "No J 9 on the board: its intersections left instead of shrinking to 9x9")
 
-        let cell = app.staticTexts["UITest Crop Board"].firstMatch
-        XCTAssertTrue(cell.waitForExistence(timeout: 30),
-                      "Imported game 'UITest Crop Board' not found in the library")
+        // The library lists it. Not the proof: earlier runs left rows with
+        // this name.
+        showGamesList(app)
+        let cell = app.staticTexts[importedGameName].firstMatch
+        XCTAssertTrue(reveal(cell, in: app, by: { app.swipeUp() }),
+                      "Imported game '\(importedGameName)' never came on screen in the library")
     }
 
     @MainActor

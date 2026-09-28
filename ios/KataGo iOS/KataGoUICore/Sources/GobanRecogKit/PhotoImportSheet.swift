@@ -348,9 +348,22 @@ public struct PhotoImportSheet: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.glassProminent)
+                .accessibilityValue(importValue)
             }
         }
         .frame(maxWidth: Self.contentMaxWidth)
+    }
+
+    /// Import's accessibility value: the side the SGF it sends puts to move
+    /// (PL[]). VoiceOver hears the choice on the button that commits it, and
+    /// PhotoImportUITests reads it to prove the picker took: a tap moves the
+    /// segmented control by itself, whether or not `nextToPlay` follows.
+    private var importValue: LocalizedStringKey {
+        switch nextToPlay {
+        case .black: "Black to play"
+        case .white: "White to play"
+        case .unknown: ""
+        }
     }
 
     /// A stone-count item: a real stone glyph (explicit black/white fill with a

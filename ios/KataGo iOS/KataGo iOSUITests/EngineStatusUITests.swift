@@ -31,8 +31,11 @@
 //    • changing the model does not take the board down (the old flow unmounted
 //      the entire tree when `runGtp` returned, which is what
 //      `AppEngineController` replaces);
-//    • the navigation buttons act with no engine (`isFunctional` used to include
-//      `showBoardCount == 0`, and an absent engine acknowledges nothing);
+//    • the navigation buttons MOVE the board with no engine (`isFunctional`
+//      used to include `showBoardCount == 0`, and an absent engine
+//      acknowledges nothing), read off the seeded game's stones: a button
+//      that cannot act is greyed, never disabled, so being enabled proves
+//      nothing;
 //    • a stone can be PLAYED with no engine (ADR 0018): legality and the record
 //      write are Swift's, and the stone survives the engine arriving later —
 //      the tap gate used to require an in-sync engine.
@@ -43,6 +46,12 @@ import XCTest
 final class EngineStatusUITests: PortraitUITestCase {
 
     private let pickerTitle = "Select a Model"
+
+    /// The Export GIF test's game (`UITestSeed`): six moves on 19x19,
+    /// B Q16, W D4, B R4, W D17, B F3, W C6, none capturing. The seed makes
+    /// itself the newest record at launch, so the launch opens it.
+    private let seedName = "UITest GIF Game"
+    private let seedLaunchArg = "--uitest-seed-gif-game"
 
     // MARK: - The board mounts before the engine
 
@@ -140,7 +149,7 @@ final class EngineStatusUITests: PortraitUITestCase {
 
     @MainActor
     func testNavigationWorksWithNoEngine() throws {
-        let app = makeApp()
+        let app = makeApp(seedLaunchArg)
         app.launch()
 
         dismissModelPicker(app)
@@ -149,26 +158,58 @@ final class EngineStatusUITests: PortraitUITestCase {
         XCTAssertFalse(statusElement(app, "EngineStatus.absent").waitForExistence(timeout: 3),
                        "The removed 'No model chosen' pill reappeared over the board")
 
-        // The navigation buttons are enabled and take taps with no engine in the
-        // process at all — the strongest form of "navigation never waits". They
-        // move the cursor over a record-owned board; anything they would send is
-        // dropped by the command gate and replayed once an engine answers, so
-        // nothing here can desync anything.
+        // The seed is on the board: its name is the bar's title. It opens
+        // wherever the last run left it (the record keeps its cursor), so
+        // nothing is read off the board before the first tap. Q 16 is its
+        // first move, F 3 its fifth and C 6 its last: Q 16 is empty only at
+        // the start, and C 6 is set only at the end.
+        XCTAssertTrue(waitForOnScreen(app.navigationBars.buttons[seedName], in: app, timeout: 30),
+                      "The launch did not open the seeded game '\(seedName)'")
+        let firstMove = app.buttons["Q 16"]
+        let fifthMove = app.buttons["F 3"]
+        let lastMove = app.buttons["C 6"]
+        XCTAssertTrue(firstMove.waitForExistence(timeout: 15), "Q 16 not exposed")
+
+        // The navigation buttons move the cursor over a record-owned board
+        // with no engine in the process at all, the strongest form of
+        // "navigation never waits". Anything they would send is dropped by
+        // the command gate and replayed once an engine answers. Forward and
+        // Backward step up to ten moves, so on this game Forward always
+        // lands on the end and Backward on the start.
         let forward = app.buttons["Forward"].firstMatch
         let backward = app.buttons["Backward"].firstMatch
-        XCTAssertTrue(forward.waitForExistence(timeout: 15), "Forward button not found")
-        XCTAssertTrue(backward.exists, "Backward button not found")
-        XCTAssertTrue(forward.isEnabled, "Forward was disabled with no engine running")
-        XCTAssertTrue(backward.isEnabled, "Backward was disabled with no engine running")
+        let backwardFrame = app.buttons["Backward Frame"].firstMatch
 
+        // To the end first, from wherever the game opened, so each tap after
+        // it provably moves the board. The picker covered the toolbar and
+        // may still be sliding away, and a tap on a covered button fails the
+        // test, so this one waits until Forward can take it.
+        XCTAssertTrue(waitForOnScreen(forward, in: app, timeout: 15), "Forward is not on screen")
+        waitFor(forward, "hittable == true", nil,
+                "Forward never became tappable after the picker closed")
         forward.tap()
-        backward.tap()
+        waitFor(lastMove, "value == %@", "White stone", "Forward did not reach the seed's last move")
 
-        XCTAssertEqual(app.state, .runningForeground,
-                       "The app did not survive navigation with no engine")
+        XCTAssertTrue(tapWhenSteady(backward, in: app, timeout: 10), "Backward is not on screen")
+        waitFor(firstMove, "value == %@", "Empty",
+                "Backward did not take the board from the end back to the start")
 
-        // And the engine still arrives afterwards, onto the same board — via
-        // the sparkle, the one control that leads to the remedy.
+        XCTAssertTrue(tapWhenSteady(forward, in: app, timeout: 10), "Forward is not on screen")
+        waitFor(lastMove, "value == %@", "White stone",
+                "Forward did not take the board from the start to the end")
+
+        // One move back, to the only position with F 3 set and C 6 empty:
+        // the check after the engine arrives must tell it from both ends.
+        // It also makes the next run's first Forward a real move.
+        XCTAssertTrue(tapWhenSteady(backwardFrame, in: app, timeout: 10),
+                      "Backward Frame is not on screen")
+        waitFor(lastMove, "value == %@", "Empty", "Backward Frame did not take back the last move")
+        waitFor(fifthMove, "value == %@", "Black stone", "Backward Frame took back more than one move")
+
+        // And the engine still arrives afterwards, onto the same board, via
+        // the sparkle, the one control that leads to the remedy. It must
+        // leave the board where navigation left it, neither jumped to the
+        // end nor reset to the start.
         let sparkle = app.buttons["Toggle Analysis"].firstMatch
         XCTAssertTrue(sparkle.waitForExistence(timeout: 10),
                       "The analysis sparkle was not on screen")
@@ -177,6 +218,10 @@ final class EngineStatusUITests: PortraitUITestCase {
                       "Tapping the sparkle with no engine did not open the model picker")
         launchModel(app)
         waitForBoardInSync(app)
+        XCTAssertEqual(lastMove.value as? String, "Empty",
+                       "The engine's arrival moved the board to the end of the game")
+        XCTAssertEqual(fifthMove.value as? String, "Black stone",
+                       "The engine's arrival moved the board back from where navigation left it")
     }
 
     // MARK: - Play with no engine
@@ -233,13 +278,17 @@ final class EngineStatusUITests: PortraitUITestCase {
                       "The board did not mount with no model chosen")
 
         // Hand White to the AI with no engine to play it: the capsule flip is a
-        // config write, not an engine command, so it works in Absent too.
+        // config write, not an engine command, so it works in Absent too. It
+        // starts from Human, since a new game gets a fresh `Config` with no
+        // thinking time for either side. That is checked: from a side that
+        // was the AI already, a tap that never landed would pass the check
+        // after it.
         let white = app.buttons["whitePlayerName"]
         XCTAssertTrue(white.waitForExistence(timeout: 15), "White capsule not found")
+        waitFor(white, "label == %@", "Human", "White is not Human on the new game")
         white.tap()
-        let deadline = Date().addingTimeInterval(10)
-        while white.label == "Human" && Date() < deadline { usleep(200_000) }
-        XCTAssertNotEqual(white.label, "Human", "White did not become the AI")
+        // An AI side shows its profile, which a new game leaves at "AI".
+        waitFor(white, "label == %@", "AI", "White did not become the AI")
 
         // The human plays Black with no engine.
         let k10 = app.buttons["K 10"]
@@ -276,12 +325,28 @@ final class EngineStatusUITests: PortraitUITestCase {
 
         // Restore the baseline for the suites that follow: White back to Human.
         white.tap()
-        let restored = Date().addingTimeInterval(10)
-        while white.label != "Human" && Date() < restored { usleep(200_000) }
-        XCTAssertEqual(white.label, "Human", "White did not return to Human")
+        waitFor(white, "label == %@", "Human", "White did not return to Human")
     }
 
     // MARK: - Helpers
+
+    /// Waits until `element` matches `format`, a predicate with at most one
+    /// `%@` that `argument` fills, or fails with `message`. A predicate
+    /// rather than a read, since reading `value` or `label` off a query that
+    /// matches nothing fails the test outright.
+    @MainActor
+    private func waitFor(_ element: XCUIElement,
+                         _ format: String,
+                         _ argument: String? = nil,
+                         _ message: String,
+                         timeout: TimeInterval = 10,
+                         file: StaticString = #filePath,
+                         line: UInt = #line) {
+        let predicate = argument.map { NSPredicate(format: format, $0) } ?? NSPredicate(format: format)
+        let met = XCTNSPredicateExpectation(predicate: predicate, object: element)
+        XCTAssertEqual(XCTWaiter().wait(for: [met], timeout: timeout), .completed,
+                       message, file: file, line: line)
+    }
 
     /// The status line renders as a container element, so match by identifier
     /// across every element type rather than betting on one.

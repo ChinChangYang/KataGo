@@ -12,11 +12,24 @@
 //  the "Photo Library…" completion would.
 //
 //  Assertions:
-//    * the sheet appears ("Import from Photo") and recognition succeeds
+//    * the sheet appears (proved by its Cancel, which every phase renders;
+//      the title does not survive the grid phase) and recognition succeeds
 //      (the preview's Import button + board-size + confidence + next-to-play
 //      picker all render);
-//    * tapping Import creates and selects a new game — the library gains a
-//      "UITest Photo Board" entry (proof the recognized position was imported).
+//    * tap-to-correct edits and Reset move the stone counts, and the
+//      next-to-play picker moves what Import will send from Black to White
+//      (read off Import's accessibility value; the PL[W] text itself is
+//      pinned by RecognizedBoardSgfTests);
+//    * tapping Import puts the imported game on the board: the title turns
+//      from the seeded game's name to "UITest Photo Board", and E 9, the
+//      correction left in place in the preview, is a black stone.
+//
+//  Import de-dups by exact SGF, and this SGF is the same on every run, so
+//  after the first run Import selects the record an earlier run created,
+//  which is a correct import too. What proves THIS run's Import is the board
+//  switching away from a known game, the one `--uitest-seed-gif-game` makes
+//  the launch select. The flip side: whether Import names and inserts a NEW
+//  record is checked only on a simulator that has never run this test.
 //
 
 import XCTest
@@ -24,12 +37,18 @@ import XCTest
 final class PhotoImportUITests: PortraitUITestCase {
 
     private let photoImportArg = "--uitest-photo-import"
-    private let sheetTitle = "Import from Photo"
+    /// The sheet's Cancel: every phase renders it, unlike the title, which
+    /// the grid phase drops.
+    private let sheetCancelID = "PhotoImportSheet.cancel"
     private let importedGameName = "UITest Photo Board"
+    /// Makes the Export GIF test's game the newest record, so the launch
+    /// selects it and the board behind the sheet is known (see UITestSeed).
+    private let seedLaunchArg = "--uitest-seed-gif-game"
+    private let seededGameName = "UITest GIF Game"
 
     @MainActor
     func testPhotoImportRecognizesAndCreatesGame() throws {
-        let app = makeApp(photoImportArg)
+        let app = makeApp(photoImportArg, seedLaunchArg)
         app.launch()
 
         // DEBUG forces the model picker — launch the built-in network. Once the
@@ -41,9 +60,9 @@ final class PhotoImportUITests: PortraitUITestCase {
         // closes, without waiting for the engine; the long timeout is headroom
         // for a simulator busy with the engine's launch and Core ML
         // conversion, which run at the same time. ---
-        let title = app.staticTexts[sheetTitle]
-        XCTAssertTrue(title.waitForExistence(timeout: 360),
-                      "PhotoImportSheet ('\(sheetTitle)') never appeared — the launch-arg hook did not reach the sheet")
+        let sheetCancel = app.buttons[sheetCancelID].firstMatch
+        XCTAssertTrue(sheetCancel.waitForExistence(timeout: 360),
+                      "PhotoImportSheet ('\(sheetCancelID)') never appeared — the launch-arg hook did not reach the sheet")
 
         // --- Recognition succeeds and the preview renders. The Import button is
         // preview-only (absent during the 'Reading the board…' spinner and the
@@ -104,12 +123,16 @@ final class PhotoImportUITests: PortraitUITestCase {
         XCTAssertTrue(countLabel(app, "12 black stones").exists,
                       "Black count did not return to 12 after cycling the edit to white")
 
-        // Reset restores the recognized position and hides itself.
+        // Reset restores the recognized position and hides itself. Waited on
+        // what Reset CHANGES: the edit is white now (12 B + 13 W), so black
+        // already reads 12 and a wait on it would pass before Reset did
+        // anything. Black is read once white has moved, since both counts
+        // come from the same render.
         reset.tap()
-        XCTAssertTrue(countLabel(app, "12 black stones").waitForExistence(timeout: 10),
-                      "Reset did not restore the recognized black count")
-        XCTAssertTrue(countLabel(app, "12 white stones").exists,
+        XCTAssertTrue(countLabel(app, "12 white stones").waitForExistence(timeout: 10),
                       "Reset did not restore the recognized white count")
+        XCTAssertTrue(countLabel(app, "12 black stones").exists,
+                      "Reset did not restore the recognized black count")
         XCTAssertTrue(waitForGone(reset, timeout: 10),
                       "Reset button should hide once edits are reverted")
 
@@ -129,32 +152,73 @@ final class PhotoImportUITests: PortraitUITestCase {
         XCTAssertTrue(whiteSegment.exists,
                       "'White' segment of the next-to-play picker not found")
 
-        // Toggle to White before importing so the non-default next-to-play path
-        // (PL[W] in the synthesized SGF) stays exercised by the suite.
-        whiteSegment.tap()
+        // Import's value names the side it will put to move (PL[]).
+        // Recognition set it from the counts (12 B = 12 W gives Black), and
+        // an edit does not re-derive it, so it must read Black now, or the
+        // tap below would prove nothing.
+        XCTAssertEqual(importButton.value as? String, "Black to play",
+                       "Next to play should default to Black for the recognized 12 B / 12 W position")
+
+        // Choose White before importing, so the non-default path (PL[W] in
+        // the synthesized SGF) stays exercised by the suite. Proven on
+        // Import, not on the segment: a tap moves the segmented control by
+        // itself, whether or not the state Import reads follows.
+        XCTAssertTrue(tapWhenSteady(whiteSegment, in: app, timeout: 10),
+                      "'White' segment never settled on screen")
+        let whiteToPlay = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "White to play"), object: importButton)
+        XCTAssertEqual(XCTWaiter().wait(for: [whiteToPlay], timeout: 5), .completed,
+                       "Tapping 'White' did not change what Import will send")
 
         let previewShot = XCTAttachment(screenshot: app.screenshot())
         previewShot.name = "PhotoImportPreview"
         previewShot.lifetime = .keepAlways
         add(previewShot)
 
-        // --- Import: the synthesized SGF flows through the existing import seam,
-        // creating and selecting a new game named "UITest Photo Board". ---
+        // --- Before Import: the board behind the sheet is the seeded game,
+        // read in the tree the sheet covers. Without this, the checks after
+        // Import could all hold with Import doing nothing: a launch can
+        // select the "UITest Photo Board" an earlier run left. The title
+        // (a Button, see GobanView) names the game, and E 9 is empty on the
+        // seed at every move. ---
+        let seededTitle = app.navigationBars.buttons[seededGameName]
+        let importedTitle = app.navigationBars.buttons[importedGameName]
+        XCTAssertTrue(seededTitle.waitForExistence(timeout: 10),
+                      "The board behind the sheet is not the seeded '\(seededGameName)': the launch selected another game")
+        XCTAssertFalse(importedTitle.exists,
+                       "'\(importedGameName)' was on the board before Import, so nothing below could prove the import")
+        let e9 = app.buttons["E 9"].firstMatch
+        XCTAssertEqual((try? e9.snapshot())?.value as? String, "Empty",
+                       "E 9 should be empty on the seeded board before Import")
+
+        // The dismissal check below needs the preview's Cancel here first:
+        // the wait above saw the spinner's.
+        XCTAssertTrue(sheetCancel.exists,
+                      "Preview 'Cancel' ('\(sheetCancelID)') not found beside Import")
+
+        // --- Import: the synthesized SGF flows through the existing import
+        // seam, which selects the game: a new record, or the identical one
+        // an earlier run imported. ---
         importButton.tap()
 
-        // Sheet dismisses.
-        XCTAssertTrue(waitForGone(title, timeout: 10),
+        // Sheet dismisses: its Cancel, present in every phase, is gone.
+        XCTAssertTrue(waitForGone(sheetCancel, timeout: 10),
                       "PhotoImportSheet did not dismiss after tapping Import")
 
-        // --- A new game exists + is selected: reveal the Games list and find it.
-        // Leading nav-bar button opens the sidebar (same as GifExportUITests). ---
-        let back = app.navigationBars.buttons.element(boundBy: 0)
-        if back.waitForExistence(timeout: 10) { back.tap() }
+        // --- The board now shows the imported game: the title names it... ---
+        XCTAssertTrue(waitForOnScreen(importedTitle, in: app, timeout: 30),
+                      "The board did not switch to '\(importedGameName)' after Import")
+        // ...and the EDITED position: E 9 is the correction left in place
+        // above, which the raw recognition does not have.
+        let editedStone = XCTNSPredicateExpectation(
+            predicate: NSPredicate(format: "value == %@", "Black stone"), object: e9)
+        XCTAssertEqual(XCTWaiter().wait(for: [editedStone], timeout: 15), .completed,
+                       "E 9 is not black on the imported board: the preview's edit was not imported")
 
-        // On screen, not merely present, so the screenshot below shows it.
+        // --- The library lists it. Not the proof: earlier runs left rows
+        // with this name. On screen so the screenshot below shows it. ---
+        showGamesList(app)
         let cell = app.staticTexts[importedGameName].firstMatch
-        XCTAssertTrue(cell.waitForExistence(timeout: 15),
-                      "Imported game '\(importedGameName)' not found in the library — the recognized board was not imported")
         XCTAssertTrue(reveal(cell, in: app, by: { app.swipeUp() }),
                       "Imported game '\(importedGameName)' never came on screen in the library")
 

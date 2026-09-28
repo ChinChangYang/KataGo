@@ -25,9 +25,11 @@
 //     outright rather than falling back to the network.
 //
 //  2. testFooterShowsZeroAfterClear — after tapping "Clear Cache" with NO
-//     engine running (the direct path), the footer immediately shows
-//     "Main: 0 of <cap> · 0 B" and "Human SL: 0 of <cap> · 0 B", and no
-//     repopulation occurs — with no engine there is nothing to relaunch.
+//     engine running (the direct path), the footer settles at "Main: 0 of
+//     <cap>" and "Human SL: 0 of <cap>" once the clear's refresh lands (only
+//     the counts are asserted; the byte string depends on locale and
+//     process), and no repopulation occurs — with no engine there is
+//     nothing to relaunch.
 //     The "Clear Cache" button hides once totalCount == 0.
 //     The caps come from CoreMLModelCache.shared and differ per partition,
 //     so these tests never assert on the cap itself — only on the count.
@@ -43,8 +45,8 @@
 //     element-predicate poll. That is measured, not suspected; test 2
 //     owns the count assertions, on the path where the 0 is stable.
 //
-//  Run after `xcrun simctl uninstall booted chinchangyang.KataGo-iOS.tw`
-//  for a clean cache state.
+//  No clean simulator needed: test 1 clears the cache itself and proves the
+//  empty start, and test 2 fills it before clearing.
 //
 
 import XCTest
@@ -71,37 +73,64 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         let app = makeApp(stageModelArg)
         app.launch()
 
-        // The Core ML cache persists across local runs and may already be at its
-        // entry cap ("Main: N of N"), leaving no room for the count to grow —
-        // launching another model would just evict+replace. Clear it first so the
-        // increment is observable (mirrors the file-header note about starting
-        // from a clean cache). "Clear Cache" is only present when non-empty, so
-        // bring its footer (always there) on screen, and then the button if the
-        // cache has entries.
-        revealCacheFooter(in: app)
-        let initialClear = app.buttons["Clear Cache"]
-        if initialClear.waitForExistence(timeout: 10) {
+        // Step 1 has to start from a main partition PROVEN empty. The cache
+        // persists across runs: leftover entries would let step 1's ">= 1"
+        // hold without the built-in launch writing anything, a leftover
+        // Lionffen entry would make step 2 a cache hit that writes nothing,
+        // and a partition at its cap ("Main: N of N") would only evict and
+        // replace. This launch has no engine (a DEBUG launch comes up Absent),
+        // so Clear takes the DIRECT path and nothing refills the cache before
+        // step 1 launches one. The footer shows a dash until it has read the
+        // cache, so any count parsed here is one the cache reported.
+        let initial = readStats(in: app, until: { $0 >= 0 })
+        if parseCount(initial) != 0 {
+            let initialClear = app.buttons["Clear Cache"]
+            XCTAssertTrue(initialClear.waitForExistence(timeout: 5),
+                          "Clear Cache is missing although the footer counted '\(initial)'")
             XCTAssertTrue(revealClearCacheButton(in: app), "Clear Cache never came on screen")
             initialClear.tap()
             let confirmClear = app.buttons["Clear"]
-            if confirmClear.waitForExistence(timeout: 5) {
-                confirmClear.tap()
-                XCTAssertTrue(confirmClear.waitForNonExistence(timeout: 15),
-                              "The Clear confirmation never dismissed")
-            }
+            XCTAssertTrue(confirmClear.waitForExistence(timeout: 5),
+                          "Confirmation 'Clear' button did not appear")
+            // The direct path's own wording. The unload path's ("The engine
+            // will restart") relaunches an engine that refills the cache
+            // within seconds, so the 0 below would not hold still.
+            let directPath = app.descendants(matching: .any)
+                .matching(NSPredicate(format: "label CONTAINS %@", "They will recompile on next use"))
+                .firstMatch
+            XCTAssertTrue(directPath.waitForExistence(timeout: 5),
+                          "The confirmation is not the direct (no-engine) path's")
+            confirmClear.tap()
+            XCTAssertTrue(confirmClear.waitForNonExistence(timeout: 15),
+                          "The Clear confirmation never dismissed")
+            // The button showed because this footer counted a non-zero
+            // total, so it leaving means the footer now shows an empty cache.
+            XCTAssertTrue(initialClear.waitForNonExistence(timeout: 15),
+                          "Clear Cache is still showing: the clear did not empty the cache")
+
+            // Read the 0 in a fresh process, whose footer has only ever
+            // counted what is on disk: a clear that emptied the display, or
+            // only the cache's memory, would come back here. The launch is
+            // Absent again, with the picker up.
+            app.terminate()
+            app.launch()
         }
+        let cleared = readStats(in: app, until: { $0 == 0 })
+        XCTAssertEqual(parseCount(cleared), 0,
+                       "Step 1 must start from an empty main partition, footer was: '\(cleared)'")
 
         // ----- Step 1: launch built-in, return, capture baseline count -----
         //
         // An engine launch may write more than one cache entry — the main
         // model plus auxiliaries like a HumanSL policy net — so this step
-        // is treated as a baseline rather than a fixed count.
+        // is treated as a baseline rather than a fixed count. It counts from
+        // the proven 0 above, so ">= 1" is this launch's own write.
 
         launchModel(app)
         waitForEngineThenChangeModel(in: app, label: "built-in")
         waitForPicker(in: app, title: builtInTitle)
 
-        let afterStep1 = readMainStats(in: app, atLeast: 1)
+        let afterStep1 = readStats(in: app, until: { $0 >= 1 })
         let countAfterStep1 = parseCount(afterStep1)
         XCTAssertGreaterThanOrEqual(countAfterStep1, 1,
                                     "Step 1: expected at least one compiled model after " +
@@ -116,7 +145,7 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         waitForEngineThenChangeModel(in: app, label: "Lionffen")
         waitForPicker(in: app, title: lionffenTitle)
 
-        let afterStep2 = readMainStats(in: app, atLeast: countAfterStep1 + 1)
+        let afterStep2 = readStats(in: app, until: { $0 > countAfterStep1 })
         let countAfterStep2 = parseCount(afterStep2)
         XCTAssertGreaterThan(countAfterStep2, countAfterStep1,
                              "Step 2 (bug repro): expected footer count to increase after " +
@@ -176,23 +205,21 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
         // label prefix is checked separately so a mislabelled row still fails,
         // and `parseCount` returns -1 when the line does not match the
         // "<Label>: N of M" shape at all.
-        revealCacheFooter(in: app)
-        let mainStats = app.staticTexts["CoreMLCache.footerMainStats"]
-        XCTAssertTrue(mainStats.waitForExistence(timeout: 30),
-                      "CoreMLCache.footerMainStats not found after Clear")
-        XCTAssertTrue(mainStats.label.hasPrefix("Main: "),
-                      "Expected the main line to be labelled 'Main: ', got: '\(mainStats.label)'")
-        XCTAssertEqual(parseCount(mainStats.label), 0,
-                       "Expected 'Main: 0 of <cap>' after Clear, got: '\(mainStats.label)'")
+        //
+        // Waited for, not read once: the lines move to 0 when the clear's
+        // refresh lands, which a read straight after the tap can beat.
+        let mainStats = readStats(in: app, until: { $0 == 0 })
+        XCTAssertTrue(mainStats.hasPrefix("Main: "),
+                      "Expected the main line to be labelled 'Main: ', got: '\(mainStats)'")
+        XCTAssertEqual(parseCount(mainStats), 0,
+                       "Expected 'Main: 0 of <cap>' after Clear, got: '\(mainStats)'")
 
         // Human SL partition must also read "Human SL: 0 of <cap>" after Clear.
-        let auxStats = app.staticTexts["CoreMLCache.footerAuxStats"]
-        XCTAssertTrue(auxStats.waitForExistence(timeout: 30),
-                      "CoreMLCache.footerAuxStats not found after Clear")
-        XCTAssertTrue(auxStats.label.hasPrefix("Human SL: "),
-                      "Expected the aux line to be labelled 'Human SL: ', got: '\(auxStats.label)'")
-        XCTAssertEqual(parseCount(auxStats.label), 0,
-                       "Expected 'Human SL: 0 of <cap>' after Clear, got: '\(auxStats.label)'")
+        let auxStats = readStats(in: app, line: "CoreMLCache.footerAuxStats", until: { $0 == 0 })
+        XCTAssertTrue(auxStats.hasPrefix("Human SL: "),
+                      "Expected the aux line to be labelled 'Human SL: ', got: '\(auxStats)'")
+        XCTAssertEqual(parseCount(auxStats), 0,
+                       "Expected 'Human SL: 0 of <cap>' after Clear, got: '\(auxStats)'")
 
         // The Clear Cache button must disappear once totalCount == 0. Wait for
         // it to go: `waitForExistence` would return at once on a button the
@@ -676,15 +703,28 @@ final class CoreMLCacheFooterUITests: PortraitUITestCase {
                       "Model row '\(title)' not on screen in the picker")
     }
 
-    /// Reads the main-partition footer line once it shows at least `minimum`
-    /// entries, or whatever it shows after 15 s (the caller asserts). A fresh
-    /// footer starts at 0 and fills in from an async refresh, so being on
-    /// screen does not mean the count is in yet; a single read raced it.
+    /// Reads a footer line, the main partition's unless `identifier` says
+    /// otherwise, once its parsed count satisfies `accept`, or whatever it
+    /// shows after 15 s (the caller asserts). The footer fills in from an
+    /// async read, so being on screen does not mean the count is in yet; a
+    /// single read raced it. Until that read lands the line shows a dash,
+    /// which parses as -1, so an `accept` that asks for a count, 0 included,
+    /// never passes on a footer that has not counted. Each look is one
+    /// snapshot, so a line that briefly stops matching reads as "not yet"
+    /// instead of raising.
     @MainActor
-    private func readMainStats(in app: XCUIApplication, atLeast minimum: Int) -> String {
-        let footer = app.staticTexts["CoreMLCache.footerMainStats"]
-        XCTAssertTrue(revealCacheFooter(in: app), "CoreMLCache.footerMainStats never came on screen")
-        _ = waitUntil(timeout: 15) { footer.exists && parseCount(footer.label) >= minimum }
-        return footer.label
+    private func readStats(in app: XCUIApplication,
+                           line identifier: String = "CoreMLCache.footerMainStats",
+                           until accept: (Int) -> Bool) -> String {
+        let footer = app.staticTexts[identifier]
+        XCTAssertTrue(reveal(footer, in: app, by: { app.swipeUp() }),
+                      "\(identifier) never came on screen")
+        var label = ""
+        _ = waitUntil(timeout: 15) {
+            guard let shot = try? footer.snapshot() else { return false }
+            label = shot.label
+            return accept(parseCount(label))
+        }
+        return label
     }
 }

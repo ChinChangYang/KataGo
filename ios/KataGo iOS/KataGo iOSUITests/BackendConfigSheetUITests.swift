@@ -157,8 +157,16 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                       "Search Threads stepper never came on screen (exists: \(stepper.exists))")
     }
 
-    /// The Core ML Routing control must be present and enabled for the
-    /// built-in network, which always has a source file on disk.
+    /// The Core ML Routing control must be offered, enabled, for the built-in
+    /// network, which always has a source file on disk.
+    ///
+    /// Offered once the probe has RESOLVED, not merely drawn: the button is
+    /// on screen from the sheet's first frame, while the probe is still
+    /// looking up the network, and only a resolved "source missing" swaps it
+    /// for the "Download this network first." line. So the test waits for
+    /// the button's value to name a resolved state. Compiled or not depends
+    /// on what earlier launches left in the Core ML cache, which no launch
+    /// argument resets, so either passes.
     ///
     /// Presence only, on purpose: tapping it reads a compute plan and, on a
     /// cache miss, converts the network first — tens of seconds of real work
@@ -175,15 +183,23 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
 
         openBackendSheet(in: app)
 
+        // Read through a snapshot: once the source is found missing the
+        // button is gone, and `value` on a query that matches nothing would
+        // fail the test here instead of letting the wait time out below.
         let check = app.buttons["CoreMLRouting.checkButton"]
-        XCTAssertTrue(check.waitForExistence(timeout: 10),
-                      "Core ML routing check button not found")
+        let available = ["Compiled", "Not compiled"]
+        let resolved = XCTNSPredicateExpectation(
+            predicate: NSPredicate { element, _ in
+                guard let value = (try? (element as? XCUIElement)?.snapshot())?.value as? String
+                else { return false }
+                return available.contains(value)
+            },
+            object: check)
+        XCTAssertEqual(XCTWaiter().wait(for: [resolved], timeout: 30), .completed,
+                       "Core ML routing never resolved to an available state for the built-in network "
+                       + "(button: \(check.exists ? String(describing: (try? check.snapshot())?.value) : "none"), "
+                       + "missing-source line shown: \(app.staticTexts["CoreMLRouting.unavailable"].exists))")
         XCTAssertTrue(check.isEnabled, "Core ML routing check button should be enabled")
-
-        // The built-in network is bundled, so the "not downloaded" state must
-        // never appear for it.
-        XCTAssertFalse(app.staticTexts["CoreMLRouting.unavailable"].exists,
-                       "Built-in network must not report a missing source file")
     }
 
     // MARK: - Helpers
@@ -212,13 +228,17 @@ final class BackendConfigSheetUITests: PortraitUITestCase {
                       "Backend Settings sheet did not open")
     }
 
-    /// Taps Done and waits for the sheet to go. Only the sheet has a Backend
-    /// segment, so that leaving is the proof; the gear the next reopen taps is
-    /// in the tree the whole time and proves nothing.
+    /// Taps Done and waits for the sheet to go. The sheet's own Done leaving
+    /// is the proof: it sits in the sheet's navigation bar, so no scroll can
+    /// take it out of the tree. A Backend segment is no proof once `reveal`
+    /// has scrolled the form, because iOS 27 drops rows scrolled off the top
+    /// from the tree, and the gear the next reopen taps is in the tree the
+    /// whole time.
     @MainActor
     private func closeBackendSheet(in app: XCUIApplication) {
-        app.buttons["Done"].tap()
-        XCTAssertTrue(segment(in: app, "CoreML/NE").waitForNonExistence(timeout: 10),
+        let done = app.buttons["BackendConfigSheet.done"]
+        done.tap()
+        XCTAssertTrue(done.waitForNonExistence(timeout: 10),
                       "Backend Settings sheet did not close after Done")
     }
 

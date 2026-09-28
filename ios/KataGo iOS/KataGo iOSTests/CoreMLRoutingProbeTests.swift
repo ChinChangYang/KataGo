@@ -119,6 +119,15 @@ struct CoreMLRoutingProbeStateTests {
         #expect(probe.readiness == .needsCompile)
     }
 
+    /// The UI suite waits for the check button's value to name a resolved
+    /// state. Were `.resolving` to read like one, that wait would pass
+    /// before anything had resolved.
+    @Test func resolvingIsSpokenUnlikeAnyResolvedState() {
+        let values = [CoreMLRoutingProbe.Readiness.resolving, .cached, .needsCompile, .sourceMissing]
+            .map(\.accessibilityValue)
+        #expect(Set(values).count == values.count)
+    }
+
     @Test func runReportsOneResultPerNetInOrder() async throws {
         let targets = [Self.target("Main", digest: "a"),
                        Self.target("Aux", digest: "b")]

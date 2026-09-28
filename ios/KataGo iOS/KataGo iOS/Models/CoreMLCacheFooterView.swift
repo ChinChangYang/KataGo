@@ -11,6 +11,11 @@ struct CoreMLCacheFooterView: View {
     @State private var mainBytes: Int64 = 0
     @State private var auxCount: Int = 0
     @State private var auxBytes: Int64 = 0
+    /// False until `refresh()` has read the cache once. The counts above
+    /// start at 0, and until then a "0" would claim an empty cache that
+    /// nobody has looked at, so the lines show a dash instead. The UI suite
+    /// relies on that: a 0 it reads is one the cache reported.
+    @State private var hasCounted = false
     @State private var showConfirm = false
     @State private var clearing = false
     /// Optional so a surface that injects no status keeps today's behaviour.
@@ -111,6 +116,7 @@ struct CoreMLCacheFooterView: View {
     }
 
     private func line(label: String, count: Int, cap: Int, bytes: Int64) -> String {
+        guard hasCounted else { return "\(label): – of \(cap)" }
         let size = ByteCountFormatter().string(fromByteCount: bytes)
         return "\(label): \(count) of \(cap) · \(size)"
     }
@@ -124,6 +130,7 @@ struct CoreMLCacheFooterView: View {
         mainBytes = stats.main.totalBytes
         auxCount  = stats.auxiliary.count
         auxBytes  = stats.auxiliary.totalBytes
+        hasCounted = true
     }
 
     @MainActor private func clear() async {
