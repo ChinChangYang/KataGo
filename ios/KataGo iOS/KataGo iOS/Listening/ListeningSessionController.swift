@@ -33,13 +33,15 @@ final class ListeningSessionController: ListeningPresenting {
     /// call.
     private var resumesAfterInterruption = false
 
-    /// Tests pass a stand-in for `liveActivity`: a real activity outlives the
-    /// test host (see `ListeningLiveActivity`).
-    init(liveActivity: ListeningLiveActivity = SystemListeningLiveActivity()) {
+    /// Tests pass stand-ins for both: a real activity outlives the test host
+    /// (see `ListeningLiveActivity`), and the real cursor store would write
+    /// every test game into the app's own defaults.
+    init(liveActivity: ListeningLiveActivity = SystemListeningLiveActivity(),
+         cursorStore: ListeningCursorStoring = UserDefaultsListeningCursorStore()) {
         self.liveActivity = liveActivity
         engine = ListeningEngine(speaker: AVSpeechListeningSpeaker(),
                                  sounds: sounds,
-                                 cursorStore: UserDefaultsListeningCursorStore())
+                                 cursorStore: cursorStore)
         engine.presenter = self
     }
 

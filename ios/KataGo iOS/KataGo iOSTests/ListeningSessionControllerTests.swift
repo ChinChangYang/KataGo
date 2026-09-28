@@ -13,6 +13,9 @@
 //
 //  Serialized because that info center is PROCESS-GLOBAL: `listen(to:)` writes
 //  it, so two of these running at once would each read the other's session.
+//  So are the audio posture, remote commands and interruption observers a
+//  session sets up, which is why no session here outlives its test (see
+//  `EndsEveryListeningSession`).
 //
 //  No controller here puts up a real Live Activity (see `makeController`).
 //
@@ -25,26 +28,33 @@ import KataGoUICore
 @testable import KataGo_Anytime
 
 @MainActor
-@Suite(.serialized)
+@Suite(.serialized, .endsEveryListeningSession)
 struct ListeningSessionControllerTests {
-    /// Every controller in this suite comes from here, with a recorder in
-    /// place of ActivityKit. These tests leave sessions running, and a real
-    /// activity outlives the test host: at the simulator's next boot the
-    /// system launches the app for it, and the first test launch then
-    /// failed. The leak was 5 activities per run of this suite.
+    /// Every controller in this suite comes from here, so that its session
+    /// ends with its test. It gets a recorder in place of ActivityKit: a
+    /// real activity outlives the test host, and a finished session's card
+    /// stays up on purpose. At the simulator's next boot the system launches
+    /// the app for it, and the first test launch then failed. Its cursor
+    /// store keeps the test games out of the app's own defaults.
     private func makeController(
-        _ liveActivity: LiveActivityRecorder = LiveActivityRecorder()
+        _ liveActivity: LiveActivityRecorder = LiveActivityRecorder(),
+        cursorStore: InMemoryCursorStore = InMemoryCursorStore()
     ) -> ListeningSessionController {
-        ListeningSessionController(liveActivity: liveActivity)
+        let controller = ListeningSessionController(liveActivity: liveActivity,
+                                                    cursorStore: cursorStore)
+        ListeningSessions.started.append(controller)
+        return controller
     }
 
     private func startedController(
         _ liveActivity: LiveActivityRecorder = LiveActivityRecorder()
     ) -> ListeningSessionController {
-        let controller = makeController(liveActivity)
+        let cursorStore = InMemoryCursorStore()
+        let controller = makeController(liveActivity, cursorStore: cursorStore)
         let record = GameRecord(sgf: "(;GM[1]FF[4]SZ[9];B[cc];W[gg])",
                                 config: Config(), name: "Interrupted")
         #expect(controller.listen(to: record))
+        #expect(cursorStore.lastSessionGameID == record.uuid)
         return controller
     }
 
@@ -98,7 +108,6 @@ struct ListeningSessionControllerTests {
         interruptionBegan(controller)
         interruptionEnded(controller, shouldResume: true)
         #expect(controller.engine.state == .paused)
-        controller.endSession()
     }
 
     /// Not every `.began` gets an `.ended`. One left open must not let a
@@ -112,7 +121,6 @@ struct ListeningSessionControllerTests {
         interruptionBegan(controller)
         interruptionEnded(controller, shouldResume: true)
         #expect(controller.engine.state == .paused)
-        controller.endSession()
     }
 
     /// A second `.began`, the first never ended, finds the session paused
@@ -124,7 +132,6 @@ struct ListeningSessionControllerTests {
 
         interruptionEnded(controller, shouldResume: true)
         #expect(controller.engine.state == .playing)
-        controller.endSession()
     }
 
     /// Left paused by an interruption the system said not to resume from,
@@ -138,7 +145,6 @@ struct ListeningSessionControllerTests {
         interruptionBegan(controller)
         interruptionEnded(controller, shouldResume: true)
         #expect(controller.engine.state == .paused)
-        controller.endSession()
     }
 
     /// An interruption that ends after the session did must not take the
@@ -199,8 +205,6 @@ struct ListeningSessionControllerTests {
             try await Task.sleep(for: .milliseconds(20))
         }
         #expect(controller.engine.state == .paused)
-
-        controller.endSession()
     }
 
     @Test func unnarratableRecordIsRefused() {
@@ -328,4 +332,61 @@ private final class LiveActivityRecorder: ListeningLiveActivity {
         endings.append(finished)
         isUp = false
     }
+}
+
+/// Keeps the Listening Cursor in memory.
+@MainActor
+private final class InMemoryCursorStore: ListeningCursorStoring {
+    private var cursors: [UUID: Int] = [:]
+    var lastSessionGameID: UUID?
+
+    func cursor(for gameID: UUID) -> Int? { cursors[gameID] }
+    func storeCursor(_ moveNumber: Int, for gameID: UUID) { cursors[gameID] = moveNumber }
+    func clearCursor(for gameID: UUID) { cursors[gameID] = nil }
+}
+
+/// The controllers the running test made.
+@MainActor
+private enum ListeningSessions {
+    static var started: [ListeningSessionController] = []
+}
+
+/// Ends every session a test started once the test is over, however it
+/// ends: one that throws halfway leaves nothing behind either. A session
+/// sets up process-wide state (the listening audio posture, the Now Playing
+/// card, the remote command targets, the interruption observers), and one
+/// left playing goes on speaking through the tests after it.
+///
+/// Then checks that the listening posture and the Now Playing card are
+/// clear. That catches a controller made outside `makeController` only
+/// while its session is the last one running: ending any session clears
+/// both.
+///
+/// A `TestTrait` too: Swift Testing hands a recursive suite trait to each
+/// test as one, and traps while planning the run if it is not.
+private struct EndsEveryListeningSession: SuiteTrait, TestTrait, TestScoping {
+    var isRecursive: Bool { true }
+
+    func provideScope(for test: Test, testCase: Test.Case?,
+                      performing function: @Sendable () async throws -> Void) async throws {
+        let outcome: Result<Void, any Error>
+        do {
+            try await function()
+            outcome = .success(())
+        } catch {
+            outcome = .failure(error)
+        }
+        await MainActor.run {
+            ListeningSessions.started.forEach { $0.endSession() }
+            ListeningSessions.started.removeAll()
+            #expect(!AppAudioSessionPolicy.isListeningActive, "a session outlived its test")
+            #expect(MPNowPlayingInfoCenter.default().nowPlayingInfo == nil,
+                    "a session outlived its test")
+        }
+        try outcome.get()
+    }
+}
+
+extension Trait where Self == EndsEveryListeningSession {
+    fileprivate static var endsEveryListeningSession: Self { Self() }
 }

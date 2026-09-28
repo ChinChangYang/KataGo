@@ -20,6 +20,8 @@ private final class ListeningSpeakerFake: ListeningSpeaking {
     var cut: [String] = []
     /// Texts with this prefix park until cancel(); "" parks everything.
     var stallPrefix: String?
+    /// Texts parked in a stall right now.
+    private(set) var stalled = 0
     private var cancelRequested = false
 
     func speak(_ text: String) async {
@@ -29,7 +31,9 @@ private final class ListeningSpeakerFake: ListeningSpeaking {
         }
         spoken.append(text)
         guard let stallPrefix, text.hasPrefix(stallPrefix) else { return }
+        stalled += 1
         while !cancelRequested, !Task.isCancelled { await Task.yield() }
+        stalled -= 1
         cancelRequested = false
     }
 
@@ -108,6 +112,15 @@ struct ListeningEngineTests {
             }
             Issue.record("pump timed out")
         }
+
+        /// For a test that ends with its session stalled on the fake speaker:
+        /// left alone, its playback task and watchdog spin on the main actor
+        /// for the rest of the run.
+        @MainActor
+        func stopStalledSession() async {
+            engine.stop()
+            await pump(until: { speaker.stalled == 0 })
+        }
     }
 
     @Test func fullPlaythroughSpeaksEverythingAndClearsTheCursor() async {
@@ -181,6 +194,7 @@ struct ListeningEngineTests {
         await f.pump(until: { f.speaker.spoken.contains("Cue 2.") })
         #expect(f.engine.currentMoveNumber == 2)
         #expect(f.cursorStore.cursors[Self.gameID] == 2)
+        await f.stopStalledSession()
     }
 
     /// A pause cuts the intro as it cuts a cue, and resuming replays it in
@@ -281,6 +295,7 @@ struct ListeningEngineTests {
         f.engine.stepBackward()
         await f.pump(until: { f.speaker.spoken.filter { $0 == "Cue 1." }.count == 2 })
         #expect(f.engine.currentMoveNumber == 1)
+        await f.stopStalledSession()
     }
 
     @Test func aWedgedSynthesizerAdvancesOnSilentPacing() async {
