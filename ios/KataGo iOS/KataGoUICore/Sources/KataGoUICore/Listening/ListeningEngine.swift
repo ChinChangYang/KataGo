@@ -172,7 +172,11 @@ public final class ListeningEngine {
     }
 
     private func run() async {
-        guard let script else { return }
+        // Cancelled before its first turn, by a skip, pause or stop in the
+        // same turn: speaking would add a stray stone sound and a line cut
+        // at once, and taking pendingIntro would lose the intro for the task
+        // that replaces this one. So this stays above the intro.
+        guard !Task.isCancelled, let script else { return }
         if let intro = pendingIntro {
             pendingIntro = nil
             await speakBounded(intro)

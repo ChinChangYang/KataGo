@@ -15,11 +15,18 @@ import KataGoUICore
 @MainActor
 private final class ListeningSpeakerFake: ListeningSpeaking {
     var spoken: [String] = []
+    /// Texts asked for by an already-cancelled task. The real speaker cuts
+    /// those at once, so nobody hears them.
+    var cut: [String] = []
     /// Texts with this prefix park until cancel(); "" parks everything.
     var stallPrefix: String?
     private var cancelRequested = false
 
     func speak(_ text: String) async {
+        if Task.isCancelled {
+            cut.append(text)
+            return
+        }
         spoken.append(text)
         guard let stallPrefix, text.hasPrefix(stallPrefix) else { return }
         while !cancelRequested, !Task.isCancelled { await Task.yield() }
@@ -173,6 +180,35 @@ struct ListeningEngineTests {
         await f.pump(until: { f.speaker.spoken.contains("Cue 2.") })
         #expect(f.engine.currentMoveNumber == 2)
         #expect(f.cursorStore.cursors[Self.gameID] == 2)
+    }
+
+    /// A skip in the same turn as start() cancels the first playback task
+    /// before it runs. The intro waits for the task that replaces it.
+    @Test func aSkipBeforeTheFirstTurnKeepsTheIntro() async {
+        let f = Fixture()
+        f.engine.start(script: Self.script())
+        f.engine.stepForward()
+        await f.pump(until: { f.engine.state == .finished })
+
+        #expect(f.speaker.spoken == ["Intro.", "Cue 2.", "Result."])
+        #expect(f.speaker.cut.isEmpty)
+        #expect(f.sounds.stones == 1)
+    }
+
+    /// The first skip's playback task is cancelled by the second before it
+    /// ever runs, and must not speak.
+    @Test func twoSkipsInOneTurnSpeakOnlyTheCueTheyLandOn() async {
+        let f = Fixture()
+        f.speaker.stallPrefix = "Cue"
+        f.engine.start(script: Self.script(moveCount: 3))
+        await f.pump(until: { f.speaker.spoken.contains("Cue 1.") })
+
+        f.engine.stepForward()
+        f.engine.stepForward()
+        f.speaker.stallPrefix = nil
+        await f.pump(until: { f.engine.state == .finished })
+        #expect(f.speaker.spoken == ["Intro.", "Cue 1.", "Cue 3.", "Result."])
+        #expect(f.sounds.stones == 2)
     }
 
     @Test func stepBackwardFromTheFirstMoveStaysPut() async {

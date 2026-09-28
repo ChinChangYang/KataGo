@@ -569,6 +569,7 @@
 		CDC306346C6C01F7E21F5061 /* PlayerNameLabelUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DDE036A8C4A5D70A31AAEB1 /* PlayerNameLabelUITests.swift */; };
 		CDF62E549FB006EC4802412E /* log_format.cc in Sources */ = {isa = PBXBuildFile; fileRef = 141ACBD0F03E88705EF1EA20 /* log_format.cc */; };
 		CE15F023D85269D951A13CE8 /* usage_config.cc in Sources */ = {isa = PBXBuildFile; fileRef = A6ADEC4D58AA590CCB7723B6 /* usage_config.cc */; };
+		CE2406788A8E7ED8219E22F2 /* ListeningSpeakerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CAB48E81EF427E2121CBB3D /* ListeningSpeakerTests.swift */; };
 		CE47EFCF5BB2BB492B8ADCBB /* BoardStarPointsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9774AE44D6D0D96116485938 /* BoardStarPointsTests.swift */; };
 		CFA11F177CF69001086CF3AD /* VisionCandidateMarkTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E5EC8C3BC837AFF4FA7029B /* VisionCandidateMarkTests.swift */; };
 		D05495FECDA9556C22FC6340 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 60E6EEEF11176A47A8CB6554 /* Assets.xcassets */; };
@@ -1527,6 +1528,7 @@
 		8BC634571F9784AC9B25213E /* OpenGame.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = OpenGame.swift; sourceTree = "<group>"; };
 		8C18C12B3B71E721A31AAF40 /* CaptureQualityAnalyzerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = CaptureQualityAnalyzerTests.swift; sourceTree = "<group>"; };
 		8CA5A72EDDBC93480EAC3B67 /* ListenToGame.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ListenToGame.swift; sourceTree = "<group>"; };
+		8CAB48E81EF427E2121CBB3D /* ListeningSpeakerTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ListeningSpeakerTests.swift; sourceTree = "<group>"; };
 		8D7AC7A386F0F1AD7B2364A7 /* KataGoAnytimeSafariExt.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = KataGoAnytimeSafariExt.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8D8893BAFB26B94744AED7E0 /* MLXTuneExperimentView.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = MLXTuneExperimentView.swift; sourceTree = "<group>"; };
 		8DAE4145F7C7FB30B6A208D8 /* ConfigEditingSupport.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = ConfigEditingSupport.swift; sourceTree = "<group>"; };
@@ -3472,6 +3474,7 @@
 				0EC4111E78514ADDD114EBBB /* SgfAppendTests.swift */,
 				DA880534E6502839E53D0CE0 /* GobanStateLocalPlayTests.swift */,
 				AAF7B5636CC234C5E3AD86DB /* AnalysisRearmTests.swift */,
+				8CAB48E81EF427E2121CBB3D /* ListeningSpeakerTests.swift */,
 			);
 			path = "KataGo iOSTests";
 			sourceTree = SOURCE_ROOT;
@@ -5063,6 +5066,7 @@
 				5FAE82AE1AB4F6C996147C6C /* SgfAppendTests.swift in Sources */,
 				83EB9E3C1582DBD0992A2DE5 /* GobanStateLocalPlayTests.swift in Sources */,
 				4BBE37F84F1CED64F01030F3 /* AnalysisRearmTests.swift in Sources */,
+				CE2406788A8E7ED8219E22F2 /* ListeningSpeakerTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
