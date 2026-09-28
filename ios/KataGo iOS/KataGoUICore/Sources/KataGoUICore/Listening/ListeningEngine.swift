@@ -72,6 +72,10 @@ public final class ListeningEngine {
     public weak var presenter: ListeningPresenting?
 
     private var playbackTask: Task<Void, Never>?
+    /// The intro, until playback gets past it: its speech ends with the
+    /// session still playing, which includes a wedged intro given up on by
+    /// the watchdog. A pause keeps it, like the cue it cuts; a skip or a
+    /// stop drops it.
     private var pendingIntro: String?
 
     public init(speaker: ListeningSpeaking,
@@ -121,7 +125,8 @@ public final class ListeningEngine {
         spawnPlayback()
     }
 
-    /// Stops mid-word; the interrupted cue replays in full on resume.
+    /// Stops mid-word; the interrupted cue, or the intro, replays in full
+    /// on resume.
     public func pause() {
         guard state == .playing else { return }
         cancelPlayback()
@@ -138,7 +143,7 @@ public final class ListeningEngine {
     }
 
     /// Next/previous-track. Cuts the current utterance and moves the cursor
-    /// one move; playback state is preserved.
+    /// one move, past the intro too; playback state is preserved.
     public func stepForward() { step(by: 1) }
     public func stepBackward() { step(by: -1) }
 
@@ -146,6 +151,7 @@ public final class ListeningEngine {
         guard let script, state == .playing || state == .paused else { return }
         let wasPlaying = state == .playing
         cancelPlayback()
+        pendingIntro = nil
         currentMoveNumber = ListeningReadiness.clampedCursor(
             stored: currentMoveNumber + delta, moveCount: script.moveCount)
         storeCursor()
@@ -173,14 +179,16 @@ public final class ListeningEngine {
 
     private func run() async {
         // Cancelled before its first turn, by a skip, pause or stop in the
-        // same turn: speaking would add a stray stone sound and a line cut
-        // at once, and taking pendingIntro would lose the intro for the task
-        // that replaces this one. So this stays above the intro.
+        // same turn: anything spoken now would be cut at once, and a cue
+        // would add a stray stone sound. So this stays above the intro.
         guard !Task.isCancelled, let script else { return }
         if let intro = pendingIntro {
-            pendingIntro = nil
             await speakBounded(intro)
             guard !Task.isCancelled, state == .playing else { return }
+            // Only now: a pause before this point leaves the intro to replay
+            // on resume. A wedged intro given up on by the watchdog counts
+            // as spoken, so it cannot repeat forever.
+            pendingIntro = nil
         }
         while state == .playing, currentMoveNumber <= script.moveCount {
             let cue = script.cues[currentMoveNumber - 1]

@@ -155,7 +155,8 @@ struct ListeningEngineTests {
         f.speaker.stallPrefix = nil
         f.engine.play()
         await f.pump(until: { f.engine.state == .finished })
-        #expect(f.speaker.spoken.filter { $0 == "Cue 1." }.count == 2)
+        #expect(f.speaker.spoken == ["Intro.", "Cue 1.", "Cue 1.", "Cue 2.", "Result."],
+                "the intro, once spoken, must not come back on resume")
     }
 
     @Test func stopMidGameLeavesAResumableCursor() async {
@@ -182,15 +183,75 @@ struct ListeningEngineTests {
         #expect(f.cursorStore.cursors[Self.gameID] == 2)
     }
 
+    /// A pause cuts the intro as it cuts a cue, and resuming replays it in
+    /// full before the move the session is at.
+    @Test func pausingDuringTheIntroReplaysItOnResume() async {
+        let f = Fixture()
+        f.speaker.stallPrefix = "Intro"
+        f.engine.start(script: Self.script())
+        await f.pump(until: { f.speaker.spoken.contains("Intro.") })
+
+        f.engine.pause()
+        f.speaker.stallPrefix = nil
+        f.engine.play()
+        await f.pump(until: { f.engine.state == .finished })
+        #expect(f.speaker.spoken == ["Intro.", "Intro.", "Cue 1.", "Cue 2.", "Result."])
+    }
+
+    /// A pause in the same turn as start() cancels the first playback task
+    /// before it runs. That task must not speak, and the intro waits for
+    /// the task that resumes.
+    @Test func aPauseBeforeTheFirstTurnKeepsTheIntro() async {
+        let f = Fixture()
+        f.engine.start(script: Self.script())
+        f.engine.pause()
+        f.engine.play()
+        await f.pump(until: { f.engine.state == .finished })
+
+        #expect(f.speaker.spoken == ["Intro.", "Cue 1.", "Cue 2.", "Result."])
+        #expect(f.speaker.cut.isEmpty)
+    }
+
+    /// A skip moves on from the intro as it does from a cue: the intro is
+    /// not replayed before the move the skip lands on.
+    @Test func aSkipDuringTheIntroMovesOnWithoutIt() async {
+        let f = Fixture()
+        f.speaker.stallPrefix = "Intro"
+        f.engine.start(script: Self.script())
+        await f.pump(until: { f.speaker.spoken.contains("Intro.") })
+
+        f.engine.stepForward()
+        f.speaker.stallPrefix = nil
+        await f.pump(until: { f.engine.state == .finished })
+        #expect(f.speaker.spoken == ["Intro.", "Cue 2.", "Result."])
+    }
+
+    /// Pausing keeps the intro for the resume, but a skip made while paused
+    /// still moves on from it.
+    @Test func aSkipWhilePausedInTheIntroMovesOnWithoutIt() async {
+        let f = Fixture()
+        f.speaker.stallPrefix = "Intro"
+        f.engine.start(script: Self.script())
+        await f.pump(until: { f.speaker.spoken.contains("Intro.") })
+
+        f.engine.pause()
+        f.engine.stepForward()
+        f.speaker.stallPrefix = nil
+        f.engine.play()
+        await f.pump(until: { f.engine.state == .finished })
+        #expect(f.speaker.spoken == ["Intro.", "Cue 2.", "Result."])
+    }
+
     /// A skip in the same turn as start() cancels the first playback task
-    /// before it runs. The intro waits for the task that replaces it.
-    @Test func aSkipBeforeTheFirstTurnKeepsTheIntro() async {
+    /// before it runs. That task must not speak, and the skip moves on from
+    /// the intro as any skip does.
+    @Test func aSkipBeforeTheFirstTurnSpeaksOnlyTheCueItLandsOn() async {
         let f = Fixture()
         f.engine.start(script: Self.script())
         f.engine.stepForward()
         await f.pump(until: { f.engine.state == .finished })
 
-        #expect(f.speaker.spoken == ["Intro.", "Cue 2.", "Result."])
+        #expect(f.speaker.spoken == ["Cue 2.", "Result."])
         #expect(f.speaker.cut.isEmpty)
         #expect(f.sounds.stones == 1)
     }
