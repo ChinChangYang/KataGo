@@ -52,6 +52,7 @@ static const vector<string> knownCommands = {
   "kata-set-param",
   "kata-list-params",
   "kata-check-move",
+  "kata-set-initial-player",
   "kgs-rules",
 
   "genmove",
@@ -204,6 +205,19 @@ static bool noWhiteStonesOnBoard(const Board& board) {
     }
   }
   return true;
+}
+
+//Fork-local. WriteSgf never writes PL[], so a position whose side to move is not the one its setup stones
+//imply (White after an all-Black setup, else Black, as CompactSgf::setupInitialBoardAndHist reads an SGF
+//without PL[]) would lose that side on a printsgf round trip; kata-set-initial-player makes such positions.
+//Adds PL[] to the root in that case only, so every other printsgf output is unchanged.
+static string withInitialPlayer(const string& sgf, const BoardHistory& hist) {
+  const Board& board = hist.initialBoard;
+  Player implied = (board.numStonesOnBoard() > 0 && noWhiteStonesOnBoard(board)) ? P_WHITE : P_BLACK;
+  const string rootStart = "(;FF[4]GM[1]";
+  if(hist.initialPla == implied || sgf.compare(0,rootStart.size(),rootStart) != 0)
+    return sgf;
+  return rootStart + "PL[" + PlayerIO::playerToStringShort(hist.initialPla) + "]" + sgf.substr(rootStart.size());
 }
 
 static void updateDynamicPDAHelper(
@@ -621,6 +635,21 @@ struct GTPEngine {
     vector<Move> newMoveHistory;
     setPositionAndRules(pla,board,hist,board,pla,newMoveHistory);
     clearStatsForNewGame();
+    return true;
+  }
+
+  //Fork-local. Makes pla the side to move of a position with no moves yet, such as one set_position or
+  //set_free_handicap just set up, which otherwise leave Black and White to move respectively. It becomes
+  //the initial player, so undo and rules changes keep it. False once a move has been played.
+  bool setInitialPlayer(Player pla) {
+    if(moveHistory.size() > 0)
+      return false;
+    testAssert(bot->getRootHist().rules == currentRules);
+    Board board = initialBoard;
+    BoardHistory hist(board,pla,currentRules,0);
+    hist.setInitialTurnNumber(bot->getRootHist().initialTurnNumber);
+    vector<Move> emptyMoveHistory;
+    setPositionAndRules(pla,board,hist,initialBoard,pla,emptyMoveHistory);
     return true;
   }
 
@@ -3031,6 +3060,22 @@ int MainCmds::gtp(const vector<string>& args) {
       }
     }
 
+    else if(command == "kata-set-initial-player") {
+      Player pla;
+      if(pieces.size() != 1) {
+        responseIsError = true;
+        response = "Expected one argument for kata-set-initial-player (color) but got '" + Global::concat(pieces," ") + "'";
+      }
+      else if(!PlayerIO::tryParsePlayer(pieces[0],pla)) {
+        responseIsError = true;
+        response = "Could not parse color: '" + pieces[0] + "'";
+      }
+      else if(!engine->setInitialPlayer(pla)) {
+        responseIsError = true;
+        response = "Cannot set the initial player once moves have been played";
+      }
+    }
+
     else if(command == "undo") {
       bool suc = engine->undo();
       if(!suc) {
@@ -3451,7 +3496,9 @@ int MainCmds::gtp(const vector<string>& args) {
             engine->computeAnticipatedWinnerAndScore(winner,finalWhiteMinusBlackScore);
             overrideFinalScore = finalWhiteMinusBlackScore;
           }
-          WriteSgf::writeSgf(out,"","",engine->bot->getRootHist(),NULL,true,false,overrideFinalScore);
+          ostringstream sgf;
+          WriteSgf::writeSgf(sgf,"","",engine->bot->getRootHist(),NULL,true,false,overrideFinalScore);
+          out << withInitialPlayer(sgf.str(),engine->bot->getRootHist());
         };
 
         if(pieces.size() == 0 || pieces[0] == "-") {

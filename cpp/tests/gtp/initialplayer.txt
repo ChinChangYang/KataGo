@@ -1,0 +1,32 @@
+boardsize 9
+set_position b c3 w c7 b g3
+kata-set-initial-player w
+showboard
+printsgf
+undo
+kata-set-rules japanese
+showboard
+printsgf
+play w e5
+printsgf
+kata-set-initial-player b
+undo
+showboard
+printsgf
+kata-set-initial-player black
+showboard
+printsgf
+kata-set-initial-player
+kata-set-initial-player b w
+kata-set-initial-player x
+clear_board
+set_free_handicap c3 g7
+showboard
+printsgf
+kata-set-initial-player b
+showboard
+printsgf
+clear_board
+kata-set-initial-player w
+showboard
+printsgf

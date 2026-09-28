@@ -1,0 +1,162 @@
+= 
+
+= 
+
+= 
+
+= MoveNum: 0 HASH: E01AA7131816220AF9780E6B2A2B906D
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . O . . . . . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . X . . . X . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: White
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"POSITIONAL","komi":7.5,"scoring":"AREA","suicide":true,"tax":"NONE","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]PL[W]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[TrompTaylor]AB[cg][gg]AW[cc])
+
+? cannot undo
+
+= 
+
+= MoveNum: 0 HASH: E01AA7131816220AF9780E6B2A2B906D
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . O . . . . . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . X . . . X . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: White
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"SIMPLE","komi":7.5,"scoring":"TERRITORY","suicide":false,"tax":"SEKI","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]PL[W]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[Japanese]AB[cg][gg]AW[cc])
+
+= 
+
+= (;FF[4]GM[1]PL[W]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[Japanese]AB[cg][gg]AW[cc];W[ee])
+
+? Cannot set the initial player once moves have been played
+
+= 
+
+= MoveNum: 0 HASH: E01AA7131816220AF9780E6B2A2B906D
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . O . . . . . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . X . . . X . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: White
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"SIMPLE","komi":7.5,"scoring":"TERRITORY","suicide":false,"tax":"SEKI","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]PL[W]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[Japanese]AB[cg][gg]AW[cc])
+
+= 
+
+= MoveNum: 0 HASH: E01AA7131816220AF9780E6B2A2B906D
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . O . . . . . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . X . . . X . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: Black
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"SIMPLE","komi":7.5,"scoring":"TERRITORY","suicide":false,"tax":"SEKI","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[Japanese]AB[cg][gg]AW[cc])
+
+? Expected one argument for kata-set-initial-player (color) but got ''
+
+? Expected one argument for kata-set-initial-player (color) but got 'b w'
+
+? Could not parse color: 'x'
+
+= 
+
+= 
+
+= MoveNum: 0 HASH: B7760937ABCCDDEB7806FB3350688799
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . . . . . X . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . X . . . . . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: White
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"SIMPLE","komi":7.5,"scoring":"TERRITORY","suicide":false,"tax":"SEKI","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]SZ[9]PB[]PW[]HA[2]KM[7.5]RU[Japanese]AB[gc][cg])
+
+= 
+
+= MoveNum: 0 HASH: B7760937ABCCDDEB7806FB3350688799
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . . . . . X . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . X . . . . . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: Black
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"SIMPLE","komi":7.5,"scoring":"TERRITORY","suicide":false,"tax":"SEKI","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]PL[B]SZ[9]PB[]PW[]HA[2]KM[7.5]RU[Japanese]AB[gc][cg])
+
+= 
+
+= 
+
+= MoveNum: 0 HASH: 9F0B2D702FC8448C75410E097F089AEB
+   A B C D E F G H J
+ 9 . . . . . . . . .
+ 8 . . . . . . . . .
+ 7 . . . . . . . . .
+ 6 . . . . . . . . .
+ 5 . . . . . . . . .
+ 4 . . . . . . . . .
+ 3 . . . . . . . . .
+ 2 . . . . . . . . .
+ 1 . . . . . . . . .
+Next player: White
+Rules: {"friendlyPassOk":false,"hasButton":false,"ko":"SIMPLE","komi":7.5,"scoring":"TERRITORY","suicide":false,"tax":"SEKI","whiteHandicapBonus":"0"}
+B stones captured: 0
+W stones captured: 0
+
+= (;FF[4]GM[1]PL[W]SZ[9]PB[]PW[]HA[0]KM[7.5]RU[Japanese])
+
