@@ -807,15 +807,9 @@ struct GameSplitView: View {
             if let gameRecord = navigationContext.selectedGameRecord,
                let config = gameRecord.config,
                !gobanState.shouldGenMove(config: config, player: player) {
-                if gobanState.analysisStatus == .pause
-                    || gobanState.isAnalysisHiddenForPowerSaving(config: config, nextColorForPlayCommand: player.nextColorForPlayCommand) {
-                    messageList.appendAndSend(command: "stop")
-                } else {
-                    // The bundle embeds the maxVisits reset (structural fix for
-                    // the sticky human-profile gen-move cap).
-                    messageList.appendAndSend(commands: GtpCommandBuilder.continuousAnalyzeCommands(
-                        interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
-                }
+                gobanState.rearmOrStopAnalysis(config: config,
+                                               nextColorForPlayCommand: player.nextColorForPlayCommand,
+                                               messageList: messageList)
 
                 // The step still waits for the engine (an analysis has to be
                 // in hand before the move it belongs to is left behind), but

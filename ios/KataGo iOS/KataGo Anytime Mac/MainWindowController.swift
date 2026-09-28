@@ -1885,8 +1885,8 @@ final class MainWindowController: NSWindowController {
     //     into `.clear`, send `stop`.
     //   • `GameSplitView` lines 483-493 (`processChange(oldWaitingForAnalysis:…)`):
     //     on a `true -> false` transition of `waitingForAnalysis`, IF there is a
-    //     selected game and `!shouldGenMove`, re-arm by sending `stop` (when
-    //     paused) or `config.getKataAnalyzeCommand()`. iOS's extra auto-play
+    //     selected game and `!shouldGenMove`, re-arm or stop through the shared
+    //     `GobanState.rearmOrStopAnalysis` (only `.run` re-arms). iOS's extra auto-play
     //     forward logic (lines 495-525) is intentionally NOT ported — macOS has
     //     no auto-play UI yet.
     //
@@ -1965,19 +1965,14 @@ final class MainWindowController: NSWindowController {
 
         // Mirror `processChange(oldWaitingForAnalysis:newWaitingForAnalysis:)`
         // (lines 483-493): on a `true -> false` transition, re-arm continuous
-        // analysis (or stop, when paused) for the selected game.
+        // analysis (or stop, unless it is running) for the selected game.
         if lastWaitingForAnalysis && !newWaitingForAnalysis {
             if let gameRecord = navigationContext.selectedGameRecord,
                !gobanState.shouldGenMove(config: gameRecord.concreteConfig, player: session.player) {
-                if gobanState.analysisStatus == .pause {
-                    session.messageList.appendAndSend(command: "stop")
-                } else {
-                    // The bundle embeds the maxVisits reset (structural fix for
-                    // the sticky human-profile gen-move cap).
-                    session.messageList.appendAndSend(commands: GtpCommandBuilder.continuousAnalyzeCommands(
-                        interval: gameRecord.concreteConfig.analysisInterval,
-                        maxMoves: gameRecord.concreteConfig.maxAnalysisMoves))
-                }
+                // Shared with iOS. Its power-saving term is a no-op on macOS.
+                gobanState.rearmOrStopAnalysis(config: gameRecord.concreteConfig,
+                                               nextColorForPlayCommand: session.player.nextColorForPlayCommand,
+                                               messageList: session.messageList)
 
                 // Auto-play stepping (port of `GameSplitView` lines 495-525,
                 // nested in the same `true -> false` / selected-game / !shouldGenMove

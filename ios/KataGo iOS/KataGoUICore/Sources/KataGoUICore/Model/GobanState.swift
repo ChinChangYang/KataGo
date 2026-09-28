@@ -472,6 +472,30 @@ public class GobanState {
         }
     }
 
+    /// The continuous-analysis loop's one decision, shared by the iOS and
+    /// macOS hosts: a request has just resolved (`waitingForAnalysis` went
+    /// true→false) and no gen-move owns the engine. Keep the stream going
+    /// with the config's interval, or stop it.
+    ///
+    /// Only a running board re-arms. Off stops too, though entering Off
+    /// already sent "stop": a request can still be in flight then, and the
+    /// engine prints a line of it before it reads that "stop". Re-armed on
+    /// that line, the stream ran on under an "Analysis off" sparkle.
+    public func rearmOrStopAnalysis(config: Config,
+                                    nextColorForPlayCommand: PlayerColor?,
+                                    messageList: MessageList) {
+        if analysisStatus != .run
+            || isAnalysisHiddenForPowerSaving(config: config,
+                                              nextColorForPlayCommand: nextColorForPlayCommand) {
+            messageList.appendAndSend(command: "stop")
+        } else {
+            // The bundle embeds the maxVisits reset (structural fix for
+            // the sticky human-profile gen-move cap).
+            messageList.appendAndSend(commands: GtpCommandBuilder.continuousAnalyzeCommands(
+                interval: config.analysisInterval, maxMoves: config.maxAnalysisMoves))
+        }
+    }
+
     /// Re-arm live analysis after a Deep Report closes. The report's probes
     /// cancel the user's live `kata-analyze` and its restore intentionally does
     /// NOT re-arm (so nothing runs under the still-open sheet), leaving the

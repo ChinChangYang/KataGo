@@ -127,8 +127,8 @@ struct AnalysisPowerSavingTests {
     // Stopping an already-running analysis when the overlay is hidden relies on
     // forcing a `waitingForAnalysis` edge (the continuous-analysis loop sends
     // "stop" on the next streamed line — the same mechanism the manual Pause
-    // button uses). These assert the arming flag, which is the unit-testable
-    // half; the actual "stop" send is view glue verified in the simulator.
+    // button uses). These assert the arming flag; the "stop" the edge then
+    // sends is `rearmOrStopAnalysis`, pinned in `AnalysisRearmTests`.
 
     @Test func armsStopWhenHiddenOnHumanTurnClosed() {
         let state = GobanState()            // analysisStatus .run, waitingForAnalysis false
