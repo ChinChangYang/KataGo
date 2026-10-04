@@ -42,8 +42,26 @@ public struct SgfMove: Sendable, Equatable {
 }
 
 public struct SgfHeaderScan: Sendable, Equatable {
+    /// Board edge lengths this app can hold: the engine is compiled with
+    /// `COMPILE_MAX_BOARD_LEN=37`, and `cpp/dataio/sgf.cpp`'s `getXYSize`
+    /// refuses anything <= 1.
+    public static let supportedBoardLengths: ClosedRange<Int> = 2...37
+
+    /// Board width from the ROOT node's `SZ[]` (19 when absent, as in
+    /// `Sgf::getXYSize`). Always clamped into `supportedBoardLengths`, so no
+    /// reader can be steered into allocating a huge board; check
+    /// `boardSizeIsSupported` to learn whether the clamp changed anything.
     public var boardWidth: Int
+    /// Board height; see `boardWidth`.
     public var boardHeight: Int
+    /// Whether the root's `SZ[]` is one the engine's own `loadsgf` would load
+    /// as exactly `boardWidth` x `boardHeight`: absent (19x19), or a single
+    /// value whose dimensions parse and lie in `supportedBoardLengths`. False
+    /// for an unparseable, out-of-range, or repeated/multi-valued root `SZ`
+    /// (the C++ parser requires a singleton); `boardWidth`/`boardHeight` are
+    /// then a clamped stand-in, and a caller about to hand the SGF to an
+    /// engine must refuse it.
+    public var boardSizeIsSupported: Bool
     public var komi: Float?
     public var rules: String?
     /// The root's `PL[...]` property, decoded (case-insensitively) from the
@@ -93,31 +111,35 @@ public struct SgfHeaderScan: Sendable, Equatable {
     public init?(sgf: String) {
         guard let rootStart = sgf.firstIndex(of: ";"), sgf.contains("(") else { return nil }
 
-        // Root properties live between the first ";" and the first move node.
-        // Scan the whole text for SZ/KM/RU (they only legally appear in the
-        // root), but collect moves in document order along the main line.
+        // SZ/KM/RU/PL are read from the ROOT node's properties only — the
+        // node the engine's `loadsgf` reads them from (`nodes[0]` in
+        // cpp/dataio/sgf.cpp) — with bracketed values skipped as values, so a
+        // comment such as C[SZ[100000]] can never be mistaken for the board
+        // size. Moves are still collected in document order along the main
+        // line.
         let text = sgf[rootStart...]
+        let root = Self.rootProperties(of: sgf)
 
-        var width = 19
-        var height = 19
-        if let match = text.firstMatch(of: /SZ\[(\d+)(?::(\d+))?\]/) {
-            width = Int(match.1) ?? 19
-            height = match.2.flatMap { Int($0) } ?? width
-        }
+        let size = Self.boardSize(fromRootValues: root["SZ"])
+        let width = size.width
+        let height = size.height
         boardWidth = width
         boardHeight = height
-        komi = text.firstMatch(of: /KM\[([-\d.]+)\]/).flatMap { Float($0.1) }
-        rules = text.firstMatch(of: /RU\[([^\]]*)\]/).map { String($0.1) }
+        boardSizeIsSupported = size.isSupported
+        if let rawKomi = root["KM"]?.first,
+           let value = Float(rawKomi.trimmingCharacters(in: .whitespacesAndNewlines)),
+           value.isFinite {
+            komi = value
+        } else {
+            komi = nil
+        }
+        rules = root["RU"]?.first
         // Matches getPLSpecifiedColor's accepted spellings exactly: w/white/
         // b/black, case-insensitively.
-        if let plMatch = text.firstMatch(of: /PL\[([A-Za-z]+)\]/) {
-            switch plMatch.1.lowercased() {
-            case "w", "white": nextPlayerOverride = .white
-            case "b", "black": nextPlayerOverride = .black
-            default: nextPlayerOverride = nil
-            }
-        } else {
-            nextPlayerOverride = nil
+        switch root["PL"]?.first?.lowercased() {
+        case "w"?, "white"?: nextPlayerOverride = .white
+        case "b"?, "black"?: nextPlayerOverride = .black
+        default: nextPlayerOverride = nil
         }
 
         // Walk the sanitized mainline into (identifier, values) properties.
@@ -195,6 +217,100 @@ public struct SgfHeaderScan: Sendable, Equatable {
             }
         }
         return out
+    }
+
+    /// The root node's properties, read the way cpp/dataio/sgf.cpp's
+    /// `maybeParseNode`/`maybeParseProperty` read them: starting at the first
+    /// ";" after the first "(", an identifier is a run of ASCII letters
+    /// (whitespace between tokens is skipped), each "[...]" is one value with
+    /// "\" escaping the next character, and the node ends at the first
+    /// character that is none of those (";", "(", ")"). Repeated identifiers
+    /// accumulate their values, as `SgfNode::addProperty` does. An
+    /// unterminated value ends the scan without recording it.
+    static func rootProperties(of sgf: String) -> [String: [String]] {
+        var result: [String: [String]] = [:]
+        guard let openParen = sgf.firstIndex(of: "("),
+              let semicolon = sgf[openParen...].firstIndex(of: ";")
+        else { return result }
+
+        var index = sgf.index(after: semicolon)
+        var key = ""
+        var keyHasValue = false
+        while index < sgf.endIndex {
+            let character = sgf[index]
+            if character.isASCII && character.isLetter {
+                // A letter after a completed value starts the NEXT property.
+                if keyHasValue {
+                    key = ""
+                    keyHasValue = false
+                }
+                key.append(character)
+                index = sgf.index(after: index)
+            } else if character.isWhitespace {
+                index = sgf.index(after: index)
+            } else if character == "[" && !key.isEmpty {
+                index = sgf.index(after: index)
+                var value = ""
+                var escaped = false
+                var closed = false
+                while index < sgf.endIndex {
+                    let valueCharacter = sgf[index]
+                    index = sgf.index(after: index)
+                    if escaped {
+                        escaped = false
+                        value.append(valueCharacter)
+                    } else if valueCharacter == "\\" {
+                        escaped = true
+                    } else if valueCharacter == "]" {
+                        closed = true
+                        break
+                    } else {
+                        value.append(valueCharacter)
+                    }
+                }
+                guard closed else { break }
+                result[key, default: []].append(value)
+                keyHasValue = true
+            } else {
+                break
+            }
+        }
+        return result
+    }
+
+    /// Board geometry from the root's `SZ` values, following
+    /// `Sgf::getXYSize`: absent is 19x19; "N" is NxN; "W:H" is WxH; integers
+    /// may carry surrounding whitespace (`Global::tryStringToInt` trims).
+    /// The returned dimensions are always inside `supportedBoardLengths`.
+    static func boardSize(fromRootValues values: [String]?)
+        -> (width: Int, height: Int, isSupported: Bool) {
+        guard let values else { return (19, 19, true) }
+        guard let first = values.first, let parsed = parseBoardSize(first) else {
+            return (19, 19, false)
+        }
+        let range = supportedBoardLengths
+        let width = min(max(parsed.width, range.lowerBound), range.upperBound)
+        let height = min(max(parsed.height, range.lowerBound), range.upperBound)
+        let isSupported = values.count == 1
+            && range.contains(parsed.width) && range.contains(parsed.height)
+        return (width, height, isSupported)
+    }
+
+    private static func parseBoardSize(_ raw: String) -> (width: Int, height: Int)? {
+        func integer(_ part: Substring) -> Int? {
+            Int(part.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        let parts = raw.split(separator: ":", omittingEmptySubsequences: false)
+        switch parts.count {
+        case 1:
+            guard let side = integer(parts[0]) else { return nil }
+            return (side, side)
+        case 2:
+            guard let width = integer(parts[0]), let height = integer(parts[1]) else { return nil }
+            return (width, height)
+        default:
+            return nil
+        }
     }
 
     /// One SGF property: an identifier and its bracketed values.

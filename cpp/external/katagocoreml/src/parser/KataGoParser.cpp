@@ -4,7 +4,10 @@
 #include "KataGoParser.hpp"
 #include <algorithm>
 #include <cmath>
+#include <cstdint>
 #include <cstring>
+#include <initializer_list>
+#include <limits>
 #include <stdexcept>
 #include <zlib.h>
 
@@ -128,8 +131,27 @@ bool KataGoParser::readBool() {
     return readInt() != 0;
 }
 
+// The count comes from the model file, so grow the buffer only as floats are actually read:
+// a tiny file declaring a huge layer then fails at EOF instead of first allocating gigabytes.
+static constexpr size_t READ_FLOATS_CHUNK = static_cast<size_t>(1) << 20;
+
+// Weight counts are products of untrusted dimensions; reject any that is non-positive or whose
+// product does not fit in an int (downstream code indexes weights with int arithmetic).
+static size_t checkedWeightCount(const std::string& name, std::initializer_list<int> dims) {
+    uint64_t product = 1;
+    for (int d : dims) {
+        if (d < 1)
+            throw std::runtime_error(name + ": layer dimensions must be positive");
+        product *= static_cast<uint64_t>(d);
+        if (product > static_cast<uint64_t>(std::numeric_limits<int>::max()))
+            throw std::runtime_error(name + ": layer has too many weights");
+    }
+    return static_cast<size_t>(product);
+}
+
 std::vector<float> KataGoParser::readFloats(size_t count, const std::string& name) {
-    std::vector<float> floats(count);
+    std::vector<float> floats;
+    floats.reserve(std::min(count, READ_FLOATS_CHUNK));
     skipWhitespace();
 
     // KataGo model files are uniformly text OR uniformly binary, so detecting the
@@ -143,7 +165,7 @@ std::vector<float> KataGoParser::readFloats(size_t count, const std::string& nam
     if(!m_binary_floats) {
         // Text format
         for(size_t i = 0; i < count; i++)
-            floats[i] = readFloat();
+            floats.push_back(readFloat());
     } else {
         // Binary: consume the "@BIN@" marker, then read count*4 raw bytes.
         char marker[5];
@@ -151,7 +173,12 @@ std::vector<float> KataGoParser::readFloats(size_t count, const std::string& nam
         if(std::memcmp(marker, "@BIN@", 5) != 0)
             throw std::runtime_error(name + ": expected @BIN@ marker for binary float block");
 
-        readExact(reinterpret_cast<uint8_t*>(floats.data()), count * 4, name);
+        while (floats.size() < count) {
+            size_t done = floats.size();
+            size_t take = std::min(count - done, READ_FLOATS_CHUNK);
+            floats.resize(done + take);
+            readExact(reinterpret_cast<uint8_t*>(floats.data() + done), take * 4, name);
+        }
     }
 
     // Reject NaN/Inf weights: corrupted or otherwise invalid models would
@@ -198,8 +225,8 @@ ConvLayerDesc KataGoParser::parseConvLayer() {
     }
 
     // Read weights in file order: [y, x, ic, oc]
-    size_t num_weights = static_cast<size_t>(layer.conv_y_size) * layer.conv_x_size *
-                         layer.in_channels * layer.out_channels;
+    size_t num_weights = checkedWeightCount(layer.name, {layer.conv_y_size, layer.conv_x_size,
+                                                         layer.in_channels, layer.out_channels});
     std::vector<float> weights_flat = readFloats(num_weights, layer.name);
 
     // Transpose from [y, x, ic, oc] to [oc, ic, y, x]
@@ -309,7 +336,7 @@ MatMulLayerDesc KataGoParser::parseMatMulLayer() {
     layer.out_channels = readInt();
 
     // Weights in [ic, oc] order
-    size_t num_weights = static_cast<size_t>(layer.in_channels) * layer.out_channels;
+    size_t num_weights = checkedWeightCount(layer.name, {layer.in_channels, layer.out_channels});
     layer.weights = readFloats(num_weights, layer.name);
 
     return layer;
@@ -319,7 +346,7 @@ MatBiasLayerDesc KataGoParser::parseMatBiasLayer() {
     MatBiasLayerDesc layer;
     layer.name = readString();
     layer.num_channels = readInt();
-    layer.weights = readFloats(layer.num_channels, layer.name);
+    layer.weights = readFloats(checkedWeightCount(layer.name, {layer.num_channels}), layer.name);
 
     return layer;
 }

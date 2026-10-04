@@ -2,6 +2,8 @@
 
 #include <cmath>
 #include <fstream>
+#include <initializer_list>
+#include <limits>
 #include <zlib.h>
 
 #include "../core/global.h"
@@ -25,6 +27,18 @@ static void checkWeightFinite(float f, const string& name) {
 #define CHECKFINITE(x, name) \
   { checkWeightFinite((x), name); }
 
+// Layer weight counts are products of untrusted dimensions and are indexed with int arithmetic
+// downstream, so the full product must fit in an int.
+static int checkedWeightCount(const string& name, std::initializer_list<int> dims) {
+  uint64_t product = 1;
+  for(int d : dims) {
+    product *= (uint64_t)d;
+    if(product > (uint64_t)std::numeric_limits<int>::max())
+      throw StringError(name + ": layer has too many weights");
+  }
+  return (int)product;
+}
+
 //For some strange reason, this function is noticeably faster than
 //float x; in >> x;
 static float readFloatFast(istream& in, string& tmp) {
@@ -37,14 +51,22 @@ static float readFloatFast(istream& in, string& tmp) {
   return x;
 }
 
+// The float count comes from the model file, so the buffer grows only as floats are actually read,
+// in chunks of at most this many. A tiny file declaring a huge layer then fails on missing input
+// instead of first allocating gigabytes.
+static constexpr size_t READ_FLOATS_CHUNK = (size_t)1 << 20;
+
 static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const string& name, vector<float>& buf) {
-  buf.resize(numFloats);
+  buf.clear();
   if(!binaryFloats) {
+    buf.reserve(std::min(numFloats, READ_FLOATS_CHUNK));
     string tmp;
     for(size_t i = 0; i<numFloats; i++) {
       float x = readFloatFast(in,tmp);
+      if(in.fail())
+        break;
       CHECKFINITE(x,name);
-      buf[i] = x;
+      buf.push_back(x);
     }
     if(in.fail())
       throw StringError(name + ": could not read float weights. Invalid model - perhaps you are trying to load a .bin.gz model as a .txt.gz model?");
@@ -69,14 +91,17 @@ static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const s
       if(s != "BIN@")
         throw StringError(name + ": did not find expected header for binary float block");
     }
-    float* data = buf.data();
-    char* bytes = (char*)data;
-    in.read(bytes, numFloats*sizeof(float));
-
-    if(in.fail())
-      throw StringError(name + ": did not find the expected number of floats in binary float block");
-
+    size_t numRead = 0;
+    while(numRead < numFloats) {
+      size_t numToRead = std::min(numFloats - numRead, READ_FLOATS_CHUNK);
+      buf.resize(numRead + numToRead);
+      in.read((char*)(buf.data() + numRead), numToRead*sizeof(float));
+      if(in.fail())
+        throw StringError(name + ": did not find the expected number of floats in binary float block");
+      numRead += numToRead;
+    }
 #if BYTE_ORDER == BIG_ENDIAN
+    char* bytes = (char*)buf.data();
     for(size_t i = 0; i<numFloats; i++) {
       //Reverse byte order for big endian
       std::swap(bytes[i*4 + 0], bytes[i*4 + 3]);
@@ -130,15 +155,15 @@ ConvLayerDesc::ConvLayerDesc(istream& in, bool binaryFloats) {
 
   // Model file order is y,x,ic,oc
   // Cuda's order is oc,ic,y,x
-  int numWeights = convYSize * convXSize * inChannels * outChannels;
-  weights.resize(numWeights);
+  int numWeights = checkedWeightCount(name, {convYSize, convXSize, inChannels, outChannels});
   int ocStride = convYSize * convXSize * inChannels;
   int icStride = convYSize * convXSize;
   int yStride = convXSize;
   int xStride = 1;
 
   vector<float> floats;
-  readFloats(in, (size_t)convYSize * convXSize * inChannels * outChannels, binaryFloats, name, floats);
+  readFloats(in, (size_t)numWeights, binaryFloats, name, floats);
+  weights.resize(numWeights);
   size_t idx = 0;
   for(int y = 0; y < convYSize; y++) {
     for(int x = 0; x < convXSize; x++) {
@@ -460,13 +485,13 @@ MatMulLayerDesc::MatMulLayerDesc(istream& in, bool binaryFloats) {
 
   // Model file order is ic,oc
   // Cublas order used is also ic,oc since we transpose
-  int numWeights = inChannels * outChannels;
-  weights.resize(numWeights);
+  int numWeights = checkedWeightCount(name, {inChannels, outChannels});
   int icStride = outChannels;
   int ocStride = 1;
 
   vector<float> floats;
-  readFloats(in, (size_t)inChannels * outChannels, binaryFloats, name, floats);
+  readFloats(in, (size_t)numWeights, binaryFloats, name, floats);
+  weights.resize(numWeights);
   size_t idx = 0;
   for(int ic = 0; ic < inChannels; ic++) {
     for(int oc = 0; oc < outChannels; oc++) {
@@ -519,8 +544,6 @@ MatBiasLayerDesc::MatBiasLayerDesc(istream& in, bool binaryFloats) {
     throw StringError(name + ": matbiaslayer failed to parse num channels");
   if(numChannels <= 0)
     throw StringError(name + ": number of channels must be positive");
-
-  weights.resize(numChannels);
 
   vector<float> floats;
   readFloats(in, (size_t)numChannels, binaryFloats, name, floats);
@@ -2472,6 +2495,23 @@ ModelDesc::ModelDesc(istream& in, const string& sha256_, bool binaryFloats) {
     throw StringError(name + ": model failed to parse numInputGlobalChannels");
   if(numInputGlobalChannels <= 0)
     throw StringError(name + ": model numInputGlobalChannels must be positive");
+
+  // Backends size their input buffers from these counts but fill them with the
+  // version's feature count, so a mismatch would overflow those buffers.
+  if(numInputChannels != NNModelVersion::getNumSpatialFeatures(modelVersion))
+    throw StringError(
+      name + Global::strprintf(
+               ": numInputChannels (%d) does not match the expected number for model version %d (%d)",
+               numInputChannels,
+               modelVersion,
+               NNModelVersion::getNumSpatialFeatures(modelVersion)));
+  if(numInputGlobalChannels != NNModelVersion::getNumGlobalFeatures(modelVersion))
+    throw StringError(
+      name + Global::strprintf(
+               ": numInputGlobalChannels (%d) does not match the expected number for model version %d (%d)",
+               numInputGlobalChannels,
+               modelVersion,
+               NNModelVersion::getNumGlobalFeatures(modelVersion)));
 
   if(modelVersion >= 13) {
     in >> postProcessParams.tdScoreMultiplier;

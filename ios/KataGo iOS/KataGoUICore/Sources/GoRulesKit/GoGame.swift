@@ -87,7 +87,7 @@ public struct GoGame: Sendable {
     /// stone chills one point under territory scoring (the initial-position
     /// loop in BoardHistory's constructor).
     public init(width: Int, height: Int, rules: GoRules, handicap: Int = 0) throws {
-        guard width >= 2, height >= 2, width <= 37, height <= 37 else {
+        guard width >= 2, height >= 2, width <= GoBoard.maxLength, height <= GoBoard.maxLength else {
             throw GoGameError("board size must be 2...37")
         }
         guard handicap == 0 || (2...9).contains(handicap) else {

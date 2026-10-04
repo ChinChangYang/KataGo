@@ -174,8 +174,10 @@ public struct SgfReplay: Sendable {
                 setupWhite: [GoPoint] = [],
                 setupEmpty: [GoPoint] = [],
                 moves: [RecordedMove]) {
-        self.width = max(width, 1)
-        self.height = max(height, 1)
+        // Clamped, never trusted: a caller's geometry may come straight from
+        // an untrusted SGF, and GoBoard allocates width * height.
+        self.width = min(max(width, 1), GoBoard.maxLength)
+        self.height = min(max(height, 1), GoBoard.maxLength)
         self.moves = moves
         self.moveCount = moves.count
 

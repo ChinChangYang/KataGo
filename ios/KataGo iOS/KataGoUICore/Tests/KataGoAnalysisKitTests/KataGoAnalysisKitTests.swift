@@ -18,17 +18,55 @@ private func decodeRequest(_ json: String) throws -> AnalysisRequest {
     return try AnalysisWireCoding.request(fromDictionary: dictionary)
 }
 
+/// SHA-256 of the empty string: the lowercase-hex shape content.js's
+/// `sha256Hex` sends, which is the only `sgfHash` the decoder accepts.
+private let validHash = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+
 struct AnalysisWireRequestTests {
+    /// `sgfHash` becomes a file name under the extension's spool/cache
+    /// directories and part of a `loadsgf <path>` GTP line, so anything but
+    /// a lowercase hex SHA-256 must be refused at decode time.
+    @Test(arguments: [
+        "../../../../tmp/x",
+        "abc",
+        "h",
+        "",
+        "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855\nquit",
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b85/",
+    ])
+    func startRejectsAnSgfHashThatIsNotLowercaseHexSha256(_ hash: String) throws {
+        let dictionary: [String: Any] = ["cmd": "start", "sgf": "(;)", "sgfHash": hash]
+        #expect(throws: DecodingError.self) {
+            _ = try AnalysisWireCoding.request(fromDictionary: dictionary)
+        }
+        let json = try JSONSerialization.data(withJSONObject: dictionary)
+        #expect(throws: DecodingError.self) {
+            _ = try JSONDecoder().decode(AnalysisRequest.self, from: json)
+        }
+    }
+
+    @Test func startAcceptsALowercaseHexSha256() throws {
+        #expect(AnalysisRequest.isValidSgfHash(validHash))
+        let request = try decodeRequest(
+            #"{"cmd":"start","sgf":"(;)","sgfHash":"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"}"#)
+        #expect(request == .start(
+            sgf: "(;)",
+            sgfHash: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            currentMoveIndex: 0, budget: .normal))
+    }
+
     @Test func startDecodesWithExplicitFields() throws {
         let request = try decodeRequest(
-            #"{"cmd":"start","sgf":"(;GM[1])","sgfHash":"abc","currentMoveIndex":42,"budget":"deep"}"#)
-        #expect(request == .start(sgf: "(;GM[1])", sgfHash: "abc",
+            #"{"cmd":"start","sgf":"(;GM[1])","sgfHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","currentMoveIndex":42,"budget":"deep"}"#)
+        #expect(request == .start(sgf: "(;GM[1])", sgfHash: validHash,
                                   currentMoveIndex: 42, budget: .deep))
     }
 
     @Test func startAppliesDefaultsForOptionalFields() throws {
-        let request = try decodeRequest(#"{"cmd":"start","sgf":"(;)","sgfHash":"h"}"#)
-        #expect(request == .start(sgf: "(;)", sgfHash: "h",
+        let request = try decodeRequest(#"{"cmd":"start","sgf":"(;)","sgfHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}"#)
+        #expect(request == .start(sgf: "(;)", sgfHash: validHash,
                                   currentMoveIndex: 0, budget: .normal))
     }
 
@@ -37,11 +75,11 @@ struct AnalysisWireRequestTests {
     /// stays the identity.
     @Test func startCarriesAnOptionalSessionKey() throws {
         let keyed = try decodeRequest(
-            #"{"cmd":"start","sgf":"(;)","sgfHash":"h","gameId":"ogs:demo:7"}"#)
-        #expect(keyed == .start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+            #"{"cmd":"start","sgf":"(;)","sgfHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855","gameId":"ogs:demo:7"}"#)
+        #expect(keyed == .start(sgf: "(;)", sgfHash: validHash, currentMoveIndex: 0,
                                 budget: .normal, gameId: "ogs:demo:7"))
-        let bare = try decodeRequest(#"{"cmd":"start","sgf":"(;)","sgfHash":"h"}"#)
-        #expect(bare == .start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+        let bare = try decodeRequest(#"{"cmd":"start","sgf":"(;)","sgfHash":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}"#)
+        #expect(bare == .start(sgf: "(;)", sgfHash: validHash, currentMoveIndex: 0,
                                budget: .normal, gameId: nil))
     }
 
@@ -49,20 +87,20 @@ struct AnalysisWireRequestTests {
     /// `start` encodes exactly as it did before site adapters existed.
     @Test func startOmitsTheSessionKeyWhenAbsent() throws {
         let bare = try JSONEncoder().encode(
-            AnalysisRequest.start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+            AnalysisRequest.start(sgf: "(;)", sgfHash: validHash, currentMoveIndex: 0,
                                   budget: .normal))
         let bareJSON = try #require(
             try JSONSerialization.jsonObject(with: bare) as? [String: Any])
         #expect(bareJSON["gameId"] == nil)
 
         let keyed = try JSONEncoder().encode(
-            AnalysisRequest.start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+            AnalysisRequest.start(sgf: "(;)", sgfHash: validHash, currentMoveIndex: 0,
                                   budget: .normal, gameId: "ogs:game:42"))
         let keyedJSON = try #require(
             try JSONSerialization.jsonObject(with: keyed) as? [String: Any])
         #expect(keyedJSON["gameId"] as? String == "ogs:game:42")
         #expect(try JSONDecoder().decode(AnalysisRequest.self, from: keyed)
-                == .start(sgf: "(;)", sgfHash: "h", currentMoveIndex: 0,
+                == .start(sgf: "(;)", sgfHash: validHash, currentMoveIndex: 0,
                           budget: .normal, gameId: "ogs:game:42"))
     }
 

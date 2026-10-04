@@ -57,6 +57,13 @@ public enum MessageGameCodec {
     static let coordinateAlphabet = Array("0123456789abcdefghijklmnopqrstuvwxyzAB")
     static let passToken = "--"
 
+    /// Accepted komi, in half points: ±1000 points, the app-wide komi clamp
+    /// (`ConfigEngineSync.setKomi`), which contains the Messages setup
+    /// stepper's -50...150. Bounding `k` on decode keeps a hostile bubble
+    /// from carrying a komi whose re-encode (komi * 2 → Int) or score would
+    /// trap.
+    static let komiHalfPointRange = -2_000...2_000
+
     // MARK: - Encode
 
     public static func url(for messageGame: MessageGame) -> URL {
@@ -66,7 +73,7 @@ public enum MessageGameCodec {
             URLQueryItem(name: "w", value: String(game.board.width)),
             URLQueryItem(name: "h", value: String(game.board.height)),
             URLQueryItem(name: "ha", value: String(game.handicap)),
-            URLQueryItem(name: "k", value: String(Int((game.rules.komi * 2).rounded()))),
+            URLQueryItem(name: "k", value: String(halfPoints(game.rules.komi))),
             URLQueryItem(name: "ko", value: String(game.rules.koRule.rawValue)),
             URLQueryItem(name: "sc", value: String(game.rules.scoringRule.rawValue)),
             URLQueryItem(name: "tx", value: String(game.rules.taxRule.rawValue)),
@@ -94,7 +101,7 @@ public enum MessageGameCodec {
             switch result.kind {
             case .score(let whiteMinusBlack):
                 items.append(URLQueryItem(
-                    name: "res", value: "s\(Int((whiteMinusBlack * 2).rounded()))"))
+                    name: "res", value: "s\(halfPoints(whiteMinusBlack))"))
             case .resignation(let winner):
                 items.append(URLQueryItem(name: "res", value: winner == .white ? "rw" : "rb"))
             }
@@ -102,6 +109,15 @@ public enum MessageGameCodec {
         var components = URLComponents()
         components.queryItems = items
         return components.url!
+    }
+
+    /// A Double as wire half points. Clamped so a non-finite or out-of-range
+    /// value can never trap `Int(_:)`; decode bounds `k`, so for any game
+    /// that came off the wire this is exactly `Int((value * 2).rounded())`.
+    static func halfPoints(_ value: Double) -> Int {
+        let doubled = (value * 2).rounded()
+        guard doubled.isFinite else { return 0 }
+        return Int(min(max(doubled, -1e15), 1e15))
     }
 
     static func encodeMoves(_ moves: [GoMove]) -> String {
@@ -147,6 +163,10 @@ public enum MessageGameCodec {
         let width = try intField("w")
         let height = try intField("h")
         let handicap = try intField("ha")
+        let komiHalfPoints = try intField("k")
+        guard komiHalfPointRange.contains(komiHalfPoints) else {
+            throw MessageGameCodecError.malformedField("k")
+        }
         guard let koRule = KoRule(rawValue: try intField("ko")),
               let scoringRule = ScoringRule(rawValue: try intField("sc")),
               let taxRule = TaxRule(rawValue: try intField("tx")),
@@ -160,7 +180,7 @@ public enum MessageGameCodec {
             multiStoneSuicideLegal: try intField("su") == 1,
             hasButton: try intField("bt") == 1,
             whiteHandicapBonusRule: whbRule,
-            komi: Double(try intField("k")) / 2)
+            komi: Double(komiHalfPoints) / 2)
         let creatorColor: GoColor = fields["cc"] == "w" ? .white : .black
 
         var game: GoGame

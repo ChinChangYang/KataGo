@@ -150,6 +150,11 @@ void FileUtils::uncompressAndLoadFileIntoString(const string& filename, const st
   loadFileIntoString(filename,expectedSha256,*compressed,actualSha256Buf);
 
   static constexpr size_t CHUNK_SIZE = 262144;
+  // Model weights compress poorly (binary floats ~1.1x, text a few x), so anything past this ratio
+  // is a decompression bomb, which would otherwise exhaust memory before any validation runs.
+  static constexpr size_t MAX_EXPANSION_RATIO = 16;
+  static constexpr size_t MIN_OUTPUT_LIMIT = (size_t)64 * 1024 * 1024;
+  const size_t maxOutputSize = std::max(MIN_OUTPUT_LIMIT, compressed->size() * MAX_EXPANSION_RATIO);
 
   int zret;
   z_stream zs;
@@ -181,6 +186,10 @@ void FileUtils::uncompressAndLoadFileIntoString(const string& filename, const st
 
   zs.next_in = (Bytef*)(&(*compressed)[0]);
   while(true) {
+    if(totalAmountOfOutputProduced > maxOutputSize) {
+      (void)inflateEnd(&zs);
+      throw StringError("Error while ungzipping file, decompressed size exceeds the limit. Invalid or corrupt file? File: " + filename);
+    }
     uncompressed.resize(totalAmountOfOutputProduced + CHUNK_SIZE);
     zs.next_out = (Bytef*)(&uncompressed[totalAmountOfOutputProduced]);
     zs.avail_out = CHUNK_SIZE;

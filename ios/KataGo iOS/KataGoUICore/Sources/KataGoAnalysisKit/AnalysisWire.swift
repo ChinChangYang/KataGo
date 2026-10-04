@@ -169,6 +169,17 @@ public enum AnalysisRequest: Sendable, Equatable {
     case openInApp(sgf: String)
 }
 
+extension AnalysisRequest {
+    /// Whether `hash` is a lowercase hex SHA-256 digest (exactly 64 of
+    /// 0-9a-f) — what content.js's `sha256Hex` emits.
+    public static func isValidSgfHash(_ hash: String) -> Bool {
+        hash.utf8.count == 64 && hash.utf8.allSatisfy {
+            ($0 >= UInt8(ascii: "0") && $0 <= UInt8(ascii: "9"))
+                || ($0 >= UInt8(ascii: "a") && $0 <= UInt8(ascii: "f"))
+        }
+    }
+}
+
 extension AnalysisRequest: Codable {
     private enum CodingKeys: String, CodingKey {
         case cmd, sgf, sgfHash, currentMoveIndex, budget, gameId, sinceSeq
@@ -180,9 +191,19 @@ extension AnalysisRequest: Codable {
         let cmd = try c.decode(String.self, forKey: .cmd)
         switch cmd {
         case "start":
+            // The hash names on-disk files (spool, cache) and rides a
+            // `loadsgf <path>` GTP line, so only the exact shape content.js
+            // produces — lowercase hex SHA-256 — is accepted: nothing else can
+            // carry a path separator, "..", whitespace or a newline.
+            let sgfHash = try c.decode(String.self, forKey: .sgfHash)
+            guard Self.isValidSgfHash(sgfHash) else {
+                throw DecodingError.dataCorruptedError(
+                    forKey: .sgfHash, in: c,
+                    debugDescription: "sgfHash must be 64 lowercase hex digits")
+            }
             self = .start(
                 sgf: try c.decode(String.self, forKey: .sgf),
-                sgfHash: try c.decode(String.self, forKey: .sgfHash),
+                sgfHash: sgfHash,
                 currentMoveIndex: try c.decodeIfPresent(Int.self, forKey: .currentMoveIndex) ?? 0,
                 budget: try c.decodeIfPresent(AnalysisBudget.self, forKey: .budget) ?? .normal,
                 gameId: try c.decodeIfPresent(String.self, forKey: .gameId))
