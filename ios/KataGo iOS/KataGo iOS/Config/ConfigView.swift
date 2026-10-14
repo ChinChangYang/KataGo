@@ -1153,11 +1153,12 @@ private struct EngineParametersHost: View {
     let editor: CustomParametersEditor
     @Environment(MessageList.self) private var messageList
     @Environment(AppEngineController.self) private var controller: AppEngineController?
+    @Environment(EngineStatus.self) private var engineStatus: EngineStatus?
 
     var body: some View {
         EngineParametersView(
             editor: editor,
-            launched: controller?.launchedCustomParameters,
+            launched: engineStatus?.launchedCustomParameters,
             onRelaunch: controller.map { controller in { controller.retry() } })
             .onAppear {
                 let messageList = messageList

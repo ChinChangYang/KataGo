@@ -27,6 +27,9 @@ public struct EngineParametersView: View {
     @State private var confirmingResetAll = false
     @State private var showingImport = false
     @State private var showingAddKey = false
+    /// macOS: the parameter open in a sheet. A Settings tab has no navigation
+    /// bar, so a pushed detail would have no way back.
+    @State private var openKey: OpenParameter?
 
     public init(editor: CustomParametersEditor,
                 launched: CustomParameters?,
@@ -89,27 +92,32 @@ public struct EngineParametersView: View {
                 }
             }
         }
+        #if os(macOS)
+        // Hosted in a Settings tab, where the tab bar owns the window toolbar:
+        // neither `.searchable` nor a toolbar item would ever show, so both
+        // sit above the list instead.
+        .safeAreaInset(edge: .top) {
+            HStack {
+                TextField("Search keys and descriptions", text: $searchText)
+                    .textFieldStyle(.roundedBorder)
+                    .accessibilityIdentifier("EngineParameters.search")
+                actionsMenu
+                    .fixedSize()
+            }
+            .padding(.horizontal)
+            .padding(.vertical, 8)
+            .background(.bar)
+        }
+        #else
         .searchable(text: $searchText, prompt: "Search keys and descriptions")
         .navigationTitle("Engine Parameters")
         .toolbar {
-            ToolbarItem {
-                Menu {
-                    Button("Add Unlisted Key…", systemImage: "plus") { showingAddKey = true }
-                    Button("Paste cfg…", systemImage: "doc.on.clipboard") { showingImport = true }
-                    Button("Copy as cfg", systemImage: "doc.on.doc") { copyToPasteboard(editor.parameters.cfgText) }
-                        .disabled(editor.parameters.isEmpty)
-                    Divider()
-                    Button("Reset All", systemImage: "arrow.counterclockwise", role: .destructive) {
-                        confirmingResetAll = true
-                    }
-                    .disabled(editor.parameters.isEmpty)
-                } label: {
-                    Label("Actions", systemImage: "ellipsis.circle")
-                }
-                .accessibilityIdentifier("EngineParameters.actions")
-            }
+            ToolbarItem { actionsMenu }
         }
-        .confirmationDialog("Reset all \(editor.parameters.count) custom values?",
+        #endif
+        .confirmationDialog(editor.parameters.count == 1
+                                ? "Reset the custom value?"
+                                : "Reset all \(editor.parameters.count) custom values?",
                             isPresented: $confirmingResetAll, titleVisibility: .visible) {
             Button("Reset All", role: .destructive) { editor.resetAll() }
         }
@@ -119,14 +127,69 @@ public struct EngineParametersView: View {
         .sheet(isPresented: $showingAddKey) {
             NavigationStack { AddUnlistedKeyView(editor: editor) }
         }
+        .sheet(item: $openKey) { open in
+            EngineParameterSheet(key: open.id, editor: editor)
+        }
     }
 
+    private var actionsMenu: some View {
+        Menu {
+            Button("Add Unlisted Key…", systemImage: "plus") { showingAddKey = true }
+            Button("Paste cfg…", systemImage: "doc.on.clipboard") { showingImport = true }
+            Button("Copy as cfg", systemImage: "doc.on.doc") { copyToPasteboard(editor.parameters.cfgText) }
+                .disabled(editor.parameters.isEmpty)
+            Divider()
+            Button("Reset All", systemImage: "arrow.counterclockwise", role: .destructive) {
+                confirmingResetAll = true
+            }
+            .disabled(editor.parameters.isEmpty)
+        } label: {
+            Label("Actions", systemImage: "ellipsis.circle")
+        }
+        .accessibilityIdentifier("EngineParameters.actions")
+    }
+
+    @ViewBuilder
     private func row(forKey key: String) -> some View {
+        #if os(macOS)
+        Button {
+            openKey = OpenParameter(id: key)
+        } label: {
+            EngineParameterRow(key: key, customValue: editor.parameters.values[key])
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        #else
         NavigationLink {
             EngineParameterDetailView(key: key, editor: editor)
         } label: {
             EngineParameterRow(key: key, customValue: editor.parameters.values[key])
         }
+        #endif
+    }
+}
+
+/// The key of the parameter a macOS sheet shows.
+struct OpenParameter: Identifiable {
+    let id: String
+}
+
+/// macOS: one parameter's detail in a sheet, closed with Done.
+struct EngineParameterSheet: View {
+    let key: String
+    let editor: CustomParametersEditor
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            EngineParameterDetailView(key: key, editor: editor)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("Done") { dismiss() }
+                    }
+                }
+        }
+        .frame(minWidth: 520, minHeight: 440)
     }
 }
 
@@ -236,6 +299,10 @@ struct EngineParameterDetailView: View {
                 }
             }
         }
+        #if os(macOS)
+        // The default macOS form lays labels out in a clipped column.
+        .formStyle(.grouped)
+        #endif
         .navigationTitle(key)
         #if os(iOS)
         .navigationBarTitleDisplayMode(.inline)
@@ -262,7 +329,10 @@ struct EngineParameterDetailView: View {
             choicePicker(["auto", "true", "false"])
         default:
             HStack {
-                TextField(shipped?.value ?? "Value", text: $draft)
+                // The shipped value is the prompt, not the label: a macOS form
+                // shows a label beside the field and squeezes the field.
+                TextField("Value", text: $draft, prompt: Text(shipped?.value ?? "Value"))
+                    .labelsHidden()
                     .font(.body.monospaced())
                     .autocorrectionDisabled()
                     #if os(iOS)
@@ -350,6 +420,10 @@ struct AddUnlistedKeyView: View {
                     .foregroundStyle(.red)
             }
         }
+        #if os(macOS)
+        // The default macOS form lays labels out in a clipped column.
+        .formStyle(.grouped)
+        #endif
         .navigationTitle("Add Unlisted Key")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {
@@ -410,6 +484,10 @@ struct CfgImportView: View {
                 }
             }
         }
+        #if os(macOS)
+        // The default macOS form lays labels out in a clipped column.
+        .formStyle(.grouped)
+        #endif
         .navigationTitle("Paste cfg")
         .toolbar {
             ToolbarItem(placement: .cancellationAction) {

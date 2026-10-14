@@ -51,6 +51,10 @@ final class SettingsViewController: NSTabViewController {
     /// Read by the Siri pane to name the user's newest game inside the
     /// parameterized example phrases.
     private let modelContainer: ModelContainer
+    /// The Engine tab: live values go to this window's session, and the
+    /// relaunch it offers goes back to the window controller.
+    private let session: GameSession
+    private let onRelaunchEngine: () -> Void
 
     // Each pane is retained so the live observer can reload its controls.
     private let generalPane: SettingsPaneViewController
@@ -63,10 +67,13 @@ final class SettingsViewController: NSTabViewController {
     /// `viewWillDisappear` so a closed window stops observing.
     private var isObserving = false
 
-    init(session: GameSession, modelContainer: ModelContainer) {
+    init(session: GameSession, modelContainer: ModelContainer,
+         onRelaunchEngine: @escaping () -> Void) {
         self.gobanState = session.gobanState
         self.board = session.board
         self.modelContainer = modelContainer
+        self.session = session
+        self.onRelaunchEngine = onRelaunchEngine
 
         generalPane = SettingsPaneViewController(gobanState: gobanState, rows: Self.generalRows)
         boardPane = SettingsPaneViewController(gobanState: gobanState, rows: Self.boardRows)
@@ -87,9 +94,28 @@ final class SettingsViewController: NSTabViewController {
         addTab(boardPane, label: "Board", symbol: "squareshape.split.3x3")
         addTab(analysisPane, label: "Analysis", symbol: "chart.xyaxis.line")
         addTab(soundPane, label: "Sound & Feedback", symbol: "speaker.wave.2")
+        addTab(makeEnginePane(), label: "Engine", symbol: "cpu")
         addTab(makeVoiceControlPane(), label: "Voice Control", symbol: "mic")
         addTab(makeSiriPane(), label: "Siri", symbol: "waveform")
         addTab(makeLicensesPane(), label: "Licenses", symbol: "doc.text")
+    }
+
+    /// Every engine parameter, with the person's custom values: the shared
+    /// SwiftUI screen, as on iOS. A live value goes straight to this window's
+    /// engine through the session's command gate; a launch-timing one waits
+    /// for the Relaunch Engine button.
+    private func makeEnginePane() -> NSViewController {
+        let editor = CustomParametersEditor()
+        let messageList = session.messageList
+        editor.sendLiveCommand = { command in
+            messageList.appendAndSend(command: command)
+        }
+        let hosting = NSHostingController(rootView: MacEngineParametersPane(
+            editor: editor,
+            engineStatus: session.engineStatus,
+            onRelaunch: onRelaunchEngine))
+        hosting.preferredContentSize = NSSize(width: 640, height: 560)
+        return hosting
     }
 
     /// Feedback 2026-07-30: with Voice Control on, "it is not clear what
@@ -460,5 +486,21 @@ private struct MacSiriPhrasesPane: View {
 
     var body: some View {
         SiriPhrasesHelpView(exampleGameName: model.exampleGameName)
+    }
+}
+
+/// Reads what the running engine launched with from the observable status, so
+/// the "waiting for a relaunch" list follows each relaunch.
+private struct MacEngineParametersPane: View {
+    let editor: CustomParametersEditor
+    let engineStatus: EngineStatus
+    let onRelaunch: () -> Void
+
+    var body: some View {
+        NavigationStack {
+            EngineParametersView(editor: editor,
+                                 launched: engineStatus.launchedCustomParameters,
+                                 onRelaunch: onRelaunch)
+        }
     }
 }

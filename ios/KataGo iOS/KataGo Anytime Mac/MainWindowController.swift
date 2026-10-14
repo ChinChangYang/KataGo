@@ -1220,8 +1220,8 @@ final class MainWindowController: NSWindowController {
         let savedCustomParameters = CustomParameterStore().load()
         let setAside = setAsideCustomParametersOnNextLaunch && !savedCustomParameters.isEmpty
         setAsideCustomParametersOnNextLaunch = false
-        launchedCustomParameters = setAside ? CustomParameters() : savedCustomParameters
-        session.engineStatus.launchedCustomParameterCount = launchedCustomParameters.count
+        let launchedCustomParameters = setAside ? CustomParameters() : savedCustomParameters
+        session.engineStatus.launchedCustomParameters = launchedCustomParameters
         session.engineStatus.customParametersSetAside = setAside
 
         let engineStarted = startKataGoThread(
@@ -1656,10 +1656,6 @@ final class MainWindowController: NSWindowController {
         }
     }
 
-    /// The custom engine parameters the running (or last) engine launched
-    /// with. Empty when there were none, or when that launch set them aside.
-    private(set) var launchedCustomParameters = CustomParameters()
-
     /// Set by "Relaunch Without Custom Parameters"; consumed by the next launch.
     private var setAsideCustomParametersOnNextLaunch = false
 
@@ -1779,8 +1775,13 @@ final class MainWindowController: NSWindowController {
     /// `MacGlobalPreferenceSync` persists those changes (single writer).
     @objc func showSettings(_ sender: Any?) {
         if settingsWindowController == nil {
-            settingsWindowController = SettingsWindowController(session: session,
-                                                                modelContainer: modelContainer)
+            settingsWindowController = SettingsWindowController(
+                session: session,
+                modelContainer: modelContainer,
+                onRelaunchEngine: { [weak self] in
+                    guard let self else { return }
+                    self.relaunch(model: self.modelSelection.currentModel)
+                })
         }
         settingsWindowController?.showWindow(sender)
         settingsWindowController?.window?.makeKeyAndOrderFront(sender)

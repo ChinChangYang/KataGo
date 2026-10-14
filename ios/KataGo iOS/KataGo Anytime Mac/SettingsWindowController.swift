@@ -32,9 +32,11 @@ final class SettingsWindowController: NSWindowController {
     /// Builds the Settings window around a `SettingsViewController` bound to the
     /// shared `GameSession` (for its `gobanState`) and the model container (for
     /// the Siri tab's newest-game example).
-    init(session: GameSession, modelContainer: ModelContainer) {
+    init(session: GameSession, modelContainer: ModelContainer,
+         onRelaunchEngine: @escaping () -> Void) {
         settingsViewController = SettingsViewController(session: session,
-                                                        modelContainer: modelContainer)
+                                                        modelContainer: modelContainer,
+                                                        onRelaunchEngine: onRelaunchEngine)
 
         // Non-resizable, prefs-style: titled + closable + miniaturizable but no
         // `.resizable` — the `.toolbar` tab controller resizes the window to fit

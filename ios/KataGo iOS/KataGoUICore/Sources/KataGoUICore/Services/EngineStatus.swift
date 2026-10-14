@@ -97,10 +97,14 @@ public final class EngineStatus {
     /// `.held` reports. Nil until an engine has been launched.
     public var launchedMaxBoardLength: Int?
 
-    /// How many custom engine parameters the running (or last) engine was
-    /// launched with, and whether that launch set them aside instead.
-    public var launchedCustomParameterCount = 0
+    /// The custom engine parameters the running (or last) engine was launched
+    /// with — empty when there were none or that launch set them aside — and
+    /// whether it did. The Engine Parameters screen compares the saved set
+    /// against this to know what waits for a relaunch.
+    public var launchedCustomParameters = CustomParameters()
     public var customParametersSetAside = false
+
+    public var launchedCustomParameterCount: Int { launchedCustomParameters.count }
 
     /// The net the running engine loaded, and its `version` reply. Set by the
     /// handshake so any surface can name what is actually running.

@@ -152,7 +152,9 @@ struct EngineStatusHeaderModelTests {
 struct EngineStatusCustomParameterRemedyTests {
     @Test func aFailedLaunchWithCustomParametersOffersTheRemedyOnce() {
         let status = EngineStatus()
-        status.launchedCustomParameterCount = 2
+        var parameters = CustomParameters()
+        parameters.set("cpuctExploration", to: "1.2")
+        status.launchedCustomParameters = parameters
         status.actions = [.retry]
         status.offerCustomParameterRemedy()
         status.offerCustomParameterRemedy()
