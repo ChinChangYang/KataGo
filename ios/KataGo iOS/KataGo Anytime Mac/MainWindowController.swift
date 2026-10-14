@@ -424,12 +424,24 @@ final class MainWindowController: NSWindowController {
         // What the status header's Retry button does. Set once: `EngineStatus`
         // is owned by the session, which outlives every engine.
         session.engineStatus.onAction = { [weak self] action in
-            guard let self, action == .retry else { return }
-            // The net that failed is still the active selection, so this
-            // relaunches exactly what the user last chose — which is what
-            // "Retry" means. `relaunch` is reachable from `.failed` (it has no
-            // readiness guard of its own; the guard is on the model dropdown).
-            self.relaunch(model: self.modelSelection.currentModel)
+            guard let self else { return }
+            switch action {
+            case .retry:
+                // The net that failed is still the active selection, so this
+                // relaunches exactly what the user last chose — which is what
+                // "Retry" means. `relaunch` is reachable from `.failed` (it has no
+                // readiness guard of its own; the guard is on the model dropdown).
+                self.relaunch(model: self.modelSelection.currentModel)
+            case .relaunchWithoutCustomParameters:
+                // Set aside for this one launch; the values stay saved. Not
+                // while a relaunch is in flight: it would refuse this one, and
+                // the flag would ambush some later, unrelated launch.
+                guard !self.isRelaunching else { return }
+                self.setAsideCustomParametersOnNextLaunch = true
+                self.relaunch(model: self.modelSelection.currentModel)
+            case .chooseModel:
+                break
+            }
         }
 
         // Put a game on the board NOW, before the engine exists. The board is
@@ -1203,13 +1215,23 @@ final class MainWindowController: NSWindowController {
         modelSelection.pendingLoadModelTitle = model.title
         UserDefaults.standard.synchronize()
 
+        // The person's custom engine parameters, unless "Relaunch Without
+        // Custom Parameters" asked this one launch to set them aside.
+        let savedCustomParameters = CustomParameterStore().load()
+        let setAside = setAsideCustomParametersOnNextLaunch && !savedCustomParameters.isEmpty
+        setAsideCustomParametersOnNextLaunch = false
+        launchedCustomParameters = setAside ? CustomParameters() : savedCustomParameters
+        session.engineStatus.launchedCustomParameterCount = launchedCustomParameters.count
+        session.engineStatus.customParametersSetAside = setAside
+
         let engineStarted = startKataGoThread(
             modelPath: modelPath,
             deviceAssignments: EngineDeviceAssignments.platformMux,
             maxBoardSizeForNNBuffer: settings.effectiveMaxBoardLength,
             requireExactNNLen: settings.requireExactNNLen,
             tunerFull: settings.tunerFull,
-            reTune: settings.reTune
+            reTune: settings.reTune,
+            customOverrides: launchedCustomParameters.launchOverrides
         )
 
         // The engine helper failed to spawn. Do NOT start the session loop — it
@@ -1260,7 +1282,8 @@ final class MainWindowController: NSWindowController {
                                    maxBoardSizeForNNBuffer: Int,
                                    requireExactNNLen: Bool,
                                    tunerFull: Bool,
-                                   reTune: Bool) -> Bool {
+                                   reTune: Bool,
+                                   customOverrides: [String]) -> Bool {
         guard let helperURL = SubprocessKataGoEngine.bundledHelperURL else {
             assertionFailure("katago-engine helper is not embedded in the app bundle (Contents/MacOS).")
             return false
@@ -1292,7 +1315,8 @@ final class MainWindowController: NSWindowController {
             // the in-process bridge) no homeDataDir override is needed.
             homeDataDir: "",
             tunerFull: tunerFull,
-            reTune: reTune)
+            reTune: reTune,
+            customOverrides: customOverrides)
 
         let engine = SubprocessKataGoEngine(helperURL: helperURL, arguments: arguments)
         do {
@@ -1389,10 +1413,16 @@ final class MainWindowController: NSWindowController {
         // Until this returns the command gate is shut: the board has been
         // showing the record position since `seedInitialGame`, and everything
         // it wanted to tell the engine was dropped and remembered.
-        await session.handshake(
+        let reply = await session.handshake(
             selectedModelTitle: model.title,
             engineLifecycle: engineLifecycle
         )
+
+        // Live values edited while the engine was launching missed its
+        // -override-config; the current set goes in now, before the feed.
+        if reply != nil, !session.engineStatus.customParametersSetAside {
+            session.sendLiveCustomParameters(CustomParameterStore().load())
+        }
 
         // The engine that just came up may be smaller than the board on screen.
         // Settled BEFORE anything is sent, so an oversized board is never
@@ -1625,6 +1655,13 @@ final class MainWindowController: NSWindowController {
             startEngineAndSession()
         }
     }
+
+    /// The custom engine parameters the running (or last) engine launched
+    /// with. Empty when there were none, or when that launch set them aside.
+    private(set) var launchedCustomParameters = CustomParameters()
+
+    /// Set by "Relaunch Without Custom Parameters"; consumed by the next launch.
+    private var setAsideCustomParametersOnNextLaunch = false
 
     // MARK: - Models window (P5-T7 / P5-T8)
 

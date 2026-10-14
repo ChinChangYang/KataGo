@@ -89,4 +89,21 @@ import Testing
         #expect(args.contains("-override-config mlxDeviceToUseThread0=100"))
         #expect(!args.contains(where: { $0.hasPrefix("-override-config mlxDeviceToUseThread1=") }))
     }
+
+    /// Custom engine parameters come last, one `-override-config` each, in the
+    /// order given — the same tail KataGoCpp.cpp builds.
+    @Test func customOverridesAreAppendedLast() {
+        let args = KataGoEngineArguments.gtp(
+            modelPath: "/m", humanModelPath: "/h", configPath: "/c",
+            deviceAssignments: [100], numSearchThreads: 2, nnMaxBatchSize: 1,
+            maxBoardSizeForNNBuffer: 19, requireExactNNLen: false,
+            homeDataDir: "", tunerFull: false, reTune: false,
+            customOverrides: ["cpuctExploration=1.2", "nnCacheSizePowerOfTwo=18"])
+
+        #expect(Array(args.suffix(3)) == [
+            "-override-config mlxReTune=false",
+            "-override-config cpuctExploration=1.2",
+            "-override-config nnCacheSizePowerOfTwo=18",
+        ])
+    }
 }

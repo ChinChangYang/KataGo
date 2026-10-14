@@ -12,6 +12,8 @@ public enum KataGoEngineArguments {
     ///   this becomes `numNNServerThreadsPerModel=<count>` plus one
     ///   `mlxDeviceToUseThread<i>=<device>` override each, which setup.cpp reads
     ///   per server thread (cpp/program/setup.cpp:191-226).
+    /// - Parameter customOverrides: the person's custom engine parameters as
+    ///   validated `key=value` entries, each becoming its own `-override-config`.
     public static func gtp(
         modelPath: String,
         humanModelPath: String,
@@ -23,7 +25,8 @@ public enum KataGoEngineArguments {
         requireExactNNLen: Bool,
         homeDataDir: String,
         tunerFull: Bool,
-        reTune: Bool
+        reTune: Bool,
+        customOverrides: [String] = []
     ) -> [String] {
         func override(_ keyValue: String) -> String { "-override-config " + keyValue }
 
@@ -55,6 +58,9 @@ public enum KataGoEngineArguments {
         }
         args.append(override("mlxTunerFull=\(tunerFull)"))
         args.append(override("mlxReTune=\(reTune)"))
+        // The person's custom engine parameters (validated `key=value`
+        // entries), last, as KataGoCpp.cpp appends them.
+        args.append(contentsOf: customOverrides.map(override))
         return args
     }
 }

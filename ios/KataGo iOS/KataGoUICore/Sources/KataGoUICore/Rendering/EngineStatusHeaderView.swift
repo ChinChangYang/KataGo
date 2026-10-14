@@ -52,7 +52,9 @@ public struct EngineStatusHeaderView: View {
             boardWidth: Int(board?.width ?? 0),
             boardHeight: Int(board?.height ?? 0),
             modelBoardCap: modelBoardCap,
-            heldHintStyle: hintStyle)
+            heldHintStyle: hintStyle,
+            customParameterCount: status.launchedCustomParameterCount,
+            customParametersSetAside: status.customParametersSetAside)
         if !model.isEmpty {
             VStack(alignment: .leading, spacing: 6) {
                 if let stateLine = model.stateLine {
@@ -69,9 +71,19 @@ public struct EngineStatusHeaderView: View {
                     line(note)
                         .accessibilityIdentifier("EngineHeader.note")
                 }
+                if let customParametersLine = model.customParametersLine {
+                    line(customParametersLine)
+                        .accessibilityIdentifier("EngineHeader.customParameters")
+                }
                 if model.showsRetry {
                     Button("Retry") { status.perform(.retry) }
                         .accessibilityIdentifier("EngineHeader.retry")
+                }
+                if model.showsRelaunchWithoutCustomParameters {
+                    Button("Relaunch Without Custom Parameters") {
+                        status.perform(.relaunchWithoutCustomParameters)
+                    }
+                    .accessibilityIdentifier("EngineHeader.relaunchWithoutCustomParameters")
                 }
             }
             .multilineTextAlignment(.leading)

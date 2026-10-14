@@ -130,6 +130,8 @@ struct ModelRunnerView: View {
                 topUIState.presentingModelPicker = true
             case .retry:
                 controller.retry()
+            case .relaunchWithoutCustomParameters:
+                controller.relaunchWithoutCustomParameters()
             }
         }
 

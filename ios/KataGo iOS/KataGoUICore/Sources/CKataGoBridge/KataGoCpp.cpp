@@ -20,6 +20,8 @@
 #include "main.h"
 #include "core/global.h"
 #include "neuralnet/modelversion.h"
+#include "core/config_parser.h"
+#include "program/setup.h"
 
 using namespace std;
 
@@ -287,7 +289,38 @@ void KataGoRunGtp(string modelPath,
                   bool requireExactNNLen,
                   string homeDataDir,
                   bool tunerFull,
-                  bool reTune) {
+                  bool reTune,
+                  string customOverrides) {
+    // Custom engine parameters are checked against the search-parameter
+    // loader BEFORE the engine starts. MainCmds::gtp reads them only after it
+    // has started the NN server threads, so a value it rejects there throws
+    // past threads nothing joins, and the next launch in this process dies.
+    // Here the same rejection happens with nothing running: the reason is
+    // parked like any other launch failure and the engine is never started.
+    if(!customOverrides.empty()) {
+        try {
+            ConfigParser cfg(configPath);
+            std::map<string,string> overrides;
+            size_t start = 0;
+            while(start < customOverrides.size()) {
+                size_t end = customOverrides.find('\n', start);
+                if(end == string::npos)
+                    end = customOverrides.size();
+                const string entry = customOverrides.substr(start, end - start);
+                const size_t equals = entry.find('=');
+                if(equals != string::npos)
+                    overrides[entry.substr(0, equals)] = entry.substr(equals + 1);
+                start = end + 1;
+            }
+            cfg.overrideKeys(overrides, Setup::getMutexKeySets());
+            Setup::loadParams(cfg, Setup::SETUP_FOR_GTP, !humanModelPath.empty());
+        }
+        catch(const std::exception& e) {
+            setLastFatalError(e.what());
+            return;
+        }
+    }
+
     // Replace the global cout object with the custom one
     cout.rdbuf(&tsbFromKataGo);
 
@@ -336,6 +369,21 @@ void KataGoRunGtp(string modelPath,
     // ANE/CoreML path ignores them.
     subArgs.push_back(string("-override-config mlxTunerFull=") + (tunerFull ? "true" : "false"));
     subArgs.push_back(string("-override-config mlxReTune=") + (reTune ? "true" : "false"));
+    // The person's custom engine parameters, one validated key=value per line
+    // (EngineParametersKit). Last, after every app-set key; the app never lets
+    // a custom value name a key it sets, so order carries no precedence. MUST
+    // match KataGoEngineArguments.gtp, which appends the same entries.
+    {
+        size_t start = 0;
+        while(start < customOverrides.size()) {
+            size_t end = customOverrides.find('\n', start);
+            if(end == string::npos)
+                end = customOverrides.size();
+            if(end > start)
+                subArgs.push_back(string("-override-config ") + customOverrides.substr(start, end - start));
+            start = end + 1;
+        }
+    }
 
     // Every throwing path out of the engine ends here. The model file is read
     // by NNEvaluator's CONSTRUCTOR (nneval.cpp: `loadedModel =

@@ -64,6 +64,13 @@ final class AppEngineController {
 
     private(set) var phase: Phase = .idle
 
+    /// The custom engine parameters the running (or last) engine launched
+    /// with. Empty when there were none, or when that launch set them aside.
+    private(set) var launchedCustomParameters = CustomParameters()
+
+    /// Set by "Relaunch Without Custom Parameters"; consumed by the next spawn.
+    private var setAsideCustomParametersOnNextLaunch = false
+
     /// The NN-buffer board length the CURRENTLY running engine was launched
     /// with (`maxBoardSizeForNNBuffer`). Board gates and New Game sizing read
     /// this — never the live `BackendSettings` — because a restart can take
@@ -190,6 +197,18 @@ final class AppEngineController {
     /// net that is already selected.
     func retry() {
         Task { await restart(loading: nil) }
+    }
+
+    /// Relaunch with the custom engine parameters set aside for that one
+    /// launch. They stay saved; the launch after uses them again.
+    func relaunchWithoutCustomParameters() {
+        setAsideCustomParametersOnNextLaunch = true
+        Task {
+            await restart(loading: nil)
+            // A refused restart never reached the spawn; do not let the flag
+            // ambush some later, unrelated launch.
+            setAsideCustomParametersOnNextLaunch = false
+        }
     }
 
     // MARK: - Restart
@@ -335,6 +354,7 @@ final class AppEngineController {
         }
 
         phase = .running
+        sendLiveCustomParameters()
         // Arm the read loop when the BOOT handshake never did (a Retry after a
         // failed launch), resume it otherwise — arming an existing one would
         // re-key the host's `.task(id:)` and cancel the parked reader.
@@ -566,6 +586,14 @@ final class AppEngineController {
         // spawn, because this is the first moment the number is true.
         session?.gobanState.engineMaxBoardLength = maxBoardLength
 
+        let saved = CustomParameterStore().load()
+        let setAside = setAsideCustomParametersOnNextLaunch && !saved.isEmpty
+        setAsideCustomParametersOnNextLaunch = false
+        launchedCustomParameters = setAside ? CustomParameters() : saved
+        session?.engineStatus.launchedCustomParameterCount = launchedCustomParameters.count
+        session?.engineStatus.customParametersSetAside = setAside
+        let customOverrides = launchedCustomParameters.launchOverrides
+
         let launchedMaxBoardLength = maxBoardLength
         let deviceAssignments = settings.deviceAssignments
         let numSearchThreads = settings.numSearchThreads
@@ -591,7 +619,8 @@ final class AppEngineController {
                                 maxBoardSizeForNNBuffer: launchedMaxBoardLength,
                                 requireExactNNLen: requireExactNNLen,
                                 tunerFull: tunerFull,
-                                reTune: reTune)
+                                reTune: reTune,
+                                customOverrides: customOverrides)
             // MainCmds::gtp returned — the engine is fully torn down. Take the
             // fatal error here, on the thread that owns it, and hand it to the
             // MainActor with the exit.
@@ -631,6 +660,7 @@ final class AppEngineController {
         case .failed(let reason):
             phase = .failed(reason)
             session.engineStatus.actions = outcome.actions
+            session.engineStatus.offerCustomParameterRemedy()
         }
     }
 
@@ -656,13 +686,23 @@ final class AppEngineController {
             // the phase and the second way out are ours to add.
             phase = .failed(Self.failedReason(session.engineStatus.availability))
             session.engineStatus.actions = [.retry, .chooseModel]
+            session.engineStatus.offerCustomParameterRemedy()
             drainQueuedModel()
             return
         }
         phase = .running
+        sendLiveCustomParameters()
         readLoopGeneration = 1
         resyncAfterHandshake()
         drainQueuedModel()
+    }
+
+    /// Live values edited while the engine was launching missed its
+    /// -override-config; the current set goes in once it answers, before the
+    /// feed. Not when this launch set them aside.
+    private func sendLiveCustomParameters() {
+        guard let session, !session.engineStatus.customParametersSetAside else { return }
+        session.sendLiveCustomParameters(CustomParameterStore().load())
     }
 
     private static func failedReason(_ availability: EngineAvailability) -> String {
@@ -700,6 +740,7 @@ final class AppEngineController {
         session?.stopRequested = false
         session?.endEngineSession(.failed(reason: reason))
         session?.engineStatus.actions = [.retry, .chooseModel]
+        session?.engineStatus.offerCustomParameterRemedy()
         drainQueuedModel()
         return false
     }

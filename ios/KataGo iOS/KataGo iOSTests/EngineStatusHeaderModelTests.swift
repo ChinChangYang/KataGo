@@ -110,4 +110,59 @@ struct EngineStatusHeaderModelTests {
                          boardWidth: 25, boardHeight: 25, modelBoardCap: nil)
         #expect(try! #require(model.heldHint).contains("raise Max Board Size"))
     }
+
+    // MARK: Custom engine parameters
+
+    private func makeWithCustom(availability: EngineAvailability,
+                                actions: [EngineStatusAction] = [],
+                                count: Int,
+                                setAside: Bool = false) -> EngineStatusHeaderModel {
+        EngineStatusHeaderModel.make(availability: availability, isCompiling: false, note: nil,
+                                     actions: actions, boardWidth: 19, boardHeight: 19,
+                                     modelBoardCap: 37, heldHintStyle: .iosBackendSettings,
+                                     customParameterCount: count,
+                                     customParametersSetAside: setAside)
+    }
+
+    @Test func aReadyEngineWithCustomParametersSaysSo() {
+        // The reminder that explains odd analysis: a ready engine is otherwise silent.
+        let model = makeWithCustom(availability: .ready, count: 3)
+        #expect(!model.isEmpty)
+        #expect(model.customParametersLine == "Launched with 3 custom parameters.")
+        #expect(makeWithCustom(availability: .ready, count: 1).customParametersLine
+                == "Launched with 1 custom parameter.")
+        #expect(makeWithCustom(availability: .ready, count: 0).isEmpty)
+    }
+
+    @Test func aSetAsideLaunchSaysSoInsteadOfCounting() {
+        let model = makeWithCustom(availability: .ready, count: 0, setAside: true)
+        #expect(model.customParametersLine == "Custom engine parameters are set aside for this launch.")
+    }
+
+    @Test func theRelaunchWithoutButtonFollowsTheActions() {
+        let failed = EngineAvailability.failed(reason: "x")
+        #expect(makeWithCustom(availability: failed, actions: [.retry, .relaunchWithoutCustomParameters], count: 2)
+            .showsRelaunchWithoutCustomParameters)
+        #expect(!makeWithCustom(availability: failed, actions: [.retry], count: 2)
+            .showsRelaunchWithoutCustomParameters)
+    }
+}
+
+@MainActor
+struct EngineStatusCustomParameterRemedyTests {
+    @Test func aFailedLaunchWithCustomParametersOffersTheRemedyOnce() {
+        let status = EngineStatus()
+        status.launchedCustomParameterCount = 2
+        status.actions = [.retry]
+        status.offerCustomParameterRemedy()
+        status.offerCustomParameterRemedy()
+        #expect(status.actions == [.retry, .relaunchWithoutCustomParameters])
+    }
+
+    @Test func aFailedLaunchWithoutCustomParametersOffersNothingNew() {
+        let status = EngineStatus()
+        status.actions = [.retry]
+        status.offerCustomParameterRemedy()
+        #expect(status.actions == [.retry])
+    }
 }

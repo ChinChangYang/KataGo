@@ -43,20 +43,30 @@ public struct EngineStatusHeaderModel: Equatable, Sendable {
     /// The Held remedy pointer, when held: which way out (raise Max Board
     /// Size vs switch nets) and where to find it.
     public let heldHint: String?
+    /// Says the engine runs with custom parameters, or that they were set
+    /// aside for this launch. Nil when there are none.
+    public let customParametersLine: String?
+    /// Whether "Relaunch Without Custom Parameters" is offered.
+    public let showsRelaunchWithoutCustomParameters: Bool
 
     public init(stateLine: String?, detail: String?, note: String?,
-                showsRetry: Bool, heldHint: String?) {
+                showsRetry: Bool, heldHint: String?,
+                customParametersLine: String? = nil,
+                showsRelaunchWithoutCustomParameters: Bool = false) {
         self.stateLine = stateLine
         self.detail = detail
         self.note = note
         self.showsRetry = showsRetry
         self.heldHint = heldHint
+        self.customParametersLine = customParametersLine
+        self.showsRelaunchWithoutCustomParameters = showsRelaunchWithoutCustomParameters
     }
 
     /// True when the header would show nothing at all — a ready engine with no
     /// note. The view renders no section in that case.
     public var isEmpty: Bool {
         stateLine == nil && detail == nil && note == nil && !showsRetry && heldHint == nil
+            && customParametersLine == nil && !showsRelaunchWithoutCustomParameters
     }
 
     /// - Parameters:
@@ -72,7 +82,41 @@ public struct EngineStatusHeaderModel: Equatable, Sendable {
                             boardWidth: Int,
                             boardHeight: Int,
                             modelBoardCap: Int?,
-                            heldHintStyle: HeldHintStyle) -> EngineStatusHeaderModel {
+                            heldHintStyle: HeldHintStyle,
+                            customParameterCount: Int = 0,
+                            customParametersSetAside: Bool = false) -> EngineStatusHeaderModel {
+        let base = makeStateLines(availability: availability, isCompiling: isCompiling, note: note,
+                        actions: actions, boardWidth: boardWidth, boardHeight: boardHeight,
+                        modelBoardCap: modelBoardCap, heldHintStyle: heldHintStyle)
+        return EngineStatusHeaderModel(
+            stateLine: base.stateLine, detail: base.detail, note: base.note,
+            showsRetry: base.showsRetry, heldHint: base.heldHint,
+            customParametersLine: customParametersLine(count: customParameterCount,
+                                                       setAside: customParametersSetAside),
+            showsRelaunchWithoutCustomParameters: actions.contains(.relaunchWithoutCustomParameters))
+    }
+
+    /// The custom-parameters line: the reminder that explains odd analysis, or
+    /// that the last launch ran without them.
+    static func customParametersLine(count: Int, setAside: Bool) -> String? {
+        if setAside {
+            return "Custom engine parameters are set aside for this launch."
+        }
+        guard count > 0 else { return nil }
+        return count == 1
+            ? "Launched with 1 custom parameter."
+            : "Launched with \(count) custom parameters."
+    }
+
+    /// Everything but the custom-parameters parts, by availability.
+    private static func makeStateLines(availability: EngineAvailability,
+                                       isCompiling: Bool,
+                                       note: String?,
+                                       actions: [EngineStatusAction],
+                                       boardWidth: Int,
+                                       boardHeight: Int,
+                                       modelBoardCap: Int?,
+                                       heldHintStyle: HeldHintStyle) -> EngineStatusHeaderModel {
         let showsRetry = actions.contains(.retry)
         switch availability {
         case .launching:

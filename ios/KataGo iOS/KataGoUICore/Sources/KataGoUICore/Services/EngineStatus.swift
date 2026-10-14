@@ -60,6 +60,9 @@ public enum EngineAvailability: Equatable, Sendable {
 public enum EngineStatusAction: Equatable, Sendable {
     case retry
     case chooseModel
+    /// Relaunch with the custom engine parameters set aside for that one
+    /// launch, without deleting them: the way out of a launch they broke.
+    case relaunchWithoutCustomParameters
 }
 
 /// The observable availability state, owned by `GameSession`
@@ -93,6 +96,11 @@ public final class EngineStatus {
     /// The Max Board Size the RUNNING engine was launched with, i.e. the number
     /// `.held` reports. Nil until an engine has been launched.
     public var launchedMaxBoardLength: Int?
+
+    /// How many custom engine parameters the running (or last) engine was
+    /// launched with, and whether that launch set them aside instead.
+    public var launchedCustomParameterCount = 0
+    public var customParametersSetAside = false
 
     /// The net the running engine loaded, and its `version` reply. Set by the
     /// handshake so any surface can name what is actually running.

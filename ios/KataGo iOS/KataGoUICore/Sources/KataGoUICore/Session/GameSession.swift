@@ -339,6 +339,7 @@ public final class GameSession {
         engineStatus.availability = availability
         if case .failed = availability {
             engineStatus.actions = [.retry]
+            engineStatus.offerCustomParameterRemedy()
         } else {
             engineStatus.actions = []
         }

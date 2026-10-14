@@ -23,7 +23,8 @@ void KataGoRunGtp(string modelPath,
                   bool requireExactNNLen,
                   string homeDataDir,
                   bool tunerFull,
-                  bool reTune);
+                  bool reTune,
+                  string customOverrides);
 
 /// The message from the last engine launch that ended in an uncaught C++
 /// exception, or "" if the last launch exited cleanly. Reading it CLEARS it, so

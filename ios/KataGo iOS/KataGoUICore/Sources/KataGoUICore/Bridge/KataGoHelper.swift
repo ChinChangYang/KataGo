@@ -35,7 +35,10 @@ public class KataGoHelper {
     /// of `deviceAssignments` is one NN-server-thread device code
     /// (0 = MLX/GPU, 100 = CoreML/ANE); the default is the platform mux.
     /// `numSearchThreads` is the MCTS search-thread count (defaults to the
-    /// platform starting point).
+    /// platform starting point). `customOverrides` are the person's custom
+    /// engine parameters as validated `key=value` entries
+    /// (`CustomParameters.launchOverrides`), each passed as its own
+    /// `-override-config`.
     public class func runGtp(modelPath: String? = nil,
                              deviceAssignments: [Int] = EngineDeviceAssignments.platformMux,
                              numSearchThreads: Int = mlxNumSearchThreads,
@@ -44,7 +47,8 @@ public class KataGoHelper {
                              requireExactNNLen: Bool = false,
                              includeHumanNet: Bool = true,
                              tunerFull: Bool = false,
-                             reTune: Bool = false) {
+                             reTune: Bool = false,
+                             customOverrides: [String] = []) {
         runGtpImpl(modelPath: modelPath,
                    deviceAssignments: deviceAssignments,
                    numSearchThreads: numSearchThreads,
@@ -53,7 +57,8 @@ public class KataGoHelper {
                    requireExactNNLen: requireExactNNLen,
                    includeHumanNet: includeHumanNet,
                    tunerFull: tunerFull,
-                   reTune: reTune)
+                   reTune: reTune,
+                   customOverrides: customOverrides)
     }
 
     private class func runGtpImpl(modelPath: String?,
@@ -64,7 +69,8 @@ public class KataGoHelper {
                                   requireExactNNLen: Bool,
                                   includeHumanNet: Bool,
                                   tunerFull: Bool,
-                                  reTune: Bool) {
+                                  reTune: Bool,
+                                  customOverrides: [String]) {
         let mainBundle = Bundle.main
         // The 18-block b18c384 built-in net on every platform, Apple TV included.
         // (Apple TV briefly shipped the tiny Lionffen b24c64 to dodge an ANE fault
@@ -136,7 +142,8 @@ public class KataGoHelper {
                          requireExactNNLen,
                          std.string(homeDataDir()),
                          tunerFull,
-                         reTune)
+                         reTune,
+                         std.string(customOverrides.joined(separator: "\n")))
         }
     }
 
