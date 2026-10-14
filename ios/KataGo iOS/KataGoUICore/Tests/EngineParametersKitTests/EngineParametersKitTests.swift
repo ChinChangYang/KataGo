@@ -153,6 +153,28 @@ import Testing
         #expect(current.pendingLaunchKeys(launchedWith: launched) == ["nnCacheSizePowerOfTwo", "someFutureKey"])
     }
 
+    @Test func aResetLiveValueWithNoKnownShippedValueWaitsForARelaunch() throws {
+        // nnPolicyTemperature: live, in neither cfg, so there is nothing to send back.
+        #expect(EngineParameterCatalog.timing(ofKey: "nnPolicyTemperature") == .live)
+        #expect(EngineParameterCatalog.shippedValue(forKey: "nnPolicyTemperature") == nil)
+        var launched = CustomParameters()
+        launched.set("nnPolicyTemperature", to: "1.1")
+        launched.set("cpuctExploration", to: "1.2")
+        var current = launched
+        current.reset("nnPolicyTemperature")
+        current.reset("cpuctExploration")
+        #expect(current.pendingLaunchKeys(launchedWith: launched) == ["nnPolicyTemperature"])
+    }
+
+    @Test func aLiveChangeIsSentAsTheValueOrTheShippedValueAfterAReset() {
+        var parameters = sample()
+        #expect(parameters.liveCommand(forKey: "cpuctExploration") == "kata-set-param cpuctExploration 1.2")
+        parameters.reset("cpuctExploration")
+        #expect(parameters.liveCommand(forKey: "cpuctExploration") == "kata-set-param cpuctExploration 1.0")
+        #expect(parameters.liveCommand(forKey: "nnCacheSizePowerOfTwo") == nil)
+        #expect(parameters.liveCommand(forKey: "nnPolicyTemperature") == nil)
+    }
+
     @Test func resetAllEmptiesTheSet() {
         var parameters = sample()
         parameters.resetAll()

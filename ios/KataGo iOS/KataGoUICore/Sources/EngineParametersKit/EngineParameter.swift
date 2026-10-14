@@ -74,7 +74,7 @@ public enum ParameterOwner: String, Sendable, Hashable, CaseIterable {
         case .boardSize: "the game's board size"
         case .maxBoardSize: "the Max Board Size setting"
         case .backend: "the Backend settings"
-        case .playerProfile: "the player's profile (Human, a rank, Pro or Full Strength)"
+        case .playerProfile: "the player's profile"
         case .thinkingTime: "the AI's thinking time"
         case .analysisSettings: "the game's Analysis settings"
         case .app: "the app itself"

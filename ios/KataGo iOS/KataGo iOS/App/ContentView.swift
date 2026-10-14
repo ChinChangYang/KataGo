@@ -78,6 +78,10 @@ struct ContentView: View {
         // `BoardView` (the inline status line) and by the toolbar's analysis
         // toggle. This injection is what turns the C4 status view on for iOS.
         .environment(session.engineStatus)
+        // The engine controller, for screens under the board tree that act on
+        // the engine itself: Global Settings ▸ Engine Parameters reads what
+        // the engine launched with and relaunches it.
+        .environment(controller)
         .environment(navigationContext)
         .environment(thumbnailModel)
         .environment(audioModel)

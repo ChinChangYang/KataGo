@@ -850,6 +850,9 @@ struct GlobalSettingsView: View {
     @Environment(TopUIState.self) private var topUIState
     @Environment(\.modelContext) private var modelContext
     @Environment(\.dismiss) private var dismiss
+    /// Owns the custom engine parameters while Settings is open; the Engine
+    /// Parameters row reads its count.
+    @State private var parametersEditor = CustomParametersEditor()
 
     /// The newest saved game's name, shown inside the Siri phrases that take
     /// one. Fetched here, not in the shared view, so the screen stays
@@ -1093,6 +1096,15 @@ struct GlobalSettingsView: View {
                 }
 
                 NavigationLink {
+                    EngineParametersHost(editor: parametersEditor)
+                } label: {
+                    LabeledContent("Engine Parameters",
+                                   value: parametersEditor.parameters.isEmpty
+                                       ? "" : "\(parametersEditor.parameters.count) custom")
+                }
+                .accessibilityIdentifier("GlobalSettingsView.engineParametersRow")
+
+                NavigationLink {
                     CommandView()
                         .navigationTitle("Developer Mode")
                 } label: {
@@ -1131,5 +1143,27 @@ struct GameSettingsView: View {
     var body: some View {
         ConfigItems(gameRecord: gameRecord, maxBoardLength: maxBoardLength)
             .navigationTitle("Game Settings")
+    }
+}
+
+/// Puts the Engine Parameters screen in touch with the running engine: live
+/// values go through the session's command gate, and launch-timing changes
+/// are applied by relaunching through the engine controller.
+private struct EngineParametersHost: View {
+    let editor: CustomParametersEditor
+    @Environment(MessageList.self) private var messageList
+    @Environment(AppEngineController.self) private var controller: AppEngineController?
+
+    var body: some View {
+        EngineParametersView(
+            editor: editor,
+            launched: controller?.launchedCustomParameters,
+            onRelaunch: controller.map { controller in { controller.retry() } })
+            .onAppear {
+                let messageList = messageList
+                editor.sendLiveCommand = { command in
+                    messageList.appendAndSend(command: command)
+                }
+            }
     }
 }

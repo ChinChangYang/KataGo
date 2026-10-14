@@ -124,13 +124,28 @@ public struct CustomParameters: Sendable, Hashable {
             .map { "kata-set-param \($0) \(values[$0]!)" }
     }
 
-    /// The launch-timing values that differ from those a running engine
-    /// launched with: the changes waiting for a relaunch.
+    /// The changes since `launched` that a running engine cannot take live and
+    /// so wait for a relaunch: every changed launch-timing value, and a live
+    /// value reset to a shipped value nobody knows (there is nothing to send).
     public func pendingLaunchKeys(launchedWith launched: CustomParameters) -> [String] {
         let keys = Set(values.keys).union(launched.values.keys)
         return keys
-            .filter { EngineParameterCatalog.timing(ofKey: $0) == .launch && values[$0] != launched.values[$0] }
+            .filter { key in
+                guard values[key] != launched.values[key] else { return false }
+                if EngineParameterCatalog.timing(ofKey: key) == .launch { return true }
+                return values[key] == nil && EngineParameterCatalog.shippedValue(forKey: key) == nil
+            }
             .sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    /// The `kata-set-param` that brings a running engine in line with this
+    /// set's value for `key`: the custom value, or the shipped one after a
+    /// reset. Nil for a launch-timing key, or a reset with no known value.
+    public func liveCommand(forKey key: String) -> String? {
+        guard EngineParameterCatalog.timing(ofKey: key) == .live,
+              let value = values[key] ?? EngineParameterCatalog.shippedValue(forKey: key)?.value
+        else { return nil }
+        return "kata-set-param \(key) \(value)"
     }
 }
 
