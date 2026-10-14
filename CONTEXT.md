@@ -101,6 +101,10 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Analysis activity** — whether analysis is actually streaming: the preference says run *and* the engine is ready. What the analysis control's appearance reports.
 - **Analysis control** — the sparkle. With a usable engine its tap cycles the preference; with a resting-down engine it wears a warning badge and its tap opens the *remedy surface*. A bare red slash means the user turned analysis off; a badged one means the engine cannot analyse.
 - **Remedy surface** — the model-selection surface (model picker sheet, Manage Models window, Models ornament), carrying an engine-status header: the state, the failure reason, Retry when offered, and the way out of *Held*.
+- **Engine parameter** — one of KataGo's configuration keys, such as `cpuctExploration` or `nnMaxBatchSize`. Either *live* (a change takes effect in the running engine at once) or *launch* (a change takes effect only when the engine next launches).
+- **Custom value** — the person's own value for an engine parameter, replacing the one the app ships with. App-wide and kept on the device: it never follows a game, a network or iCloud. Distinct from *Play Anyway*, the only thing the app calls an override.
+- **Custom parameters** — the whole set of custom values. Can be set aside for one launch, without being deleted, when a launch that used them fails.
+- **Managed parameter** — an engine parameter the app sets itself, per turn, per game or per launch (think time, rules, search threads, how win rates are reported…). Shown but never given a custom value; it names the setting that controls it instead.
 
 ## Human-like AI
 

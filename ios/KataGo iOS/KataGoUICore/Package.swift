@@ -176,6 +176,18 @@ let package = Package(
             name: "KataGoAnalysisKitTests",
             dependencies: ["KataGoAnalysisKit"]
         ),
+        // Foundation-only engine-parameter tier: the catalog generated from the
+        // engine's own config reads (scripts/generate_engine_parameter_catalog.py),
+        // the managed-parameter policy, and the person's custom values with
+        // their validation, launch overrides and live commands. Engine-free:
+        // `swift test --filter EngineParametersKitTests`.
+        .target(
+            name: "EngineParametersKit"
+        ),
+        .testTarget(
+            name: "EngineParametersKitTests",
+            dependencies: ["EngineParametersKit"]
+        ),
         .target(
             name: "KataGoUICore",
             // GoRulesKit is here for SgfReplay: the record position every
@@ -183,7 +195,7 @@ let package = Package(
             // waits for the engine. The edge is one-way — GoRulesKit stays
             // bridge-free, so the Messages extension and the watch keep
             // linking it without CKataGoBridge/MLX.
-            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore", "KataGoAnalysisKit", "GoRulesKit"],
+            dependencies: ["CKataGoBridge", "CoreMLCacheKit", "KataGoGameStore", "KataGoAnalysisKit", "GoRulesKit", "EngineParametersKit"],
             resources: [
                 .process("Resources")
             ],
