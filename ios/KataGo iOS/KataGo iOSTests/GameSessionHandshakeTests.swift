@@ -27,6 +27,7 @@ final class PendingReplyEngine: KataGoEngineIO, @unchecked Sendable {
     private var sent: [String] = []
     private var readers = 0
     private var peakReaders = 0
+    private var started = 0
 
     init(queued: [String] = []) {
         self.queued = queued
@@ -36,6 +37,7 @@ final class PendingReplyEngine: KataGoEngineIO, @unchecked Sendable {
     var pendingLines: [String] { lock.withLock { queued } }
     var activeReaders: Int { lock.withLock { readers } }
     var peakConcurrentReaders: Int { lock.withLock { peakReaders } }
+    var readsStarted: Int { lock.withLock { started } }
 
     func queue(_ line: String) { lock.withLock { queued.append(line) } }
 
@@ -48,6 +50,7 @@ final class PendingReplyEngine: KataGoEngineIO, @unchecked Sendable {
     nonisolated func getMessageLine(timeoutSeconds: Double) -> String {
         lock.withLock {
             readers += 1
+            started += 1
             peakReaders = max(peakReaders, readers)
         }
         defer { lock.withLock { readers -= 1 } }
@@ -275,12 +278,18 @@ struct GameSessionHandshakeTests {
     /// task group AWAITS its cancelled child — so the handshake must give up on
     /// cancellation itself, promptly, and without leaving a reader parked on the
     /// process-global bridge for the next engine's `version` reply to fall into.
-    @Test func aCancelledHandshakeGivesUpPromptlyAndParksNoReader() async throws {
+    ///
+    /// "Promptly" is counted in reads, not seconds: in the full suite the
+    /// handshake shares the main actor with every other main-actor test, so its
+    /// wall-clock time says more about them than about it. A handshake that
+    /// ignored the cancellation would keep reading toward its 600 s deadline,
+    /// and the time limit catches that.
+    @Test(.timeLimit(.minutes(5)))
+    func aCancelledHandshakeGivesUpPromptlyAndParksNoReader() async throws {
         let engine = PendingReplyEngine()
         let session = GameSession()
         session.useEngine(engine)
 
-        let started = Date()
         let handshake = Task {
             await session.handshake(selectedModelTitle: "TestModel",
                                     engineLifecycle: EngineLifecycle(),
@@ -288,11 +297,13 @@ struct GameSessionHandshakeTests {
         }
         try await Task.sleep(for: .milliseconds(80))
         handshake.cancel()
+        let readsAtCancel = engine.readsStarted
         let version = await handshake.value
 
         #expect(version == nil)
-        // Nothing like the 600 s deadline it was given.
-        #expect(Date().timeIntervalSince(started) < 10)
+        // At most the read already on its way when the cancellation landed.
+        #expect(engine.readsStarted - readsAtCancel <= 1,
+                "the handshake kept reading after it was cancelled")
         #expect(session.messageList.isAcceptingCommands == false)
         #expect(session.engineStatus.availability
                 == .failed(reason: "The engine did not answer in time."))

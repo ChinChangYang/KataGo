@@ -156,6 +156,23 @@ private final class SettlingFlag {
     var value = false
 }
 
+/// The polls a wait made: when each happened, and how many came after the
+/// test cancelled it. Its predicate always answers "not settled".
+@MainActor
+private final class PollLog {
+    private(set) var times: [Date] = []
+    private(set) var countAfterCancel = 0
+    private var cancelled = false
+
+    func markCancelled() { cancelled = true }
+
+    func record() -> Bool {
+        times.append(Date())
+        if cancelled { countAfterCancel += 1 }
+        return false
+    }
+}
+
 //
 //  The same three decisions, as the SHARED rules the other in-process hosts
 //  use (`EngineRestartRules`, KataGoUICore). They are pinned here, beside their
@@ -177,46 +194,68 @@ struct EngineRestartRulesTests {
         #expect(settled)
     }
 
-    @Test func aWaitThatNeverSettlesGivesUpAtItsDeadline() async {
+    // The bounds below count polls, not seconds. In the full suite every
+    // main-actor test shares one thread, so a wait's wall-clock time includes
+    // whatever other tests ran while it slept (over 40 s was seen); a
+    // wall-clock bound fails there for reasons that have nothing to do with
+    // the wait. A wait that never ends is caught by the time limit instead.
+
+    @Test(.timeLimit(.minutes(5)))
+    func aWaitThatNeverSettlesGivesUpAtItsDeadline() async {
         // A `CheckedContinuation` cannot observe cancellation, and
         // `withTaskGroup` awaits its remaining children after `cancelAll()` —
         // so parking on one would hold a restart in `.stopping` forever, with
         // no phase, no status and no Retry. It has to time out on its own.
+        let polls = PollLog()
         let start = Date()
         let settled = await EngineRestartRules.untilSettled(
-            timeout: 0.3, pollInterval: .milliseconds(10)) { false }
+            timeout: 0.3, pollInterval: .milliseconds(10)) { polls.record() }
         let elapsed = Date().timeIntervalSince(start)
 
         #expect(!settled)
         #expect(elapsed >= 0.3)
-        #expect(elapsed < 5, "the wait ran long past its own deadline")
+        // The wait starts its clock within a few microseconds of `start`, so
+        // the first poll past `start + 0.35` is already past its deadline, and
+        // it must give up there.
+        let lateCutoff = start.addingTimeInterval(0.35)
+        #expect(polls.times.filter { $0 >= lateCutoff }.count <= 1,
+                "the wait kept polling past its own deadline")
     }
 
-    @Test func aPartyThatSettlesLateIsStillObserved() async {
+    @Test(.timeLimit(.minutes(5)))
+    func aPartyThatSettlesLateIsStillObserved() async {
         // The ordinary case: an engine thread that takes a while to tear down.
+        // The timeout is generous because the flag's own task queues behind
+        // the rest of the suite on the main actor; the wait still returns as
+        // soon as the flag flips.
         let box = SettlingFlag()
         Task { @MainActor in
             try? await Task.sleep(for: .milliseconds(60))
             box.value = true
         }
         let settled = await EngineRestartRules.untilSettled(
-            timeout: 5, pollInterval: .milliseconds(10)) { box.value }
+            timeout: 240, pollInterval: .milliseconds(10)) { box.value }
         #expect(settled)
     }
 
-    @Test func aCancelledWaitGivesUpAtOnce() async {
+    @Test(.timeLimit(.minutes(5)))
+    func aCancelledWaitGivesUpAtOnce() async {
         // The caller's own bound has to be able to end this, or a 240 s thread
         // wait would outlive the restart that started it.
-        let start = Date()
+        let polls = PollLog()
         let task = Task { @MainActor in
             await EngineRestartRules.untilSettled(
-                timeout: 240, pollInterval: .milliseconds(10)) { false }
+                timeout: 240, pollInterval: .milliseconds(10)) { polls.record() }
         }
         try? await Task.sleep(for: .milliseconds(50))
         task.cancel()
+        polls.markCancelled()
         let settled = await task.value
         #expect(!settled)
-        #expect(Date().timeIntervalSince(start) < 5)
+        // A wait asleep at cancellation polls no more; one that had not run yet
+        // polls once and then sees the cancellation.
+        #expect(polls.countAfterCancel <= 1,
+                "the wait kept polling after it was cancelled")
     }
 
     // MARK: - When a restart may begin
