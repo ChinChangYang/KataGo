@@ -107,7 +107,8 @@ public final class ListeningPrepareDriver {
         // launched NN buffer, and an oversized kata-analyze aborts the
         // in-process engine (see BackendChoice: callers must gate BEFORE any
         // analysis request).
-        guard session.gobanState.boardFitsEngine(width: scan.boardWidth,
+        guard scan.boardSizeIsSupported,
+              session.gobanState.boardFitsEngine(width: scan.boardWidth,
                                                  height: scan.boardHeight) else {
             model.phase = .failed("This board exceeds the engine's Max Board Size.")
             return

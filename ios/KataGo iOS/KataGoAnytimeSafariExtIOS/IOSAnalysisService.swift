@@ -90,8 +90,12 @@ final class IOSAnalysisService: @unchecked Sendable {
             return .error(code: .sgfParse, message: "could not parse the SGF", retryable: false)
         }
         // The engine launched with a 19x19 NN buffer; anything larger cannot be
-        // evaluated (and web Go is 19x19 or smaller in practice).
-        guard scan.boardWidth <= 19, scan.boardHeight <= 19 else {
+        // evaluated (and web Go is 19x19 or smaller in practice). The scan
+        // reads SZ from the root node only, as `loadsgf` does; when that SZ is
+        // one `loadsgf` would not read as exactly boardWidth x boardHeight
+        // (`boardSizeIsSupported` false), the dimensions are only a clamped
+        // stand-in and the file must not reach the engine.
+        guard scan.boardSizeIsSupported, scan.boardWidth <= 19, scan.boardHeight <= 19 else {
             return .error(code: .boardTooLarge,
                           message: "boards larger than 19x19 are not supported in Safari",
                           retryable: false)

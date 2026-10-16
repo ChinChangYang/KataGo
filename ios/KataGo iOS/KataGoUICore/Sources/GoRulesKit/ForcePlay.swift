@@ -93,12 +93,13 @@ public enum ForcePlay {
     /// so resolving the list per-color — or out of order — would find the
     /// second point still occupied and drop it.
     ///
-    /// Returns nil only for a degenerate board size; `GoBoard.init`
+    /// Returns nil only for a degenerate or over-37 board size; `GoBoard.init`
     /// preconditions on it, and a renderer must not trap.
     public static func resolve(width: Int, height: Int,
                                setupBlack: [String], setupWhite: [String],
                                moves: [ForcePlayMove]) -> ForcePlayResult? {
-        guard width >= 1, height >= 1 else { return nil }
+        guard width >= 1, height >= 1,
+              width <= GoBoard.maxLength, height <= GoBoard.maxLength else { return nil }
         var board = GoBoard(width: width, height: height)
 
         // Setup stones carry no captures: the base is already a real position.

@@ -100,7 +100,12 @@ final class AnalysisJobRunner: @unchecked Sendable {
         guard let scan = SgfHeaderScan(sgf: sgf) else {
             return .error(code: .sgfParse, message: "not an SGF game", retryable: false)
         }
-        guard scan.boardWidth <= maxBoardEdge, scan.boardHeight <= maxBoardEdge else {
+        // `boardSizeIsSupported` is false for a root SZ that `loadsgf` would
+        // not read as exactly boardWidth x boardHeight (unparseable, out of
+        // range, repeated) — the dimensions are then only a clamped stand-in,
+        // so the file must not reach the engine.
+        guard scan.boardSizeIsSupported,
+              scan.boardWidth <= maxBoardEdge, scan.boardHeight <= maxBoardEdge else {
             return .error(code: .boardTooLarge,
                           message: "boards larger than \(maxBoardEdge)×\(maxBoardEdge) are not supported yet",
                           retryable: false)

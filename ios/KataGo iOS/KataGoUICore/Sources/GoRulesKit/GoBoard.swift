@@ -24,8 +24,14 @@ public struct GoBoard: Sendable, Equatable {
     public private(set) var numBlackCaptures: Int
     public private(set) var numWhiteCaptures: Int
 
+    /// Longest board edge the app supports — the engine's
+    /// `COMPILE_MAX_BOARD_LEN`. Bounding both edges here keeps
+    /// `width * height` from overflowing or allocating a hostile-sized grid.
+    public static let maxLength = 37
+
     public init(width: Int, height: Int) {
-        precondition(width >= 1 && height >= 1)
+        precondition(width >= 1 && height >= 1
+                     && width <= Self.maxLength && height <= Self.maxLength)
         self.width = width
         self.height = height
         self.grid = Array(repeating: .empty, count: width * height)

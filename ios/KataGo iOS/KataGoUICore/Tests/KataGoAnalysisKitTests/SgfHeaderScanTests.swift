@@ -188,4 +188,89 @@ struct SgfHeaderScanTests {
         let scan = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[9]AE[dd];B[aa])"))
         #expect(scan.moves == [SgfMove(color: .black, point: SgfPoint(x: 0, y: 0))])
     }
+
+    // MARK: - Root-node SZ (hostile input)
+
+    /// A size written inside a comment is a VALUE, not a property. The
+    /// escaped "]" keeps the raw text `SZ[100000:100000]` inside a well-formed
+    /// comment (the engine loads this file as 19x19); the old regex took the
+    /// first `SZ[...]` anywhere and returned 100000x100000.
+    @Test func sizeInsideAValueIsNotTheBoardSize() throws {
+        let scan = try #require(SgfHeaderScan(
+            sgf: #"(;GM[1]C[x\]SZ[100000:100000]SZ[19];B[dd])"#))
+        #expect(scan.boardWidth == 19)
+        #expect(scan.boardHeight == 19)
+        #expect(scan.boardSizeIsSupported)
+        #expect(scan.moves == [SgfMove(color: .black, point: SgfPoint(x: 3, y: 3))])
+    }
+
+    /// The Safari decoy: a small size in a comment ahead of the real root SZ.
+    /// The old regex read 9 and let the file past the 19x19 gate, but
+    /// `loadsgf` loads it as 37x37.
+    @Test func decoySizeInACommentDoesNotHideTheRealOne() throws {
+        let scan = try #require(SgfHeaderScan(sgf: #"(;GM[1]C[x\]SZ[9]SZ[37];B[aa])"#))
+        #expect(scan.boardWidth == 37)
+        #expect(scan.boardHeight == 37)
+    }
+
+    /// An escaped "]" stays inside the value, so it cannot end the comment
+    /// early and expose a forged SZ.
+    @Test func escapedBracketKeepsTheForgedSizeInsideTheValue() throws {
+        let scan = try #require(SgfHeaderScan(sgf: #"(;GM[1]C[a\]SZ[3]SZ[13])"#))
+        #expect(scan.boardWidth == 13)
+        #expect(scan.boardHeight == 13)
+        #expect(scan.boardSizeIsSupported)
+    }
+
+    /// SZ on a later node is not the board size — `getXYSize` reads nodes[0]
+    /// only, and defaults to 19.
+    @Test func sizeOutsideTheRootNodeIsIgnored() throws {
+        let scan = try #require(SgfHeaderScan(sgf: "(;GM[1];SZ[9]B[aa])"))
+        #expect(scan.boardWidth == 19)
+        #expect(scan.boardHeight == 19)
+        #expect(scan.boardSizeIsSupported)
+    }
+
+    @Test(arguments: [
+        "(;GM[1]SZ[100000:100000])",
+        "(;GM[1]SZ[100000])",
+        "(;GM[1]SZ[99999999999999999999999])",
+        "(;GM[1]SZ[38])",
+        "(;GM[1]SZ[19:38])",
+        "(;GM[1]SZ[1])",
+        "(;GM[1]SZ[0:9])",
+        "(;GM[1]SZ[-5])",
+        "(;GM[1]SZ[nineteen])",
+        "(;GM[1]SZ[19:19:19])",
+        "(;GM[1]SZ[9]SZ[37])",
+        "(;GM[1]SZ[9][37])",
+    ])
+    func unsupportedRootSizeIsReportedAndClamped(_ sgf: String) throws {
+        let scan = try #require(SgfHeaderScan(sgf: sgf))
+        #expect(!scan.boardSizeIsSupported)
+        #expect(SgfHeaderScan.supportedBoardLengths.contains(scan.boardWidth))
+        #expect(SgfHeaderScan.supportedBoardLengths.contains(scan.boardHeight))
+    }
+
+    @Test func supportedSizesAreReadExactly() throws {
+        let smallest = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[2])"))
+        #expect(smallest.boardSizeIsSupported)
+        #expect(smallest.boardWidth == 2 && smallest.boardHeight == 2)
+        let rectangle = try #require(SgfHeaderScan(sgf: "(;GM[1]SZ[ 37 : 2 ])"))
+        #expect(rectangle.boardSizeIsSupported)
+        #expect(rectangle.boardWidth == 37 && rectangle.boardHeight == 2)
+        let absent = try #require(SgfHeaderScan(sgf: "(;GM[1]KM[6.5])"))
+        #expect(absent.boardSizeIsSupported)
+        #expect(absent.boardWidth == 19 && absent.boardHeight == 19)
+    }
+
+    /// KM/RU/PL are root properties too: text in a comment must not set them.
+    @Test func komiRulesAndPlayerComeFromTheRootOnly() throws {
+        let komi = try #require(SgfHeaderScan(sgf: #"(;GM[1]C[x\]KM[999]KM[6.5])"#))
+        #expect(komi.komi == 6.5)
+        let rules = try #require(SgfHeaderScan(sgf: #"(;GM[1]C[x\]RU[Evil]RU[Japanese])"#))
+        #expect(rules.rules == "Japanese")
+        let player = try #require(SgfHeaderScan(sgf: #"(;GM[1]C[x\]PL[W]SZ[9])"#))
+        #expect(player.nextPlayerOverride == nil)
+    }
 }

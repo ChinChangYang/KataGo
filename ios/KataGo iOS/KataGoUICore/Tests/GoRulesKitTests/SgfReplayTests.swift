@@ -137,4 +137,39 @@ struct SgfReplayTests {
         #expect(start.blackVertices == ["D6"])
         #expect(r.anomalyIndex == nil)
     }
+
+    // MARK: - Hostile geometry
+
+    /// The comment-smuggled size the old scan read as 100000x100000 — a
+    /// 10-billion-point board. The replay must stay on the real 19x19.
+    @Test func commentSmuggledSizeDoesNotReachTheBoard() throws {
+        var r = try replay(#"(;GM[1]C[x\]SZ[100000:100000]SZ[19];B[dd])"#)
+        #expect(r.width == 19)
+        #expect(r.height == 19)
+        #expect(r.position(at: 1).blackVertices == ["D16"])
+    }
+
+    /// Whatever geometry a caller passes, the replay never builds a board
+    /// past GoBoard.maxLength (the old init only floored it at 1, and
+    /// GoBoard allocated width * height).
+    @Test func valueInitClampsHostileGeometry() {
+        var huge = SgfReplay(width: 100_000, height: 100_000, moves: [])
+        #expect(huge.width == GoBoard.maxLength)
+        #expect(huge.height == GoBoard.maxLength)
+        #expect(huge.position(at: 0).blackVertices.isEmpty)
+        let overflow = SgfReplay(width: Int.max, height: Int.max, moves: [])
+        #expect(overflow.width == GoBoard.maxLength)
+        #expect(overflow.height == GoBoard.maxLength)
+    }
+
+    @Test func outOfRangeRootSizeReplaysOnAClampedBoard() throws {
+        let r = try replay("(;GM[1]SZ[100000:3];B[aa])")
+        #expect(r.width == GoBoard.maxLength)
+        #expect(r.height == 3)
+    }
+
+    @Test func forcePlayRefusesAnOversizedBoard() {
+        #expect(ForcePlay.resolve(width: GoBoard.maxLength + 1, height: 9,
+                                  setupBlack: [], setupWhite: [], moves: []) == nil)
+    }
 }

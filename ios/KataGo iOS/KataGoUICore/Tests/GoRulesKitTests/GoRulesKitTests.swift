@@ -352,6 +352,50 @@ struct MessageGameCodecTests {
         }
     }
 
+    /// `k` is komi in half points straight off an untrusted bubble. The old
+    /// decoder accepted any Int, and re-encoding such a game
+    /// (`Int((komi * 2).rounded())`) trapped on Int.max.
+    @Test(arguments: [String(Int.max), String(Int.min), "2001", "-2001", "99999999"])
+    func rejectsAnOutOfRangeKomi(_ k: String) throws {
+        let message = try midGame()
+        var components = try #require(URLComponents(
+            url: MessageGameCodec.url(for: message), resolvingAgainstBaseURL: false))
+        components.queryItems = components.queryItems?.map {
+            $0.name == "k" ? URLQueryItem(name: "k", value: k) : $0
+        }
+        let url = try #require(components.url)
+        #expect(throws: MessageGameCodecError.malformedField("k")) {
+            _ = try MessageGameCodec.decode(url)
+        }
+    }
+
+    @Test func acceptsKomiAtTheEdgesOfTheAppRange() throws {
+        for halfPoints in [2000, -2000, 300, -100] {
+            let k = String(halfPoints)
+            let message = try midGame()
+            var components = try #require(URLComponents(
+                url: MessageGameCodec.url(for: message), resolvingAgainstBaseURL: false))
+            components.queryItems = components.queryItems?.map {
+                $0.name == "k" ? URLQueryItem(name: "k", value: k) : $0
+            }
+            let decoded = try MessageGameCodec.decode(try #require(components.url))
+            #expect(decoded.game.rules.komi == Double(halfPoints) / 2)
+            // Re-encoding round-trips without trapping.
+            _ = MessageGameCodec.url(for: decoded)
+        }
+    }
+
+    /// Defense in depth for the encoder: a non-finite or enormous Double
+    /// becomes a bounded Int instead of trapping `Int(_:)`.
+    @Test func halfPointsNeverTraps() {
+        #expect(MessageGameCodec.halfPoints(7.5) == 15)
+        #expect(MessageGameCodec.halfPoints(-0.5) == -1)
+        #expect(MessageGameCodec.halfPoints(.infinity) == 0)
+        #expect(MessageGameCodec.halfPoints(.nan) == 0)
+        #expect(MessageGameCodec.halfPoints(1e300) == 1_000_000_000_000_000)
+        #expect(MessageGameCodec.halfPoints(-1e300) == -1_000_000_000_000_000)
+    }
+
     @Test func emitsStandardSgfWithHandicapAndRules() throws {
         var game = try GoGame(width: 9, height: 9, rules: .chinese, handicap: 2)
         try game.play(.play(GoPoint(x: 4, y: 4)))   // White (handicap game)

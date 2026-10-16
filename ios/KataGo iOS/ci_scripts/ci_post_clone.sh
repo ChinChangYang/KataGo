@@ -106,21 +106,37 @@ else
     echo "Metal Toolchain verified: trivial .metal compile succeeded."
 fi
 
+# Every bundled net is pinned by SHA-256: whoever can replace a release asset
+# would otherwise choose the weights every shipped build loads. Changing a net
+# means updating its hash here.
+verify_sha256() {
+    file="$1" expected="$2"
+    actual=$(shasum -a 256 "$file" | cut -d' ' -f1)
+    if [ "$actual" != "$expected" ]; then
+        echo "ERROR: $file has SHA-256 $actual, expected $expected"
+        exit 1
+    fi
+}
+
 # Download built-in 18b network (Metal backend converts to CoreML on-the-fly)
 DEFAULT_MODEL_GZ="default_model.bin.gz"
 DEFAULT_MODEL_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml2/kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
 DEFAULT_MODEL_RES="../Resources/default_model.bin.gz"
+DEFAULT_MODEL_SHA256="9d7a6afed8ff5b74894727e156f04f0cd36060a24824892008fbb6e0cba51f1d"
 
 rm -f "$DEFAULT_MODEL_GZ"
 curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$DEFAULT_MODEL_GZ" "$DEFAULT_MODEL_URL"
+verify_sha256 "$DEFAULT_MODEL_GZ" "$DEFAULT_MODEL_SHA256"
 cp -f "$DEFAULT_MODEL_GZ" "$DEFAULT_MODEL_RES"
 
 # Download human SL model
 HUMAN_MODEL_GZ="b18c384nbt-humanv0.bin.gz"
 HUMAN_MODEL_URL="https://github.com/lightvector/KataGo/releases/download/v1.15.0/b18c384nbt-humanv0.bin.gz"
 HUMAN_MODEL_RES="../Resources/b18c384nbt-humanv0.bin.gz"
+HUMAN_MODEL_SHA256="637746e44f0efe00ad1245a50aa9bbf0716efe364c43965ead97bd6835d84ab5"
 
 curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_URL"
+verify_sha256 "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_SHA256"
 cp -f "$HUMAN_MODEL_GZ" "$HUMAN_MODEL_RES"
 
 # Download the small 24-block net the iOS Safari extension bundles. The appex
@@ -133,6 +149,7 @@ SAFARI_MODEL_GZ="lionffen_b24c64_3x3_v3_12300.bin.gz"
 SAFARI_MODEL_URL="https://github.com/ChinChangYang/KataGo/releases/download/v1.15.1-coreml2/lionffen_b24c64_3x3_v3_12300.bin.gz"
 SAFARI_MODEL_RES="../Resources/lionffen_b24c64_3x3_v3_12300.bin.gz"
 SAFARI_MODEL_SIZE=4842138
+SAFARI_MODEL_SHA256="ec1ee64ed4556fd643aca1e05cb8b6f3bea92e84e5cc0a93598714c63c711d33"
 
 curl -fL --retry 5 --retry-delay 3 --retry-all-errors -o "$SAFARI_MODEL_GZ" "$SAFARI_MODEL_URL"
 
@@ -147,6 +164,7 @@ if [ "$ACTUAL_SIZE" != "$SAFARI_MODEL_SIZE" ]; then
     echo "ERROR: $SAFARI_MODEL_GZ is $ACTUAL_SIZE bytes, expected $SAFARI_MODEL_SIZE"
     exit 1
 fi
+verify_sha256 "$SAFARI_MODEL_GZ" "$SAFARI_MODEL_SHA256"
 cp -f "$SAFARI_MODEL_GZ" "$SAFARI_MODEL_RES"
 
 # Opening books are NOT bundled. Each board size's compact .kbook.gz is
