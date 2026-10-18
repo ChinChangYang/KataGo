@@ -1,0 +1,16 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "[ -f \"$CLAUDE_PROJECT_DIR/scripts/git-hooks/install.sh\" ] || exit 0; sh \"$CLAUDE_PROJECT_DIR/scripts/git-hooks/install.sh\" >/dev/null",
+            "timeout": 60,
+            "statusMessage": "Installing the repo's git guardrail hooks"
+          }
+        ]
+      }
+    ]
+  }
+}
