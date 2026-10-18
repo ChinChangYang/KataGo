@@ -2,7 +2,7 @@
 
 This is a **vendored copy of [ml-explore/mlx-swift](https://github.com/ml-explore/mlx-swift)**
 (tag `0.31.4`, MLX C++ ~0.31.1) consumed as a **local SwiftPM package** so we can
-carry small fixes. They fall into two groups:
+carry small fixes. They fall into three groups:
 
 - **Patches 1–2** let MLX run on the **iOS/visionOS simulator**. Without them MLX
   crashes as soon as any `mx::array` is constructed on the simulator. They are
@@ -12,6 +12,8 @@ carry small fixes. They fall into two groups:
   **JIT-compiled Metal kernels** (this build sets `MLX_METAL_JIT=ON`). It changes
   behavior on every platform — that is the point — but only relaxes a too-strict
   assertion, so it is safe where the assertion previously held.
+- **Patch 4** backports an upstream fix for an **out-of-bounds GPU read** in the
+  implicit-GEMM conv kernels that page-faults on device.
 
 All patches are upstreamable to ml-explore/mlx.
 
@@ -85,11 +87,42 @@ the assertion, it does not change the happy path.
 > KataGo NN server threads, MLX's single global GPU stream also needs serializing
 > — that fix lives in `cpp/neuralnet/mlxbackend.cpp` (`mlxGpuEvalMutex`), not here.
 
+## Patch 4 — bounds-check partial output-channel tiles in the conv weight loaders
+Backport of [ml-explore/mlx#4653](https://github.com/ml-explore/mlx/pull/4653)
+(merge `5c582abc5`, fixes [mlx#4630](https://github.com/ml-explore/mlx/issues/4630)).
+Nine sites, one hunk each:
+- `Source/Cmlx/mlx/mlx/backend/metal/kernels/steel/conv/loaders/loader_channel_l.h`
+  (`Conv2DWeightBlockLoader`, `Conv3DWeightBlockLoader`) and `loader_channel_n.h`
+  (`Conv2DWeightBlockLoaderSmallChannels`).
+- The same three in `Source/Cmlx/mlx-generated/metal/steel/conv/loaders/`.
+- The same three in `Source/Cmlx/mlx-generated/conv.cpp`, the source string the
+  JIT build (`MLX_METAL_JIT=ON`) actually compiles at runtime, so this is the copy
+  that matters for the app.
+
+Each weight loader's `load_unsafe()` took the unguarded fast path whenever
+`BN != 8`, even when the tile ran past the last output channel. When the output
+channel count is not a multiple of `BN`, it reads past the end of the weight
+buffer (e.g. `b18c384nbt-humanv0`'s value-head conv1, 384→96 with `BN` = 64,
+reads 24 KB past its weights). Results stay correct because those rows are
+never stored, so `testgpuerror` cannot catch it, but when the next page is
+unmapped the GPU page-faults (`kIOGPUCommandBufferCallbackErrorPageFault`) and
+MLX aborts. This was observed on an iPhone 12 (A14) running the human net on
+MLX/GPU. The fix changes
+
+```cpp
+if (BN != 8 || do_read) {
+```
+
+to `if (do_read) {`, so a partial tile takes the existing bounds-checked `else`
+branch, which zero-fills rows `>= params->O`. Full tiles are unchanged.
+
 ## Re-applying on an MLX version bump
 Re-vendor the new mlx-swift tag (drop `.git`), then re-apply the hunks above:
 - Patches 1–2: search for `applegpu_g14g` and `TARGET_OS_SIMULATOR`.
 - Patch 3: search for `tg_pow2` (six sites) and for any remaining
   `!= 1024` / `Must use 1024 sized block` assertions to confirm none were missed.
+- Patch 4: drop it once the vendored MLX contains mlx#4653; until then, search
+  for `BN != 8 || do_read` and confirm there are no matches.
 
 Verify with (a) a simulator run of the app / MLX self-test (successful GPU
 compute) and (b) a macOS run that performs NN inference for >60 s without an

@@ -586,7 +586,7 @@ struct Conv2DWeightBlockLoader {
 
   /* Load from device memory into threadgroup memory - without bound checking */
   METAL_FUNC void load_unsafe() const {
-    if (BN != 8 || do_read) {
+    if (do_read) {
       STEEL_PRAGMA_UNROLL
       for (short i = 0; i < BN; i += TROWS) {
         STEEL_PRAGMA_UNROLL
@@ -1089,7 +1089,7 @@ struct Conv3DWeightBlockLoader {
 
   /* Load from device memory into threadgroup memory - without bound checking */
   METAL_FUNC void load_unsafe() const {
-    if (BN != 8 || do_read) {
+    if (do_read) {
       STEEL_PRAGMA_UNROLL
       for (short i = 0; i < BN; i += TROWS) {
         STEEL_PRAGMA_UNROLL
@@ -1409,7 +1409,7 @@ struct Conv2DWeightBlockLoaderSmallChannels {
 
     const device T* curr_src = src + weight_hw * (params->C / params->groups);
 
-    if (BN != 8 || do_read) {
+    if (do_read) {
       STEEL_PRAGMA_UNROLL
       for (short i = 0; i < BROWS; i += TROWS) {
         STEEL_PRAGMA_UNROLL
