@@ -101,6 +101,11 @@ git fetch -q agent
 git switch -q -c integrate agent/agentwork
 check "pre-push refuses CJK fetched from a hookless clone" 1 git push -q origin integrate
 
+git switch -q master
+check "pre-push refuses a push to ios-dev" 1 git push -q origin master:ios-dev
+check "a release push to ios-dev passes with KATAGO_RELEASE=1" 0 env KATAGO_RELEASE=1 git push -q origin master:ios-dev
+check "pre-push refuses deleting ios-dev" 1 git push -q origin :ios-dev
+
 if [ "$failures" -eq 0 ]; then
     echo "selftest: all checks passed."
 else

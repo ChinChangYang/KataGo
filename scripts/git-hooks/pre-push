@@ -17,6 +17,11 @@
 #    tree or blob is refused. This catches what the commit hooks never see:
 #    cherry-pick, revert, am and --cleanup.
 #
+# 3. ios-dev is the release branch: every push to it makes Xcode Cloud build
+#    and ship the apps to TestFlight. A push to it, deletion included, is
+#    refused unless KATAGO_RELEASE=1 is set, which only the user sets, for a
+#    release. Develop on feature/* branches, which Xcode Cloud ignores.
+#
 # Known gaps: CJK in a legacy encoding that happens to be valid UTF-8, and
 # content in files .gitattributes marks binary.
 # Then the push goes to Git LFS, as its stock hook would.
@@ -101,6 +106,11 @@ my $ok = eval {
     for my $update (split /\n/, $input) {
         my ($local_ref, $local_oid, $remote_ref, $remote_oid) = split ' ', $update;
         next unless defined $remote_ref;
+        if ($remote_ref eq 'refs/heads/ios-dev' && ($ENV{KATAGO_RELEASE} // '') ne '1') {
+            fail("refusing to push $local_ref to ios-dev: every push to it builds and ships to TestFlight through Xcode Cloud.");
+            print STDERR "pre-push: develop on a feature/* branch; for a release, the user runs KATAGO_RELEASE=1 git push.\n";
+            next;
+        }
         next unless $local_oid =~ /[^0]/;    # a deletion publishes nothing
 
         my ($ref_text, $ref_valid) = KataGoCJK::decode_line($remote_ref);
