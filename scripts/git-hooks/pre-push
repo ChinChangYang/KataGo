@@ -1,0 +1,163 @@
+#!/usr/bin/perl
+# Managed by scripts/git-hooks/install.sh
+# The authoritative guardrails, judged on what is actually being published:
+#
+# 1. Never merge ios-dev into master. A push to master is refused when the
+#    tip's tree has ios/ (any case) or scripts/git-hooks/, which upstream
+#    KataGo never has, or when the tip contains b926c629d ("Make a bridge
+#    between CPP and CoreML"), the oldest ios-dev commit absent from master.
+#    Fork-only side lines that do not descend from it (the Metal and MLX
+#    backend PR branches) carry no ios/ and may reach master through upstream,
+#    so they pass on purpose. Shallow clones and grafts hide history, so a
+#    push to master from one is refused; replace refs are ignored.
+# 2. English only. Every pushed commit the push target does not have yet (by
+#    its own remote-tracking refs and the old tip), and that you committed, is scanned: the message as recorded, the lines it adds
+#    against every parent, the paths it adds, and new lines of UTF-16 files.
+#    Annotated tag messages and branch names are scanned too, and a tag of a
+#    tree or blob is refused. This catches what the commit hooks never see:
+#    cherry-pick, revert, am and --cleanup.
+#
+# Known gaps: CJK in a legacy encoding that happens to be valid UTF-8, and
+# content in files .gitattributes marks binary.
+# Then the push goes to Git LFS, as its stock hook would.
+# Bypass a genuine exception with: git push --no-verify
+use strict;
+use warnings;
+use FindBin;
+use lib $FindBin::RealBin;
+use KataGoCJK;
+
+$ENV{GIT_NO_REPLACE_OBJECTS} = 1;
+my $marker = 'b926c629d7a3d3d8842e3ec8e016ce4096b1b380';
+my $input = do { local $/; <STDIN> } // '';
+my $status = 0;
+my @hits;
+
+sub fail {
+    print STDERR "pre-push: $_[0]\n";
+    $status = 1;
+}
+
+sub object_type {
+    my ($oid) = @_;
+    return '' unless KataGoCJK::quiet_ok('git', 'cat-file', '-e', $oid);
+    my $type = KataGoCJK::command_output('git', 'cat-file', '-t', $oid);
+    chomp $type;
+    return $type;
+}
+
+# Why a push of this tip to master is refused, or undef.
+sub master_problem {
+    my ($oid) = @_;
+    my @top = map { s/\n\z//r } KataGoCJK::command_lines('git', 'ls-tree', '--full-tree', '--name-only', $oid);
+    return 'its tree has the ios/ app directory' if grep { lc($_) eq 'ios' } @top;
+    return "its tree has scripts/git-hooks/, which only ios-dev has"
+        if KataGoCJK::command_output('git', 'ls-tree', '--full-tree', $oid, 'scripts/git-hooks') ne '';
+    return 'this clone is shallow, so its history cannot be checked; run git fetch --unshallow'
+        if KataGoCJK::command_output('git', 'rev-parse', '--is-shallow-repository') =~ /^true/;
+    my $grafts = KataGoCJK::command_output('git', 'rev-parse', '--git-path', 'info/grafts');
+    chomp $grafts;
+    return "info/grafts rewrites history here, so it cannot be checked" if -e $grafts;
+    return undef unless KataGoCJK::quiet_ok('git', 'cat-file', '-e', "$marker^{commit}");
+    KataGoCJK::command_output('git', 'rev-list', '--quiet', $oid);    # dies on unreadable history
+    system('git', 'merge-base', '--is-ancestor', $marker, $oid);
+    my $rc = $? >> 8;
+    return "it contains ios-dev history (commit $marker)" if $rc == 0;
+    return "its history could not be checked against $marker" if $rc != 1;
+    return undef;
+}
+
+# Problems in the messages of a tag chain; returns the object it peels to.
+sub tag_problems {
+    my ($oid, $ref) = @_;
+    while (object_type($oid) eq 'tag') {
+        my $body = KataGoCJK::command_output('git', 'cat-file', 'tag', $oid);
+        my ($header, $message) = split /\n\n/, $body, 2;
+        my ($encoding) = $header =~ /^encoding (.+)$/m;
+        for my $line (split /\n/, $message // '') {
+            last if $line =~ /^-----BEGIN (?:PGP|SSH) SIGNATURE-----/;
+            my ($text, $valid) = KataGoCJK::decode_as($encoding, $line);
+            my $why = KataGoCJK::problem($text, $valid) or next;
+            push @hits, ["$ref (tag message)", $text, $why];
+        }
+        ($oid) = $header =~ /^object (\S+)$/m;
+    }
+    return $oid;
+}
+
+# What the push target is known to have: its own remote-tracking refs only,
+# so commits fetched from some other clone are still scanned.
+my ($remote_name, $remote_url) = @ARGV;
+my @target_refs;
+for my $line (`git config --get-regexp '^remote\\..*\\.url\$'`) {
+    my ($key, $url) = $line =~ /^remote\.(.*)\.url (.*)$/ or next;
+    push @target_refs, "--remotes=$key"
+        if ($remote_name // '') eq $key || ($remote_url // '') eq $url;
+}
+
+my $ok = eval {
+    chomp(my $email = `git config --get user.email` // '');
+    my (%scanned, %refused);
+    for my $update (split /\n/, $input) {
+        my ($local_ref, $local_oid, $remote_ref, $remote_oid) = split ' ', $update;
+        next unless defined $remote_ref;
+        next unless $local_oid =~ /[^0]/;    # a deletion publishes nothing
+
+        my ($ref_text, $ref_valid) = KataGoCJK::decode_line($remote_ref);
+        if (my $why = KataGoCJK::problem($ref_text, $ref_valid)) {
+            push @hits, ['(ref name)', $ref_text, $why];
+        }
+
+        my $type = object_type($local_oid);
+        if ($type eq '') {
+            fail("cannot read $local_oid for $local_ref.");
+            next;
+        }
+        my $peeled = $type eq 'tag' ? tag_problems($local_oid, $remote_ref) : $local_oid;
+        my $peeled_type = object_type($peeled);
+        if ($peeled_type ne 'commit') {
+            fail("refusing $remote_ref: it points at a $peeled_type, whose content this hook cannot check.");
+            next;
+        }
+
+        if ($remote_ref eq 'refs/heads/master') {
+            if (my $why = master_problem($peeled)) {
+                fail("refusing to push $local_ref to master: $why.");
+                print STDERR "pre-push: merges flow master -> ios-dev only.\n";
+                next;
+            }
+        }
+
+        my @known = @target_refs;
+        push @known, $remote_oid if $remote_oid && $remote_oid =~ /[^0]/
+            && KataGoCJK::quiet_ok('git', 'cat-file', '-e', "$remote_oid^{commit}");
+        for my $line (KataGoCJK::command_lines(@KataGoCJK::GIT, 'log', '--format=%H %ce', $peeled, '--not', @known)) {
+            my ($sha, $committer) = split ' ', $line, 2;
+            chomp(my $who = $committer // '');
+            next if $scanned{$sha}++;
+            next if $email ne '' && lc($who) ne lc($email);
+            push @hits, map { [substr($sha, 0, 9) . " $_->[0]", $_->[1], $_->[2]] } KataGoCJK::commit_problems($sha);
+        }
+    }
+    1;
+};
+unless ($ok) {
+    print STDERR "pre-push: could not check the push: $@";
+    exit 1;
+}
+
+$status = 1 if KataGoCJK::report('pre-push: what is being pushed breaks the English-only rule (amend or rebase it):', @hits);
+exit $status if $status;
+
+if (KataGoCJK::quiet_ok('sh', '-c', 'command -v git-lfs')) {
+    open(my $lfs, '|-', 'git', 'lfs', 'pre-push', @ARGV) or die "pre-push: cannot run git lfs: $!\n";
+    binmode $lfs;
+    print {$lfs} $input;
+    close $lfs;
+    exit($? & 127 ? 128 + ($? & 127) : $? >> 8);
+}
+if (KataGoCJK::quiet_ok('git', 'config', '--get-regexp', '^filter\.lfs\.')) {
+    print STDERR "This repository is configured for Git LFS but 'git-lfs' was not found on your path.\n";
+    exit 2;
+}
+exit 0;

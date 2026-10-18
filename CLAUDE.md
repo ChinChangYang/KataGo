@@ -78,7 +78,7 @@ There is **no** `.mlpackage` to download: the CoreML model is generated on the f
 
 **C++ Engine (`cpp/`)**: The core KataGo engine. The Apple app compiles the **MLX** backend (`USE_MLX_BACKEND`):
 - `neuralnet/mlxbackend.cpp` - the backend the app compiles; dispatches each eval to either Apple's Neural Engine (CoreML) or the GPU (MLX) based on the selected device. Winograd autotuning lives in `mlxwinotuner.{cpp,h}` / `mlxwinograd.h`.
-- CoreML model conversion, loading, and caching are handled Swift-side: `CoreMLComputeHandleLoader.swift` (in the iOS app target `KataGo iOS/` and the macOS app target `KataGo Anytime Mac/`) and `CoreMLModelCache.swift` (in the `CoreMLCacheKit` target of the `KataGoUICore` package) — there is no `coremlbackend.cpp`.
+- CoreML conversion is C++ (`cpp/external/katagocoreml/`): `src/builder/MILBuilder.cpp` builds the MIL program from a `.bin.gz` (Mish is lowered in `addMishOps`). Swift drives it and loads the result in `CoreMLComputeHandleLoader.swift` (in the iOS app target `KataGo iOS/` and the macOS app target `KataGo Anytime Mac/`), and `CoreMLModelCache.swift` (in the `CoreMLCacheKit` target of the `KataGoUICore` package) caches compiled models — there is no `coremlbackend.cpp`.
 - `neuralnet/metalbackend.{cpp,swift}` - legacy Metal backend, superseded by MLX and not active in the app (the app defines `USE_MLX_BACKEND`, not `USE_METAL_BACKEND`).
 - Standard upstream backends: CUDA, OpenCL, Eigen (CPU), TensorRT.
 
@@ -145,6 +145,10 @@ The app uses KataGo's GTP extensions including:
 ### Branches
 
 **Never merge `ios-dev` into `master`.** Merges flow one way, `origin/master` → `ios-dev`. App work targets `ios-dev`: PR bases, `/code-review` and `/pr` fixed points, and `/implement-spec` integration branches. This applies even where a tool or skill defaults to `master`.
+
+### Guardrails
+
+Run `scripts/git-hooks/install.sh` once per clone, and again after changing `scripts/git-hooks/` (then run its `selftest.sh`). `pre-push` is the authoritative hook: it refuses ios-dev history on `master` and scans every commit you publish for CJK. `pre-commit` and `commit-msg` only warn early.
 
 ### Issue tracker
 

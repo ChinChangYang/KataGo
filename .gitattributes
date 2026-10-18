@@ -1,1 +1,3 @@
 cpp/external/mozilla-cacerts/cacert.pem binary
+scripts/git-hooks/* text eol=lf
+*.raw binary
