@@ -105,6 +105,8 @@ Ubiquitous language for KataGo Anytime. Glossary only — no implementation deta
 - **Custom value** — the person's own value for an engine parameter, replacing the one the app ships with. App-wide and kept on the device: it never follows a game, a network or iCloud. Distinct from *Play Anyway*, the only thing the app calls an override.
 - **Custom parameters** — the whole set of custom values. Can be set aside for one launch, without being deleted, when a launch that used them fails.
 - **Managed parameter** — an engine parameter the app sets itself, per turn, per game or per launch (think time, rules, search threads, how win rates are reported…). Shown but never given a custom value; it names the setting that controls it instead.
+- **Backend** — the hardware path a network's evaluations run on: MLX/GPU, CoreML/NE, the GPU+ANE mux, or the *Core AI backend*. Chosen per model on iOS; fixed on macOS. "Core AI" on its own always names Apple's framework, never the backend built on it.
+- **Core AI-format network** — a KataGo network converted off the device into Core AI's own model format, keeping the inputs and outputs of the network it came from. Not just any Core AI model. A kind of *user-imported asset*. It exists for the case where Core AI cannot convert a network on the device.
 
 ## Human-like AI
 

@@ -139,3 +139,21 @@ The app uses KataGo's GTP extensions including:
 - visionOS 26+
 - tvOS 26+ — **never a bare multi-option `Picker`**: the default style squeezes every option into one horizontal segment row and truncates the labels (11 rulesets clipped to 3 characters, 259 ranks illegible); use drill-down rows instead. Nothing on a tvOS screen may truncate or wrap — if explanatory prose does not fit one line, cut it.
 - watchOS 26+ (standalone read-only game library, synced over iCloud; no connection to the iPhone)
+
+## Agent skills
+
+### Branches
+
+**Never merge `ios-dev` into `master`.** Merges flow one way, `origin/master` → `ios-dev`. App work targets `ios-dev`: PR bases, `/code-review` and `/pr` fixed points, and `/implement-spec` integration branches. This applies even where a tool or skill defaults to `master`.
+
+### Issue tracker
+
+GitHub Issues on the fork `ChinChangYang/KataGo` (never upstream `lightvector/KataGo`), via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default role labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. The glossary is `CONTEXT.md` at the repo root: read and write it wherever a skill says `GLOSSARY.md`, and never create a `GLOSSARY.md`. ADRs are in `docs/adr/`. See `docs/agents/domain.md`.
