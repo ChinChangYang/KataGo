@@ -1,18 +1,20 @@
 // PROTOTYPE (wayfinder #36), throwaway.
-// usage: mlpackage_cli <model.bin.gz> <out.mlpackage> <boardLen> <FLOAT16|FLOAT32> <maxBatch> [optimizeMask=0]
+// usage: mlpackage_cli <model.bin.gz> <out.mlpackage> <boardLen> <FLOAT16|FLOAT32> <maxBatch> [optimizeMask=0] [minBatch=1]
+//   minBatch == maxBatch gives a fixed batch dimension (the stage 1 harness translates those into static Core AI
+//   batch functions).
 #include "katagocoreml/KataGoConverter.hpp"
 #include <cstdlib>
 #include <iostream>
 
 int main(int argc, char** argv) {
   if(argc < 6) {
-    std::cerr << "usage: mlpackage_cli <model.bin.gz> <out.mlpackage> <boardLen> <FLOAT16|FLOAT32> <maxBatch> [optimizeMask]\n";
+    std::cerr << "usage: mlpackage_cli <model.bin.gz> <out.mlpackage> <boardLen> <FLOAT16|FLOAT32> <maxBatch> [optimizeMask] [minBatch]\n";
     return 2;
   }
   katagocoreml::ConversionOptions opts;
   opts.board_x_size = opts.board_y_size = std::atoi(argv[3]);
   opts.compute_precision = argv[4];
-  opts.min_batch_size = 1;
+  opts.min_batch_size = argc > 7 ? std::atoi(argv[7]) : 1;
   opts.max_batch_size = std::atoi(argv[5]);
   opts.optimize_identity_mask = argc > 6 && std::atoi(argv[6]) != 0;
   opts.author = "KataGo";
