@@ -336,6 +336,7 @@
 		7DB3636F90125AD66BC73FAF /* JsonMap.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 72957BAFF34FE57DABA3B7E1 /* JsonMap.cpp */; };
 		7EB9A9DD7D95056BC596B38A /* parse.cc in Sources */ = {isa = PBXBuildFile; fileRef = CFF4187E328E507D1C765E42 /* parse.cc */; };
 		7EC0CD05C4C232D1470AF087 /* gaussian_distribution.cc in Sources */ = {isa = PBXBuildFile; fileRef = E5B49A6D9F23E639CE1F5B23 /* gaussian_distribution.cc */; };
+		7EEF96194793FF1AA4DE365B /* coreaibackend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19888A0F044A79F51B6DA530 /* coreaibackend.swift */; };
 		7F0EA1825BC00439AFB5F8FC /* ascii.cc in Sources */ = {isa = PBXBuildFile; fileRef = 8DE9BEBFBBE6A427CA92E372 /* ascii.cc */; };
 		7F49FA893A281B56BC49D48C /* BoardCameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC3688217D006AF0B82530FB /* BoardCameraView.swift */; };
 		7F518296B362958295125FAB /* demangle_rust.cc in Sources */ = {isa = PBXBuildFile; fileRef = D7A16EC2F498FDCFE013273A /* demangle_rust.cc */; };
@@ -1260,6 +1261,7 @@
 		17A535E2FAF9785EEB8BDC53 /* BoardAccessibilityUITests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = BoardAccessibilityUITests.swift; sourceTree = "<group>"; };
 		17E3BF48CB16AAB616C8B248 /* content.js */ = {isa = PBXFileReference; includeInIndex = 1; name = content.js; path = KataGoAnytimeSafariExt/Resources/content.js; sourceTree = "<group>"; };
 		17FA6DBD4C7BA5955B8953B7 /* bind.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = bind.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/strings/internal/str_format/bind.cc"; sourceTree = SOURCE_ROOT; };
+		19888A0F044A79F51B6DA530 /* coreaibackend.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = coreaibackend.swift; path = ../../../cpp/neuralnet/coreaibackend.swift; sourceTree = "<group>"; };
 		19F59A699C5AFFAC024AA40C /* KataGoAnytimeWidget.entitlements */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.entitlements; name = KataGoAnytimeWidget.entitlements; path = KataGoAnytimeWidget/KataGoAnytimeWidget.entitlements; sourceTree = "<group>"; };
 		1A8ED9537F21CA76CCD0ACC5 /* GtpCommandBuilderTests.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = GtpCommandBuilderTests.swift; sourceTree = "<group>"; };
 		1BD242602F707FC96E8F9DDC /* thread_identity.cc */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; name = thread_identity.cc; path = "../../cpp/external/abseil-cpp-20260107.1/absl/base/internal/thread_identity.cc"; sourceTree = SOURCE_ROOT; };
@@ -3129,6 +3131,7 @@
 				E11887E32B0830C900637D44 /* KataGoSwift.h */,
 				E11887EE2B08310800637D44 /* metalbackend.swift */,
 				E11887F72B08310800637D44 /* metallayers.swift */,
+				19888A0F044A79F51B6DA530 /* coreaibackend.swift */,
 			);
 			path = KataGoSwift;
 			sourceTree = "<group>";
@@ -4458,6 +4461,7 @@
 			files = (
 				E11887F12B08310800637D44 /* metalbackend.swift in Sources */,
 				E11887F62B08310800637D44 /* metallayers.swift in Sources */,
+				7EEF96194793FF1AA4DE365B /* coreaibackend.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -5829,6 +5833,17 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-weak_framework",
+					CoreAI,
+				);
+				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
+					"-weak_framework",
+					CoreAI,
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -disable-autolink-framework -Xfrontend CoreAIRuntime -Xfrontend -disable-autolink-framework -Xfrontend CoreAIDelegates -Xfrontend -disable-autolink-framework -Xfrontend CoreAICompiler";
 				PRODUCT_BUNDLE_IDENTIFIER = ccy.KataGoSwift;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = YES;
@@ -5883,6 +5898,17 @@
 				MARKETING_VERSION = 1.0;
 				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
 				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"-weak_framework",
+					CoreAI,
+				);
+				"OTHER_LDFLAGS[sdk=macosx*]" = (
+					"$(inherited)",
+					"-weak_framework",
+					CoreAI,
+				);
+				OTHER_SWIFT_FLAGS = "$(inherited) -Xfrontend -disable-autolink-framework -Xfrontend CoreAIRuntime -Xfrontend -disable-autolink-framework -Xfrontend CoreAIDelegates -Xfrontend -disable-autolink-framework -Xfrontend CoreAICompiler";
 				PRODUCT_BUNDLE_IDENTIFIER = ccy.KataGoSwift;
 				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
 				REGISTER_APP_GROUPS = YES;

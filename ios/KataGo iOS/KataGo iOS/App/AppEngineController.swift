@@ -588,12 +588,46 @@ final class AppEngineController {
         let launchedCustomParameters = setAside ? CustomParameters() : saved
         session?.engineStatus.launchedCustomParameters = launchedCustomParameters
         session?.engineStatus.customParametersSetAside = setAside
-        let customOverrides = launchedCustomParameters.launchOverrides
+        var customOverrides = launchedCustomParameters.launchOverrides
 
+        // PROTOTYPE (wayfinder #40), throwaway: the Core AI gate's stage 2 arms. The hidden key
+        // `prototype.coreAI.arm` ("coreai" or "coreml", also settable as a launch argument
+        // `-prototype.coreAI.arm coreai`) pins the gate's iPad config whatever the Backend sheet says:
+        // one NN server thread on device 200 (Core AI) or 100 (CoreML/NE), the default search threads,
+        // a 19x19 buffer, requireMaxBoardSize=false, and the human SL net off. Core AI loads
+        // <bundle>/CoreAI/<n>x<n>.aimodel, or Library/CoreAI/ if devicectl copied the models there.
+        let gateArm = UserDefaults.standard.string(forKey: "prototype.coreAI.arm")
+        var deviceAssignments = settings.deviceAssignments
+        var numSearchThreads = settings.numSearchThreads
+        var requireExactNNLen = settings.requireExactNNLen
+        var includeHumanNet = true
+        if let gateArm, gateArm == "coreai" || gateArm == "coreml" {
+            // The engine's stderr (backend load lines, fatal errors) goes to Library/CoreAI/engine.log,
+            // which `devicectl device copy from` fetches.
+            let logDir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+                .appendingPathComponent("CoreAI")
+            try? FileManager.default.createDirectory(at: logDir, withIntermediateDirectories: true)
+            freopen(logDir.appendingPathComponent("engine.log").path, "a", stderr)
+            setvbuf(stderr, nil, _IONBF, 0)
+            deviceAssignments = gateArm == "coreai" ? [200] : [100]
+            numSearchThreads = KataGoHelper.mlxNumSearchThreads
+            requireExactNNLen = false
+            includeHumanNet = false
+            maxBoardLength = 19
+            session?.engineStatus.launchedMaxBoardLength = 19
+            session?.gobanState.engineMaxBoardLength = 19
+            if gateArm == "coreai" {
+                let library = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+                    .appendingPathComponent("CoreAI")
+                let bundled = Bundle.main.resourceURL?.appendingPathComponent("CoreAI")
+                let dir = FileManager.default.fileExists(atPath: library.path) ? library : (bundled ?? library)
+                customOverrides.append("coreAIModelFile=\(dir.path)")
+            }
+            let note = "PROTOTYPE Core AI gate arm \(gateArm): devices \(deviceAssignments), "
+                + "\(numSearchThreads) search threads, human SL off, overrides \(customOverrides)\n"
+            FileHandle.standardError.write(Data(note.utf8))
+        }
         let launchedMaxBoardLength = maxBoardLength
-        let deviceAssignments = settings.deviceAssignments
-        let numSearchThreads = settings.numSearchThreads
-        let requireExactNNLen = settings.requireExactNNLen
         let backend = settings.backend
         let tunerFull = settings.tunerFull
         let reTune = settings.reTune
@@ -614,6 +648,7 @@ final class AppEngineController {
                                 numSearchThreads: numSearchThreads,
                                 maxBoardSizeForNNBuffer: launchedMaxBoardLength,
                                 requireExactNNLen: requireExactNNLen,
+                                includeHumanNet: includeHumanNet,
                                 tunerFull: tunerFull,
                                 reTune: reTune,
                                 customOverrides: customOverrides)

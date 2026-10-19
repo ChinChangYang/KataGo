@@ -241,9 +241,11 @@ elseif(USE_BACKEND STREQUAL "MLX")
   # Build the KataGoSwift static library. Same lines as the METAL branch above,
   # kept inline to leave the Metal branch untouched. The library exposes
   # CoreMLComputeHandle to C++ via the generated KataGoSwift-swift.h.
+  # PROTOTYPE (wayfinder #40): coreaibackend.swift is the Core AI compute handle (device 200).
   add_library(KataGoSwift STATIC
     neuralnet/metalbackend.swift
-    neuralnet/metallayers.swift)
+    neuralnet/metallayers.swift
+    neuralnet/coreaibackend.swift)
   _swift_generate_cxx_header(
     KataGoSwift
     "${CMAKE_CURRENT_BINARY_DIR}/include/KataGoSwift/KataGoSwift-swift.h")
@@ -251,6 +253,13 @@ elseif(USE_BACKEND STREQUAL "MLX")
   set_target_properties(KataGoSwift PROPERTIES Swift_MODULE_NAME "KataGoSwift")
   target_compile_options(KataGoSwift PUBLIC
     "$<$<COMPILE_LANGUAGE:Swift>:-cxx-interoperability-mode=default>")
+  # Core AI's Swift modules (CoreAIRuntime, ...) ship inside CoreAI.framework; weak-link it so the binary still
+  # loads on macOS 26.
+  target_compile_options(KataGoSwift PUBLIC
+    "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xfrontend -disable-autolink-framework -Xfrontend CoreAIRuntime>"
+    "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xfrontend -disable-autolink-framework -Xfrontend CoreAIDelegates>"
+    "$<$<COMPILE_LANGUAGE:Swift>:SHELL:-Xfrontend -disable-autolink-framework -Xfrontend CoreAICompiler>")
+  target_link_options(KataGoSwift PUBLIC "SHELL:-Xlinker -weak_framework -Xlinker CoreAI")
 elseif(USE_BACKEND STREQUAL "")
   message(WARNING "${ColorBoldRed}WARNING: Using dummy neural net backend, intended for non-neural-net testing only, will fail on any code path requiring a neural net. To use neural net, specify -DUSE_BACKEND=CUDA or -DUSE_BACKEND=TENSORRT or -DUSE_BACKEND=OPENCL or -DUSE_BACKEND=EIGEN or -DUSE_BACKEND=MLX or -DUSE_BACKEND=METAL to compile with the respective backend.${ColorReset}")
   set(NEURALNET_BACKEND_SOURCES neuralnet/dummybackend.cpp)
@@ -621,6 +630,9 @@ elseif(USE_BACKEND STREQUAL "EIGEN")
   endif()
 elseif(USE_BACKEND STREQUAL "MLX")
   target_compile_definitions(katago PRIVATE USE_MLX_BACKEND)
+  # PROTOTYPE (wayfinder #40): Homebrew's MLX exports cxx_std_20, which turns ghc::filesystem's u8string() into
+  # std::u8string and breaks fileutils.cpp. Keep char8_t off so the CLI build compiles.
+  target_compile_options(katago PRIVATE $<$<COMPILE_LANGUAGE:CXX>:-fno-char8_t>)
   target_link_libraries(katago mlx KataGoSwift katagocoreml
     ${KATAGOCOREML_DEP_LDFLAGS})
 endif()

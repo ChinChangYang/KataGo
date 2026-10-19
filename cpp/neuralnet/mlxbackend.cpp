@@ -58,6 +58,9 @@ using namespace std;
 // Same convention the Metal backend uses (METAL_MUX_GPU / METAL_MUX_ANE).
 static constexpr int MLX_MUX_GPU = 0;    // MLX/GPU - default
 static constexpr int MLX_MUX_ANE = 100;  // CoreML on CPU+ANE via katagocoreml + KataGoSwift
+// PROTOTYPE (wayfinder #40), throwaway: Core AI with .neuralEngine preferred, running a pre-converted
+// Core AI-format network named by the config key coreAIModelFile (coreaibackend.swift).
+static constexpr int MLX_MUX_COREAI = 200;
 
 // Serializes ComputeHandle construction across server threads. The CoreML
 // converter (katagocoreml::KataGoConverter::convert) holds process-global
@@ -1829,6 +1832,11 @@ struct ComputeContext {
   // which would read the freed weights.
   bool aneOnly = false;
 
+  // PROTOTYPE (wayfinder #40): the .aimodel the MLX_MUX_COREAI threads load (config key coreAIModelFile), and
+  // how many concurrent batch-1 slots (one AIModel each) a Core AI handle gets (coreAISlots, default nnMaxBatchSize).
+  std::string coreAIModelFile;
+  int coreAISlots = 0;
+
   // MLX/GPU Winograd autotuner controls, plumbed from the app via
   // -override-config (mlxTunerFull / mlxReTune), read in createComputeContext.
   // tunerFull=true selects the wide grid (thorough but much slower); reTune=true
@@ -1887,6 +1895,9 @@ struct ComputeHandle {
   // Exactly one of {model populated (MLX/GPU path) OR coremlOnlyHandle has value (ANE path)}.
   swift::Optional<KataGoSwift::CoreMLComputeHandle> coremlOnlyHandle;
 
+  // PROTOTYPE (wayfinder #40): Core AI handle (Swift). Populated iff gpuIdx == MLX_MUX_COREAI.
+  swift::Optional<KataGoSwift::CoreAIComputeHandle> coreaiHandle;
+
   ComputeHandle() = delete;
   ComputeHandle(const ComputeHandle&) = delete;
   ComputeHandle& operator=(const ComputeHandle&) = delete;
@@ -1926,7 +1937,8 @@ struct ComputeHandle {
       compiledFuncsMutex(),
       compiledFuncs(),
       coremlOnlyHandle(createCoreMLOnlyHandleIfNeededMLX(
-        ctx, &loadedModel, requireExactNNLen_, maxBatchSize, gpuIdx_, serverThreadIdx))
+        ctx, &loadedModel, requireExactNNLen_, maxBatchSize, gpuIdx_, serverThreadIdx)),
+      coreaiHandle(swift::Optional<KataGoSwift::CoreAIComputeHandle>::none())
   {
     // Cache ModelDesc fields used by both paths in getOutput.
     numInputChannels = loadedModel.modelDesc.numInputChannels;
@@ -1942,6 +1954,30 @@ struct ComputeHandle {
     numValueChannels = loadedModel.modelDesc.numValueChannels;
     numScoreValueChannels = loadedModel.modelDesc.numScoreValueChannels;
     numOwnershipChannels = loadedModel.modelDesc.numOwnershipChannels;
+
+    if(gpuIdx_ == MLX_MUX_COREAI) {
+      if(ctx->coreAIModelFile.empty())
+        throw StringError("MLX backend: device " + to_string(MLX_MUX_COREAI) + " (Core AI) needs coreAIModelFile=<.aimodel>");
+      // The Core AI model always reads the mask (getOutput fills it on every path), so requireExactNNLen only means
+      // the mask is all ones.
+      if(loadedModel.modelDesc.numInputMetaChannels > 0)
+        throw StringError("MLX backend: the Core AI prototype has no meta input (human SL nets are out of scope)");
+      if(ctx->aneOnly)
+        const_cast<LoadedModel&>(loadedModel).modelDesc.releaseWeights();
+      int slots = ctx->coreAISlots > 0 ? std::min(ctx->coreAISlots, maxBatchSize) : maxBatchSize;
+      auto swiftContext = KataGoSwift::createMetalComputeContext(
+        static_cast<int32_t>(ctx->nnXLen), static_cast<int32_t>(ctx->nnYLen), true);
+      // A directory holds one static model per NN buffer size, named <nnXLen>x<nnYLen>.aimodel.
+      string aimodel = ctx->coreAIModelFile;
+      if(gfs::is_directory(gfs::path(aimodel)) && gfs::path(aimodel).extension() != ".aimodel")
+        aimodel = (gfs::path(aimodel) / (to_string(ctx->nnXLen) + "x" + to_string(ctx->nnYLen) + ".aimodel")).string();
+      auto h = KataGoSwift::createCoreAIComputeHandle(
+        swift::String(aimodel), serverThreadIdx, slots, swiftContext);
+      if(!static_cast<bool>(h))
+        throw StringError("MLX backend: could not load the Core AI model " + aimodel);
+      coreaiHandle = swift::Optional<KataGoSwift::CoreAIComputeHandle>(h);
+      return;
+    }
 
     if(gpuIdx_ == MLX_MUX_ANE) {
       // ANE path: MLX inference state is intentionally left uninitialized.
@@ -2056,7 +2092,7 @@ struct ComputeHandle {
     // Only the GPU path populated the cachedModels map; ANE path's destructor
     // is a no-op for the MLX-side state. Swift ARC releases coremlOnlyHandle
     // automatically when the swift::Optional member is destroyed.
-    if(gpuIdx == MLX_MUX_ANE)
+    if(gpuIdx == MLX_MUX_ANE || gpuIdx == MLX_MUX_COREAI)
       return;
 
     std::lock_guard<std::mutex> lock(context->cachedModelsMutex);
@@ -2341,7 +2377,7 @@ ComputeContext* NeuralNet::createComputeContext(
   // would read freed weights.
   bool aneOnly = !gpuIdxs.empty();
   for(int idx : gpuIdxs) {
-    if(idx != MLX_MUX_ANE) { aneOnly = false; break; }
+    if(idx != MLX_MUX_ANE && idx != MLX_MUX_COREAI) { aneOnly = false; break; }
   }
 
   // MLX requires NHWC inputs; this is enforced per-handle via inputsUseNHWC in
@@ -2361,6 +2397,8 @@ ComputeContext* NeuralNet::createComputeContext(
   // so ConfigParser doesn't flag them as unused overrides.
   context->tunerFull   = cfg.contains("mlxTunerFull") ? cfg.getBool("mlxTunerFull") : false;
   context->tunerReTune = cfg.contains("mlxReTune")    ? cfg.getBool("mlxReTune")    : false;
+  context->coreAIModelFile = cfg.contains("coreAIModelFile") ? cfg.getString("coreAIModelFile") : "";
+  context->coreAISlots = cfg.contains("coreAISlots") ? cfg.getInt("coreAISlots", 1, 64) : 0;
   return context;
 }
 
@@ -2397,13 +2435,13 @@ ComputeHandle* NeuralNet::createComputeHandle(
 
   // gpuIdx == -1 is the "no preference" sentinel from upstream; map to default GPU.
   int gpuIdx = (gpuIdxForThisThread == -1) ? MLX_MUX_GPU : gpuIdxForThisThread;
-  if(gpuIdx != MLX_MUX_GPU && gpuIdx != MLX_MUX_ANE) {
+  if(gpuIdx != MLX_MUX_GPU && gpuIdx != MLX_MUX_ANE && gpuIdx != MLX_MUX_COREAI) {
     throw StringError(
       "MLX backend: Invalid mlxDeviceToUseThread value " + std::to_string(gpuIdx) +
       " for server thread " + std::to_string(serverThreadIdx) +
       ". The MLX backend only supports " + std::to_string(MLX_MUX_GPU) +
       " (GPU via MLX) or " + std::to_string(MLX_MUX_ANE) +
-      " (ANE via CoreML).");
+      " (ANE via CoreML) or " + std::to_string(MLX_MUX_COREAI) + " (Core AI prototype).");
   }
 
   if(logger != NULL) {
@@ -2492,7 +2530,7 @@ void NeuralNet::getOutput(
     //
     // The MLX/GPU path slices channel 0 itself via mx::slice and does
     // not read userInputMaskBuffer or userInputBufferNCHW.
-    if(computeHandle->coremlOnlyHandle) {
+    if(computeHandle->coremlOnlyHandle || computeHandle->coreaiHandle) {
       const int C = computeHandle->numInputChannels;
       const size_t HW = inputBuffers->singleMaskElts;  // nnXLen * nnYLen
       float* rowNCHW = inputBuffers->userInputBufferNCHW.data()
@@ -2511,7 +2549,20 @@ void NeuralNet::getOutput(
   }
 
   // Dispatch to appropriate path based on mux mode.
-  if(computeHandle->coremlOnlyHandle) {
+  if(computeHandle->coreaiHandle) {
+    // PROTOTYPE (wayfinder #40): same NCHW rows and mask as the CoreML path.
+    computeHandle->coreaiHandle.get().apply(
+      inputBuffers->userInputBufferNCHW.data(),
+      inputBuffers->globalInput.data(),
+      inputBuffers->metaInput.data(),
+      inputBuffers->userInputMaskBuffer.data(),
+      inputBuffers->policyResults.data(),
+      inputBuffers->policyPassResults.data(),
+      inputBuffers->valueResults.data(),
+      inputBuffers->scoreValueResults.data(),
+      inputBuffers->ownershipResults.data(),
+      batchSize);
+  } else if(computeHandle->coremlOnlyHandle) {
     // ANE path: dispatch through the Swift CoreMLComputeHandle. Swift
     // creates MLMultiArray(shape: [1, C, H, W]) per row and memcpys
     // C*H*W floats — strict NCHW. We pass userInputBufferNCHW (rows
@@ -2587,7 +2638,7 @@ void NeuralNet::getOutput(
     // first HW floats, channel 1 the next HW, etc. Stride differs per path.
     if(numPolicyChannels == 2 || (numPolicyChannels == 4 && modelVersion >= 16)) {
       const int HW = nnXLen * nnYLen;
-      const bool isNCHW = (bool)computeHandle->coremlOnlyHandle;
+      const bool isNCHW = (bool)computeHandle->coremlOnlyHandle || (bool)computeHandle->coreaiHandle;
       const int strideI   = isNCHW ? 1  : numPolicyChannels;
       const int strideOpt = isNCHW ? HW : 1;
       for(int i = 0; i < HW; i++) {
