@@ -75,18 +75,19 @@ Afterwards:
 - delete the Core AI Gate app from the iPad;
 - set Auto-Lock back.
 
-## Things this harness found while being built (on the M3 Max, macOS 27.0.1)
+## Things this harness found while being built (M3 Max on macOS 27.0.1; iPad A17 Pro on iOS 27.0.1)
 
 - **Concurrent Core AI calls into one AIModel return wrong rows on the ANE.**
   - What failed: K threads calling one `InferenceFunction`, or one `InferenceFunction` each from the same `AIModel`.
     This happened with both `encode` and the public async `run`.
-  - How often: 1 to 2 of 80 rows at K=2, and 30 to 72 of 320 at K=8. The wrong rows are off by up to 22 in the
-    policy logits, and they are mostly not another row's answer.
+  - How often, on the M3 Max: 1 to 2 of 80 rows at K=2, and 30 to 72 of 320 at K=8. On the iPad A17 Pro at K=2:
+    6 of 100 through `encode`, 0 of 100 through `run`. The wrong rows are off by up to 22 in the policy logits, and
+    they are mostly not another row's answer.
   - What works: one `AIModel` per thread, loaded from the cached specialization, gave 0 wrong rows in 320 at K=8. One
     call to a static batch-K function was always right.
   - What the harness does: the concurrent arms use one `AIModel` per slot (`--functions per-model`). `--mode agree
     --functions shared` reproduces the failure.
-- **A cached specialization written by an earlier build of this tool fails in `loadFunction`.**
+- **A cached specialization written by an earlier build of this tool fails in `loadFunction`** (seen on the Mac).
   - What fails: the tool is ad hoc signed, so every build has a new identity. After a rebuild, `AIModel(contentsOf:)`
     succeeds from the cache, then `loadFunction` throws Foundation's `nilError`.
   - What fixes it: deleting the entry and specializing again. Core ML's first load after a rebuild also took about
