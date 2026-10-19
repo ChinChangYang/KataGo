@@ -48,6 +48,7 @@ static const vector<string> knownCommands = {
 
   //Get or change a few limited params dynamically
   "kata-get-models",
+  "kata-get-nn-rows",
   "kata-get-param",
   "kata-set-param",
   "kata-list-params",
@@ -382,6 +383,11 @@ struct GTPEngine {
   double genmoveTimeSum;
   std::atomic<int> genmoveExpectedId;
 
+  //Rows each NN evaluator ran before its counter was reset or the evaluator rebuilt (foldNNRows),
+  //so that kata-get-nn-rows counts from the engine's start.
+  uint64_t nnRowsFolded;
+  uint64_t humanRowsFolded;
+
   //Positions during this game when genmove was called
   std::vector<Sgf::PositionSample> genmoveSamples;
 
@@ -429,6 +435,8 @@ struct GTPEngine {
      genmoveTimer(),
      genmoveTimeSum(0.0),
      genmoveExpectedId(0),
+     nnRowsFolded(0),
+     humanRowsFolded(0),
      genmoveSamples()
   {
   }
@@ -452,6 +460,15 @@ struct GTPEngine {
   }
 
   void clearStatsForNewGame() {
+  }
+
+  //numRowsProcessed() is reset by genmove and starts afresh in a rebuilt evaluator: fold it in
+  //before either, so kata-get-nn-rows only ever grows and its difference around any command holds.
+  void foldNNRows() {
+    if(nnEval != NULL)
+      nnRowsFolded += nnEval->numRowsProcessed();
+    if(humanEval != NULL)
+      humanRowsFolded += humanEval->numRowsProcessed();
   }
 
   //Specify -1 for the sizes for a default
@@ -479,6 +496,7 @@ struct GTPEngine {
       if(nnEval != NULL) {
         assert(bot != NULL);
         bot->stopAndWait();
+        foldNNRows();
         delete bot;
         delete nnEval;
         delete humanEval;
@@ -1110,6 +1128,7 @@ struct GTPEngine {
   ) {
     genmoveTimer.reset();
 
+    foldNNRows();
     nnEval->clearStats();
     if(humanEval != NULL)
       humanEval->clearStats();
@@ -2686,6 +2705,14 @@ int MainCmds::gtp(const vector<string>& args) {
           }
         }
       }
+    }
+    else if(command == "kata-get-nn-rows") {
+      //Rows each NN evaluator has run since the engine started. A cache hit runs none, so the
+      //difference around a command is the evaluations it cost the device.
+      nlohmann::json rows;
+      rows["main"] = engine->nnRowsFolded + (engine->nnEval == NULL ? 0 : engine->nnEval->numRowsProcessed());
+      rows["human"] = engine->humanRowsFolded + (engine->humanEval == NULL ? 0 : engine->humanEval->numRowsProcessed());
+      response = rows.dump();
     }
     else if(command == "kata-get-models") {
       nlohmann::json modelsList = nlohmann::json::array();

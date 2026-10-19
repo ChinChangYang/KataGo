@@ -254,6 +254,11 @@ In addition to a basic set of [GTP commands](https://www.lysator.liu.se/~gunnar/
      * Each item in the array is a json object with at least the following keys: `"name", "internalName", "maxBatchSize", "usesHumanSLProfile", "version", "usingFP16"`.
      * This command can be used by controllers to tell if a human SL model is loaded (e.g. one for which `"usesHumanSLProfile"` is true).
 
+  * `kata-get-nn-rows`
+     * Returns a JSON dictionary `{"main": N, "human": M}`: the number of positions (rows) the main model and the human SL model have evaluated since the engine started, `0` for a model that is not loaded.
+     * A position served from the NN cache is not a row, so the difference between two calls is the neural net work done in between, e.g. around a `genmove` or a `kata-analyze`. Since any command stops a running analysis first, the call that ends one counts all of its rows.
+     * The counts only grow: `genmove` resetting its per-move statistics and a `boardsize` that rebuilds the evaluators do not reset them.
+
   * `cputime`, `gomill-cpu_time`
      * Returns the approximate total wall-clock-time spent during the handling of `genmove` or the various flavors of `genmove_analyze` commands described above so far during the entire current instance of the engine, as a floating point number of seconds. Does NOT currently count time spent during pondering or during the various `lz-analyze`, `kata-analyze`, etc.
      * Note: Gomill specifies that its variant of the command should return the total time summed across CPUs. For KataGo, this time is both unuseful and hard to measure because much of the time is spent waiting on the GPU, not on the CPU, and with different threads sometimes blocking each other through the multitheading and often exceeding the number of cores on a user's system, time spent on CPUs is hard to make sense of. So instead we report wall-clock-time, which is far more useful to record and should correspond more closely to what users may want to know for actual practical benchmarking and performance.
