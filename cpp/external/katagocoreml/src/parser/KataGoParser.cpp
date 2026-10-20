@@ -20,6 +20,32 @@ void checkDimsEqual(const std::string& name, const char* aDesc, int64_t a, const
                                  bDesc + " (" + std::to_string(b) + ")");
     }
 }
+
+// IEEE 754 half precision bits to the float they stand for, exactly (an "@BIN16@" block's weights).
+float halfBitsToFloat(uint16_t h) {
+    uint32_t sign = (uint32_t)(h & 0x8000) << 16;
+    uint32_t exponent = (h >> 10) & 0x1F;
+    uint32_t mantissa = h & 0x3FF;
+    uint32_t bits;
+    if (exponent == 0x1F) {
+        bits = sign | 0x7F800000 | (mantissa << 13);
+    } else if (exponent != 0) {
+        bits = sign | ((exponent + 112) << 23) | (mantissa << 13);
+    } else if (mantissa == 0) {
+        bits = sign;
+    } else {
+        // Subnormal half, normal as a float
+        exponent = 113;
+        while ((mantissa & 0x400) == 0) {
+            mantissa <<= 1;
+            exponent--;
+        }
+        bits = sign | (exponent << 23) | ((mantissa & 0x3FF) << 13);
+    }
+    float x;
+    std::memcpy(&x, &bits, sizeof(x));
+    return x;
+}
 }  // namespace
 
 // ============================================================================
@@ -201,17 +227,29 @@ std::vector<float> KataGoParser::readFloats(size_t count, const std::string& nam
         for(size_t i = 0; i < count; i++)
             floats.push_back(readFloat());
     } else {
-        // Binary: consume the "@BIN@" marker, then read count*4 raw bytes.
-        char marker[5];
+        // Binary: consume the "@BIN@" marker, then read count*4 raw bytes; or the "@BIN16@"
+        // marker, then count*2 bytes of IEEE 754 half floats, widened to 32 bits.
+        char marker[7];
         readExact(reinterpret_cast<uint8_t*>(marker), 5, name);
-        if(std::memcmp(marker, "@BIN@", 5) != 0)
-            throw std::runtime_error(name + ": expected @BIN@ marker for binary float block");
+        bool halfFloats = std::memcmp(marker, "@BIN1", 5) == 0;
+        if(halfFloats)
+            readExact(reinterpret_cast<uint8_t*>(marker + 5), 2, name);
+        if(std::memcmp(marker, halfFloats ? "@BIN16@" : "@BIN@", halfFloats ? 7 : 5) != 0)
+            throw std::runtime_error(name + ": expected @BIN@ or @BIN16@ marker for binary float block");
 
+        std::vector<uint16_t> halves;
         while(floats.size() < count) {
             size_t take = std::min(CHUNK_FLOATS, count - floats.size());
             size_t done = floats.size();
             floats.resize(done + take);
-            readExact(reinterpret_cast<uint8_t*>(floats.data() + done), take * 4, name);
+            if(halfFloats) {
+                halves.resize(take);
+                readExact(reinterpret_cast<uint8_t*>(halves.data()), take * 2, name);
+                for(size_t i = 0; i < take; i++)
+                    floats[done + i] = halfBitsToFloat(halves[i]);
+            } else {
+                readExact(reinterpret_cast<uint8_t*>(floats.data() + done), take * 4, name);
+            }
         }
     }
 

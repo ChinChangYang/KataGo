@@ -1,6 +1,7 @@
 #include "../neuralnet/desc.h"
 
 #include <cmath>
+#include <cstring>
 #include <fstream>
 #include <zlib.h>
 
@@ -37,6 +38,32 @@ static float readFloatFast(istream& in, string& tmp) {
   return x;
 }
 
+//IEEE 754 half precision bits to the float they stand for, exactly
+static float halfBitsToFloat(uint16_t h) {
+  uint32_t sign = (uint32_t)(h & 0x8000) << 16;
+  uint32_t exponent = (h >> 10) & 0x1F;
+  uint32_t mantissa = h & 0x3FF;
+  uint32_t bits;
+  if(exponent == 0x1F)
+    bits = sign | 0x7F800000 | (mantissa << 13);
+  else if(exponent != 0)
+    bits = sign | ((exponent + 112) << 23) | (mantissa << 13);
+  else if(mantissa == 0)
+    bits = sign;
+  else {
+    //Subnormal half, normal as a float
+    exponent = 113;
+    while((mantissa & 0x400) == 0) {
+      mantissa <<= 1;
+      exponent--;
+    }
+    bits = sign | (exponent << 23) | ((mantissa & 0x3FF) << 13);
+  }
+  float x;
+  std::memcpy(&x, &bits, sizeof(x));
+  return x;
+}
+
 static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const string& name, vector<float>& buf) {
   buf.resize(numFloats);
   if(!binaryFloats) {
@@ -48,7 +75,9 @@ static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const s
   }
   else {
     //KataGo hacky model format - "@BIN@" followed by the expected number of 32 bit floats, in little-endian binary
+    //or "@BIN16@" followed by that many IEEE 754 half floats, in little-endian binary, widened to 32 bits here
     testAssert(sizeof(float) == 4);
+    bool halfFloats = false;
     {
       string s;
       int numCharsBeforeAt = 0;
@@ -63,23 +92,47 @@ static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const s
       s += (char)in.get();
       s += (char)in.get();
       s += (char)in.get();
-      if(s != "BIN@")
+      if(s == "BIN1") {
+        s += (char)in.get();
+        s += (char)in.get();
+        halfFloats = true;
+      }
+      if(s != (halfFloats ? "BIN16@" : "BIN@"))
         throw StringError(name + ": did not find expected header for binary float block");
     }
-    float* data = buf.data();
-    char* bytes = (char*)data;
-    in.read(bytes, numFloats*sizeof(float));
+    if(halfFloats) {
+      vector<uint16_t> halves(numFloats);
+      char* bytes = (char*)halves.data();
+      in.read(bytes, numFloats*sizeof(uint16_t));
 
-    if(in.fail())
-      throw StringError(name + ": did not find the expected number of floats in binary float block");
+      if(in.fail())
+        throw StringError(name + ": did not find the expected number of floats in binary float block");
 
 #if BYTE_ORDER == BIG_ENDIAN
-    for(size_t i = 0; i<numFloats; i++) {
-      //Reverse byte order for big endian
-      std::swap(bytes[i*4 + 0], bytes[i*4 + 3]);
-      std::swap(bytes[i*4 + 1], bytes[i*4 + 2]);
-    }
+      for(size_t i = 0; i<numFloats; i++) {
+        //Reverse byte order for big endian
+        std::swap(bytes[i*2 + 0], bytes[i*2 + 1]);
+      }
 #endif
+      for(size_t i = 0; i<numFloats; i++)
+        buf[i] = halfBitsToFloat(halves[i]);
+    }
+    else {
+      float* data = buf.data();
+      char* bytes = (char*)data;
+      in.read(bytes, numFloats*sizeof(float));
+
+      if(in.fail())
+        throw StringError(name + ": did not find the expected number of floats in binary float block");
+
+#if BYTE_ORDER == BIG_ENDIAN
+      for(size_t i = 0; i<numFloats; i++) {
+        //Reverse byte order for big endian
+        std::swap(bytes[i*4 + 0], bytes[i*4 + 3]);
+        std::swap(bytes[i*4 + 1], bytes[i*4 + 2]);
+      }
+#endif
+    }
   }
 
   //Flush fp32 subnormals to zero. Some model files have such values, which is negligible for behavior
