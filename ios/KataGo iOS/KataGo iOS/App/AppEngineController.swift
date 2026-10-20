@@ -32,6 +32,7 @@
 //
 
 import Foundation
+import UIKit
 import OSLog
 import KataGoUICore
 
@@ -185,6 +186,19 @@ final class AppEngineController {
         engineLifecycle.reset()
         spawnEngineThread(model: resolved.model)
         phase = .starting
+
+        // PROTOTYPE (wayfinder #41): with `-prototype.coreAI.bench 1` the app drives the engine
+        // itself (no handshake, no session), measures visits/s and exits.
+        if UserDefaults.standard.string(forKey: "prototype.coreAI.bench") == "1",
+           let arm = UserDefaults.standard.string(forKey: "prototype.coreAI.arm") {
+            UIApplication.shared.isIdleTimerDisabled = true
+            let rep = UserDefaults.standard.integer(forKey: "prototype.coreAI.rep")
+            let only = UserDefaults.standard.string(forKey: "prototype.coreAI.position")
+            let rest = UserDefaults.standard.object(forKey: "prototype.coreAI.rest") == nil
+                ? 0.0 : UserDefaults.standard.double(forKey: "prototype.coreAI.rest")
+            Thread.detachNewThread { GateBench.run(arm: arm, rep: rep, only: only, rest: rest) }
+            return
+        }
 
         Task { await completeHandshake(model: resolved.model) }
     }
@@ -799,5 +813,93 @@ final class AppEngineController {
             group.cancelAll()
             return first
         }
+    }
+}
+
+// MARK: - PROTOTYPE (wayfinder #41): stage 2 visits/s on the iPad, throwaway
+
+/// One launch = one arm block. For each position in Library/CoreAI/positions.json (name -> GTP
+/// moves): wait for a nominal thermal state, clear_board, replay, `kata-analyze interval 100
+/// rootInfo true`, and count root visits gained from t=10 s to t=70 s. One JSON line per position
+/// goes to Library/CoreAI/bench.jsonl; then the process exits.
+enum GateBench {
+    static func run(arm: String, rep: Int, only: String?, rest: Double) {
+        let dir = FileManager.default.urls(for: .libraryDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("CoreAI")
+        let out = dir.appendingPathComponent("bench.jsonl")
+        func emit(_ obj: [String: Any]) {
+            let data = (try? JSONSerialization.data(withJSONObject: obj, options: [.sortedKeys])) ?? Data()
+            let line = data + Data("\n".utf8)
+            if let h = try? FileHandle(forWritingTo: out) {
+                h.seekToEndOfFile(); h.write(line); try? h.close()
+            } else {
+                try? line.write(to: out)
+            }
+        }
+        func reply(timeout: Double = 900) -> String? {
+            let end = Date().addingTimeInterval(timeout)
+            while Date() < end {
+                let l = KataGoHelper.getMessageLine(timeoutSeconds: 5)
+                if l.hasPrefix("=") { return l }
+                if l.hasPrefix("?") { emit(["arm": arm, "rep": rep, "error": l]); return nil }
+            }
+            emit(["arm": arm, "rep": rep, "error": "timeout"]); return nil
+        }
+        let t0Launch = Date()
+        KataGoHelper.sendCommand("version")
+        guard reply() != nil else { exit(2) }
+        let loadS = Date().timeIntervalSince(t0Launch)
+        guard let pdata = try? Data(contentsOf: dir.appendingPathComponent("positions.json")),
+              let positions = try? JSONSerialization.jsonObject(with: pdata) as? [String: [String]] else {
+            emit(["arm": arm, "rep": rep, "error": "no positions.json"]); exit(3)
+        }
+        for name in positions.keys.sorted() where only == nil || only == name {
+            var thermalWait = 0.0
+            while ProcessInfo.processInfo.thermalState != .nominal && thermalWait < 900 {
+                Thread.sleep(forTimeInterval: 5); thermalWait += 5
+            }
+            // Protocol v2 (#41): after reaching nominal, rest a fixed time, then require nominal again.
+            if rest > 0 {
+                Thread.sleep(forTimeInterval: rest)
+                while ProcessInfo.processInfo.thermalState != .nominal && thermalWait < 1800 {
+                    Thread.sleep(forTimeInterval: 5); thermalWait += 5
+                }
+            }
+            let thermalStart = ProcessInfo.processInfo.thermalState.rawValue
+            var thermalMax = thermalStart
+            KataGoHelper.sendCommand("clear_board"); guard reply() != nil else { exit(4) }
+            for m in positions[name]! {
+                KataGoHelper.sendCommand("play " + m); guard reply() != nil else { exit(4) }
+            }
+            KataGoHelper.sendCommand("kata-analyze interval 100 rootInfo true"); guard reply() != nil else { exit(4) }
+            let t0 = Date()
+            var samples: [(Double, Int)] = []
+            while true {
+                let l = KataGoHelper.getMessageLine(timeoutSeconds: 5)
+                let t = Date().timeIntervalSince(t0)
+                let toks = l.split(separator: " ")
+                if let i = toks.firstIndex(of: "rootInfo"),
+                   let j = toks[i...].firstIndex(of: "visits"), j + 1 < toks.count, let v = Int(toks[j + 1]) {
+                    samples.append((t, v))
+                    thermalMax = max(thermalMax, ProcessInfo.processInfo.thermalState.rawValue)
+                }
+                if t >= 70 && !samples.isEmpty { break }
+                if t >= 200 { break }
+            }
+            guard let s0 = samples.first(where: { $0.0 >= 10 }), let s1 = samples.last, s1.0 > s0.0 else {
+                emit(["arm": arm, "rep": rep, "position": name, "error": "no samples"]); exit(5)
+            }
+            KataGoHelper.sendCommand("protocol_version"); _ = reply()
+            emit(["arm": arm, "rep": rep, "position": name,
+                  "vps": Double(s1.1 - s0.1) / (s1.0 - s0.0),
+                  "t0": s0.0, "v0": s0.1, "t1": s1.0, "v1": s1.1, "load_s": loadS,
+                  "thermal_wait_s": thermalWait, "thermal_start": thermalStart, "thermal_max": thermalMax,
+                  "rest_s": rest, "void": thermalMax != 0,
+                  "thermal_end": ProcessInfo.processInfo.thermalState.rawValue,
+                  "wall": ISO8601DateFormatter().string(from: Date())])
+        }
+        KataGoHelper.sendCommand("quit")
+        Thread.sleep(forTimeInterval: 2)
+        exit(0)
     }
 }

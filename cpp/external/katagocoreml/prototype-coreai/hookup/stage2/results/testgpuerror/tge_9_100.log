@@ -1,0 +1,84 @@
+: Version 63dd94ea0bd590e87843094ac07bb774d7e2b3cb-mlx
+: Testing /Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/Resources/default_model.bin.gz
+: Testing on 9
+: Testing average errors between different GPU configurations...
+: For batch test, using batch size from nnMaxBatchSize in config: 8
+: Initializing nneval using current config...
+: nnRandSeed0 = 5251699016495916627
+: After dedups: nnModelFile0 = /Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/Resources/default_model.bin.gz useFP16 auto
+: Initializing neural net buffer to be size 9 * 9 allowing smaller boards
+: MLX backend thread 0: Model version 14
+: MLX backend thread 0: Model name: kata1-b18c384nbt-s9996604416-d4316597426
+: MLX backend thread 0: FP16 = true
+: MLX backend thread 0: gpuIdx = 100
+MLX backend 0: Mux ANE mode - using CoreML (CPU+ANE)
+MLX backend 0: CoreML bridge not registered, using direct-compile path
+MLX backend 0: Converting model to /var/folders/dv/kdr9x4yn4s106_94ydk5jnjc0000gn/T/katago_coreml/model_60584_0_1471342839316166.mlpackage
+MLX backend 0: Conversion completed
+Metal backend 0: Compiling model...
+Metal backend 0: Loading compiled model...
+Metal backend 0: Model loaded successfully, 9x9
+Metal backend 0: Deleted temp model
+: Initializing nneval in fp32...
+: nnRandSeed0 = 11331762758467182128
+: After dedups: nnModelFile0 = /Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/Resources/default_model.bin.gz useFP16 auto
+: Initializing neural net buffer to be size 9 * 9 allowing smaller boards
+: MLX backend thread 0: Model version 14
+: MLX backend thread 0: Model name: kata1-b18c384nbt-s9996604416-d4316597426
+: MLX backend thread 0: FP16 = false
+: MLX backend thread 0: gpuIdx = 100
+MLX backend 0: Note: ANE thread with mlxUseFP16=false: the ANE is FP16-only, so CoreML will run this thread on CPU (FP32). This is significantly slower than the GPU path; if you wanted ANE acceleration, remove mlxUseFP16=false.
+MLX backend 0: Mux ANE mode - using CoreML (CPU+ANE)
+MLX backend 0: CoreML bridge not registered, using direct-compile path
+MLX backend 0: Converting model to /var/folders/dv/kdr9x4yn4s106_94ydk5jnjc0000gn/T/katago_coreml/model_60584_0_1471347322471666.mlpackage
+MLX backend 0: Conversion completed
+Metal backend 0: Compiling model...
+Metal backend 0: Loading compiled model...
+Metal backend 0: Model loaded successfully, 9x9
+Metal backend 0: Deleted temp model
+: Loaded reference values for 2179 positions from: refs/ref_9.bin
+: Beginning evaluations! These may take a long time on pure CPU, or on a weak GPU, but on a decent GPU shouldn't take too long.
+: Running evaluations in fp32
+: Running batched evaluations in fp32
+: Running evaluations using current config
+: Running batched evaluations using current config
+: Computed stats on 2179 positions
+: Reporting the average, 90%, 99%, and max abs error between the following configurations: 
+: fp32 error vs reference winrateError:                        0.00005%  0.00013%  0.00037%  0.00074%
+: fp32 error vs reference leadError:                           0.00001   0.00001   0.00005   0.00020
+: fp32 error vs reference scoreMeanError:                      0.00001   0.00001   0.00004   0.00018
+: fp32 error vs reference scoreStdevError:                     0.00001   0.00001   0.00004   0.00018
+: fp32 error vs reference topPolicyDelta:                      0.00009%  0.00021%  0.00047%  0.00169%
+: fp32 error vs reference policyKLDiv:                         -0.000000  0.000000  0.000000  0.000000
+: fp32 error vs reference stWLErrorError:                      0.00006c  0.00016c  0.00046c  0.00098c
+: fp32 error vs reference stScErrorError:                      0.00000   0.00001   0.00002   0.00010
+: fp32 error vs reference ownershipError:                      0.00006c  0.00015c  0.00037c  0.00152c
+: batched fp32 error vs reference winrateError:                0.00005%  0.00013%  0.00037%  0.00074%
+: batched fp32 error vs reference leadError:                   0.00001   0.00001   0.00005   0.00020
+: batched fp32 error vs reference scoreMeanError:              0.00001   0.00001   0.00004   0.00018
+: batched fp32 error vs reference scoreStdevError:             0.00001   0.00001   0.00004   0.00018
+: batched fp32 error vs reference topPolicyDelta:              0.00009%  0.00021%  0.00047%  0.00169%
+: batched fp32 error vs reference policyKLDiv:                 -0.000000  0.000000  0.000000  0.000000
+: batched fp32 error vs reference stWLErrorError:              0.00006c  0.00016c  0.00046c  0.00098c
+: batched fp32 error vs reference stScErrorError:              0.00000   0.00001   0.00002   0.00010
+: batched fp32 error vs reference ownershipError:              0.00006c  0.00015c  0.00037c  0.00152c
+: current cfg error vs reference winrateError:                 0.07596%  0.18374%  0.49104%  1.29434%
+: current cfg error vs reference leadError:                    0.01019   0.02185   0.06618   0.15652
+: current cfg error vs reference scoreMeanError:               0.00971   0.02108   0.05423   0.16874
+: current cfg error vs reference scoreStdevError:              0.01179   0.02145   0.04709   0.21885
+: current cfg error vs reference topPolicyDelta:               0.10558%  0.22551%  0.53470%  2.05290%
+: current cfg error vs reference policyKLDiv:                  0.000016  0.000033  0.000131  0.001405
+: current cfg error vs reference stWLErrorError:               0.10692c  0.25781c  0.73733c  2.35118c
+: current cfg error vs reference stScErrorError:               0.00437   0.01050   0.02836   0.15101
+: current cfg error vs reference ownershipError:               0.07860c  0.19234c  0.44668c  1.65364c
+: batched current cfg error vs reference winrateError:         0.07596%  0.18374%  0.49104%  1.29434%
+: batched current cfg error vs reference leadError:            0.01019   0.02185   0.06618   0.15652
+: batched current cfg error vs reference scoreMeanError:       0.00971   0.02108   0.05423   0.16874
+: batched current cfg error vs reference scoreStdevError:      0.01179   0.02145   0.04709   0.21885
+: batched current cfg error vs reference topPolicyDelta:       0.10558%  0.22551%  0.53470%  2.05290%
+: batched current cfg error vs reference policyKLDiv:          0.000016  0.000033  0.000131  0.001405
+: batched current cfg error vs reference stWLErrorError:       0.10692c  0.25781c  0.73733c  2.35118c
+: batched current cfg error vs reference stScErrorError:       0.00437   0.01050   0.02836   0.15101
+: batched current cfg error vs reference ownershipError:       0.07860c  0.19234c  0.44668c  1.65364c
+: GPU 100 finishing, processed 4358 rows 2725 batches
+: GPU 100 finishing, processed 4358 rows 2724 batches

@@ -84,3 +84,34 @@ xcrun devicectl device process launch --device <iPad> --console chinchangyang.Ka
 
 Afterwards: delete the prototype build from the iPad (or reinstall from TestFlight), and trash
 `~/Library/Caches/coreai-cache`.
+
+## The stage 2 runs (#41)
+
+The scripts and raw results behind
+[What are stage 2's visits/s and testgpuerror results on an idle Mac and the iPad A17 Pro?](https://github.com/ChinChangYang/KataGo/issues/41)
+are in `stage2/`. That ticket's resolution comment holds the numbers and the verdicts; this directory is the record.
+
+- **Positions** (`stage2/positions.json`): `empty`, `g1m100` (the first 100 moves of the first game in
+  `TestCommon::getMultiGameSize19Data`) and `g2m150` (the first 150 moves of the second), as GTP moves.
+- **visits/s**: root visits gained per second from t = 10 s to t = 70 s under `kata-analyze interval 100 rootInfo true`.
+- **iPad bench mode** (`AppEngineController.swift`, `GateBench`): launched with `-prototype.coreAI.bench 1` beside
+  `-prototype.coreAI.arm`, the app skips the UI handshake. It also reads `-prototype.coreAI.rep`, `-prototype.coreAI.position`
+  and `-prototype.coreAI.rest` (seconds). For each position it waits for a nominal thermal state, rests, and waits again.
+  It then measures, samples the thermal state with every visit sample, and appends one JSON line to
+  `Library/CoreAI/bench.jsonl` (`void` is true if the thermal state left nominal in the window). Then it exits.
+  `Library/CoreAI/positions.json` must be copied in beside the model.
+- **`stage2/run_ipad.sh`** (`DEVICE=<UDID>`): protocol v2 from the gate ticket. It does one launch per window,
+  alternates the arms per position and flips the order each step, redoes a void window up to 4 times, and resumes
+  past windows that already have a valid line.
+  - Every launch passes `-ModelRunnerView.pendingLoadModelTitle ""`. The bench bypasses the handshake, so the
+    crash sentinel would otherwise stay armed, and the next launch would never start the engine.
+  - App arguments go after `--` in `devicectl … launch`.
+  - Set Auto-Lock to Never: a locked iPad fails the launch with `FBSOpenApplicationErrorDomain` error 7.
+- **`stage2/run_mac.sh`** (`WORK`, `KATAGO_MODEL`) with **`stage2/vps.py`**: the Mac mux, `[0,100,100]` against
+  `[0,200,200]`, 16 search threads, the app's `default_gtp.cfg` without its `humanSL*` keys.
+- **`stage2/run_testgpuerror.sh`** (`WORK`, `KATAGO_MODEL`): the eight `testgpuerror` runs.
+- **`stage2/results/`**:
+  - `testgpuerror/`: the eight logs, plus `tables.md` with the `current cfg` ratios.
+  - `ipad_v2.jsonl`: the iPad run, protocol v2, void with an 8.0% spread.
+  - `ipad_v1/`: the first iPad run, back to back with no thermal check, void.
+  - `mac.jsonl`: the Mac run, void with a 21% spread on a busy machine.

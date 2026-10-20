@@ -1,0 +1,85 @@
+: Version 63dd94ea0bd590e87843094ac07bb774d7e2b3cb-mlx
+: Testing /Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/Resources/default_model.bin.gz
+: Testing on 13
+: Testing average errors between different GPU configurations...
+: For batch test, using batch size from nnMaxBatchSize in config: 8
+: Initializing nneval using current config...
+: nnRandSeed0 = 2485115191755766691
+: After dedups: nnModelFile0 = /Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/Resources/default_model.bin.gz useFP16 auto
+: Initializing neural net buffer to be size 13 * 13 allowing smaller boards
+: MLX backend thread 0: Model version 14
+: MLX backend thread 0: Model name: kata1-b18c384nbt-s9996604416-d4316597426
+: MLX backend thread 0: FP16 = true
+: MLX backend thread 0: gpuIdx = 200
+Core AI backend 0: slot 0 loaded in 0.837 s
+Core AI backend 0: slot 1 loaded in 0.003 s
+Core AI backend 0: slot 2 loaded in 0.003 s
+Core AI backend 0: slot 3 loaded in 0.003 s
+Core AI backend 0: slot 4 loaded in 0.003 s
+Core AI backend 0: slot 5 loaded in 0.003 s
+Core AI backend 0: slot 6 loaded in 0.003 s
+Core AI backend 0: slot 7 loaded in 0.003 s
+Core AI backend 0: 13x13.aimodel loaded, 8 slots, 13x13, neuralEngine preferred
+: Initializing nneval in fp32...
+: nnRandSeed0 = 14397307871989641642
+: After dedups: nnModelFile0 = /Users/chinchangyang/Code/KataGo-ios-dev/ios/KataGo iOS/Resources/default_model.bin.gz useFP16 auto
+: Initializing neural net buffer to be size 13 * 13 allowing smaller boards
+: MLX backend thread 0: Model version 14
+: MLX backend thread 0: Model name: kata1-b18c384nbt-s9996604416-d4316597426
+: MLX backend thread 0: FP16 = false
+: MLX backend thread 0: gpuIdx = 200
+Core AI backend 0: slot 0 loaded in 0.004 s
+Core AI backend 0: slot 1 loaded in 0.003 s
+Core AI backend 0: slot 2 loaded in 0.003 s
+Core AI backend 0: slot 3 loaded in 0.003 s
+Core AI backend 0: slot 4 loaded in 0.003 s
+Core AI backend 0: slot 5 loaded in 0.003 s
+Core AI backend 0: slot 6 loaded in 0.003 s
+Core AI backend 0: slot 7 loaded in 0.003 s
+Core AI backend 0: 13x13.aimodel loaded, 8 slots, 13x13, neuralEngine preferred
+: Loaded reference values for 2146 positions from: refs/ref_13.bin
+: Beginning evaluations! These may take a long time on pure CPU, or on a weak GPU, but on a decent GPU shouldn't take too long.
+: Running evaluations in fp32
+: Running batched evaluations in fp32
+: Running evaluations using current config
+: Running batched evaluations using current config
+: Computed stats on 2146 positions
+: Reporting the average, 90%, 99%, and max abs error between the following configurations: 
+: fp32 error vs reference winrateError:                        0.14691%  0.33096%  0.66454%  1.05953%
+: fp32 error vs reference leadError:                           0.01649   0.03289   0.07586   0.38136
+: fp32 error vs reference scoreMeanError:                      0.01842   0.03713   0.06666   0.31723
+: fp32 error vs reference scoreStdevError:                     0.01496   0.02403   0.04694   0.11585
+: fp32 error vs reference topPolicyDelta:                      0.10932%  0.24850%  0.62942%  1.04875%
+: fp32 error vs reference policyKLDiv:                         0.000019  0.000040  0.000164  0.000354
+: fp32 error vs reference stWLErrorError:                      0.08412c  0.18293c  0.65187c  1.62732c
+: fp32 error vs reference stScErrorError:                      0.00328   0.00718   0.02554   0.10292
+: fp32 error vs reference ownershipError:                      0.05844c  0.13376c  0.29673c  1.59258c
+: batched fp32 error vs reference winrateError:                0.14691%  0.33096%  0.66454%  1.05953%
+: batched fp32 error vs reference leadError:                   0.01649   0.03289   0.07586   0.38136
+: batched fp32 error vs reference scoreMeanError:              0.01842   0.03713   0.06666   0.31723
+: batched fp32 error vs reference scoreStdevError:             0.01496   0.02403   0.04694   0.11585
+: batched fp32 error vs reference topPolicyDelta:              0.10932%  0.24850%  0.62942%  1.04875%
+: batched fp32 error vs reference policyKLDiv:                 0.000019  0.000040  0.000164  0.000354
+: batched fp32 error vs reference stWLErrorError:              0.08412c  0.18293c  0.65187c  1.62732c
+: batched fp32 error vs reference stScErrorError:              0.00328   0.00718   0.02554   0.10292
+: batched fp32 error vs reference ownershipError:              0.05844c  0.13376c  0.29673c  1.59258c
+: current cfg error vs reference winrateError:                 0.14691%  0.33096%  0.66454%  1.05953%
+: current cfg error vs reference leadError:                    0.01649   0.03289   0.07586   0.38136
+: current cfg error vs reference scoreMeanError:               0.01842   0.03713   0.06666   0.31723
+: current cfg error vs reference scoreStdevError:              0.01496   0.02403   0.04694   0.11585
+: current cfg error vs reference topPolicyDelta:               0.10932%  0.24850%  0.62942%  1.04875%
+: current cfg error vs reference policyKLDiv:                  0.000019  0.000040  0.000164  0.000354
+: current cfg error vs reference stWLErrorError:               0.08412c  0.18293c  0.65187c  1.62732c
+: current cfg error vs reference stScErrorError:               0.00328   0.00718   0.02554   0.10292
+: current cfg error vs reference ownershipError:               0.05844c  0.13376c  0.29673c  1.59258c
+: batched current cfg error vs reference winrateError:         0.14691%  0.33096%  0.66454%  1.05953%
+: batched current cfg error vs reference leadError:            0.01649   0.03289   0.07586   0.38136
+: batched current cfg error vs reference scoreMeanError:       0.01842   0.03713   0.06666   0.31723
+: batched current cfg error vs reference scoreStdevError:      0.01496   0.02403   0.04694   0.11585
+: batched current cfg error vs reference topPolicyDelta:       0.10932%  0.24850%  0.62942%  1.04875%
+: batched current cfg error vs reference policyKLDiv:          0.000019  0.000040  0.000164  0.000354
+: batched current cfg error vs reference stWLErrorError:       0.08412c  0.18293c  0.65187c  1.62732c
+: batched current cfg error vs reference stScErrorError:       0.00328   0.00718   0.02554   0.10292
+: batched current cfg error vs reference ownershipError:       0.05844c  0.13376c  0.29673c  1.59258c
+: GPU 200 finishing, processed 4292 rows 2684 batches
+: GPU 200 finishing, processed 4292 rows 2684 batches
