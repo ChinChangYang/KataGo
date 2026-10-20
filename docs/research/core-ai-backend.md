@@ -17,6 +17,12 @@ rests on something other than a published Apple page:
 
 ## 1. TL;DR
 
+**Verdict (2026-10-20): no-go.** The gate this note fed rejected a Core AI backend. On the iPad A17 Pro, Core AI
+reached 92% of CoreML/NE's throughput for single batch-1 evaluations and 101% with two in flight. Inside the engine
+that came to about 95% on steady positions, below the 98% bar. See
+[Go or no-go for the Core AI backend?](https://github.com/ChinChangYang/KataGo/issues/39) for the evidence and the
+conditions for a fresh effort.
+
 1. **What it is.** Core AI is Apple's new framework for running neural networks on device, in all five 27 OSes
    [D-CoreAI][SDK]. Apple calls it "the inference framework powering on-device Apple Intelligence" [W324] and says
    that for a custom model "Core AI is the right technology to use" [W102]. **Core ML is not deprecated**: its 27 SDK
