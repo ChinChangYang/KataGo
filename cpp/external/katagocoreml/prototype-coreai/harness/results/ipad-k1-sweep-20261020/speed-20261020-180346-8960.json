@@ -1,0 +1,468 @@
+{
+  "arguments" : [
+    "--mode",
+    "speed",
+    "--sweep",
+    "1,2",
+    "--k",
+    "2",
+    "--exit"
+  ],
+  "cacheRecoveries" : [
+
+  ],
+  "coremlModel" : "b18_19_n3",
+  "device" : {
+    "build" : "24A446",
+    "computeUnits" : [
+      "cpu",
+      "gpu",
+      "neuralEngine"
+    ],
+    "coreAIArchitecture" : "h16p",
+    "model" : "iPad16,1",
+    "os" : "Version 27.0.1 (Build 24A446)",
+    "platform" : "iOS"
+  },
+  "mode" : "speed",
+  "runs" : [
+    {
+      "arms" : [
+        {
+          "arm" : "coreml-app-b1x1",
+          "framework" : "coreml",
+          "latencyMs" : {
+            "p10" : 3.8991669999999998,
+            "p50" : 4.1719165,
+            "p90" : 4.4789710999999999,
+            "p99" : 4.7080895800000002
+          },
+          "medianThroughput" : 243.06507982439521,
+          "repSustainedThroughput" : [
+            244.48769892561924,
+            232.30056423707057,
+            241.99296203931129
+          ],
+          "repThroughput" : [
+            245.36363934145868,
+            232.93053044920302,
+            243.06507982439521
+          ],
+          "rowsPerRound" : 1,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.051151357904796871,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-encode-b1x1",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 4.1884421999999999,
+            "p50" : 4.5436250000000005,
+            "p90" : 4.8545619000000002,
+            "p99" : 5.0280812499999996
+          },
+          "medianThroughput" : 221.38790958562052,
+          "repSustainedThroughput" : [
+            224.58756639366001,
+            215.47552039606055,
+            221.93373302858873
+          ],
+          "repThroughput" : [
+            225.693310100464,
+            216.95209426568499,
+            221.38790958562052
+          ],
+          "rowsPerRound" : 1,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.039483709165239654,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-run-b1x1",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 4.2217833999999996,
+            "p50" : 4.6271040000000001,
+            "p90" : 4.8732538999999999,
+            "p99" : 5.0323002399999996
+          },
+          "medianThroughput" : 217.06490479424741,
+          "repSustainedThroughput" : [
+            221.31543847636789,
+            212.55805260654935,
+            219.52373471367491
+          ],
+          "repThroughput" : [
+            217.88668868121144,
+            209.89940151383649,
+            217.06490479424741
+          ],
+          "rowsPerRound" : 1,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.036796769035261481,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-encode-b1",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 4.1865338999999997,
+            "p50" : 4.5901250000000005,
+            "p90" : 4.8714838999999994,
+            "p99" : 5.0696204099999997
+          },
+          "medianThroughput" : 217.8392006869777,
+          "repSustainedThroughput" : [
+            221.13758345781048,
+            214.57656454242692,
+            222.06292947559027
+          ],
+          "repThroughput" : [
+            217.8392006869777,
+            216.40728630348545,
+            221.25017188372729
+          ],
+          "rowsPerRound" : 1,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.022231469657294542,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-run-b1",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 4.3030369000000004,
+            "p50" : 4.6266665000000007,
+            "p90" : 4.8821877999999996,
+            "p99" : 5.0036311600000003
+          },
+          "medianThroughput" : 218.23837763335976,
+          "repSustainedThroughput" : [
+            221.56188577547761,
+            210.8487773449115,
+            218.91611831200072
+          ],
+          "repThroughput" : [
+            219.47069374905766,
+            208.66478430164747,
+            218.23837763335976
+          ],
+          "rowsPerRound" : 1,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.049514249347858072,
+          "void" : true
+        }
+      ],
+      "bestCoreAI" : "coreai-encode-b1x1",
+      "config" : {
+        "block" : 100,
+        "blockWarmup" : 5,
+        "reps" : 3,
+        "samples" : 500,
+        "warmup" : 50
+      },
+      "coreml" : "coreml-app-b1x1",
+      "disqualified" : [
+
+      ],
+      "functions" : "per-model",
+      "judged" : false,
+      "k" : 1,
+      "label" : "speed K=1 (diagnostic)",
+      "ratio" : 0.91081742282998623,
+      "recordable" : true,
+      "reps" : [
+        {
+          "idle" : {
+            "lowPower" : false,
+            "otherCores" : 0.17896890588303199,
+            "problems" : [
+
+            ],
+            "thermal" : "nominal",
+            "time" : "2026-10-20T10:01:11Z",
+            "top" : [
+
+            ]
+          },
+          "thermalEnd" : "nominal",
+          "thermalStart" : "nominal"
+        },
+        {
+          "idle" : {
+            "lowPower" : false,
+            "otherCores" : 0.26728252275900521,
+            "problems" : [
+
+            ],
+            "thermal" : "nominal",
+            "time" : "2026-10-20T10:01:25Z",
+            "top" : [
+
+            ]
+          },
+          "thermalEnd" : "nominal",
+          "thermalStart" : "nominal"
+        },
+        {
+          "idle" : {
+            "lowPower" : false,
+            "otherCores" : 0.1987900880069238,
+            "problems" : [
+
+            ],
+            "thermal" : "nominal",
+            "time" : "2026-10-20T10:02:01Z",
+            "top" : [
+
+            ]
+          },
+          "thermalEnd" : "nominal",
+          "thermalStart" : "nominal"
+        }
+      ],
+      "verdict" : "VOID: a spread is 2% or more; repeat the run",
+      "void" : true
+    },
+    {
+      "arms" : [
+        {
+          "arm" : "coreml-app-b1x2",
+          "framework" : "coreml",
+          "latencyMs" : {
+            "p10" : 8.5868088999999994,
+            "p50" : 9.1426249999999989,
+            "p90" : 10.144561900000001,
+            "p99" : 10.386118009999999
+          },
+          "medianThroughput" : 219.73443774791536,
+          "repSustainedThroughput" : [
+            225.06011848646432,
+            218.7930478603561,
+            205.37598272035487
+          ],
+          "repThroughput" : [
+            223.76684747587362,
+            219.73443774791536,
+            202.16654813810422
+          ],
+          "rowsPerRound" : 2,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.098301839070622982,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-encode-b1x2",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 8.7435333000000011,
+            "p50" : 9.1449584999999995,
+            "p90" : 9.9183377999999998,
+            "p99" : 10.263601169999999
+          },
+          "medianThroughput" : 218.39574674283219,
+          "repSustainedThroughput" : [
+            224.60654079227527,
+            217.1280071852278,
+            206.79555505693011
+          ],
+          "repThroughput" : [
+            224.11266233180484,
+            218.39574674283219,
+            205.59079495998279
+          ],
+          "rowsPerRound" : 2,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.084808736653796332,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-run-b1x2",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 8.6590378000000001,
+            "p50" : 9.1716879999999996,
+            "p90" : 9.8768962000000009,
+            "p99" : 10.200697829999999
+          },
+          "medianThroughput" : 218.83435038421291,
+          "repSustainedThroughput" : [
+            226.28522769333955,
+            217.27172059062704,
+            206.14794662522996
+          ],
+          "repThroughput" : [
+            226.19796563204662,
+            218.83435038421291,
+            204.61144057247415
+          ],
+          "rowsPerRound" : 2,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.098643220416138822,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-encode-b2",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 8.8142753000000003,
+            "p50" : 9.2852290000000011,
+            "p90" : 10.100850600000001,
+            "p99" : 10.458094749999999
+          },
+          "medianThroughput" : 216.61822451363389,
+          "repSustainedThroughput" : [
+            222.3467907764948,
+            216.02644704814912,
+            200.04671903079048
+          ],
+          "repThroughput" : [
+            221.95865864611653,
+            216.61822451363389,
+            199.72413104399547
+          ],
+          "rowsPerRound" : 2,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.10264384565076899,
+          "void" : true
+        },
+        {
+          "arm" : "coreai-run-b2",
+          "framework" : "coreai",
+          "latencyMs" : {
+            "p10" : 8.8981000000000012,
+            "p50" : 9.2665214999999996,
+            "p90" : 10.0540334,
+            "p99" : 10.362315590000001
+          },
+          "medianThroughput" : 216.36679581059792,
+          "repSustainedThroughput" : [
+            221.45924728014472,
+            213.90674203637636,
+            199.80015021942327
+          ],
+          "repThroughput" : [
+            221.59283701154362,
+            216.36679581059792,
+            199.90088913916478
+          ],
+          "rowsPerRound" : 2,
+          "samplesPerRep" : [
+            500,
+            500,
+            500
+          ],
+          "spread" : 0.10025543795253794,
+          "void" : true
+        }
+      ],
+      "bestCoreAI" : "coreai-run-b1x2",
+      "config" : {
+        "block" : 100,
+        "blockWarmup" : 5,
+        "reps" : 3,
+        "samples" : 500,
+        "warmup" : 50
+      },
+      "coreml" : "coreml-app-b1x2",
+      "disqualified" : [
+
+      ],
+      "functions" : "per-model",
+      "judged" : true,
+      "k" : 2,
+      "label" : "speed K=2 (judged on the iPad)",
+      "ratio" : 0.99590374921233304,
+      "recordable" : true,
+      "reps" : [
+        {
+          "idle" : {
+            "lowPower" : false,
+            "otherCores" : 0.17556039327606218,
+            "problems" : [
+
+            ],
+            "thermal" : "nominal",
+            "time" : "2026-10-20T10:02:24Z",
+            "top" : [
+
+            ]
+          },
+          "thermalEnd" : "nominal",
+          "thermalStart" : "nominal"
+        },
+        {
+          "idle" : {
+            "lowPower" : false,
+            "otherCores" : 0.23739687055657741,
+            "problems" : [
+
+            ],
+            "thermal" : "nominal",
+            "time" : "2026-10-20T10:02:51Z",
+            "top" : [
+
+            ]
+          },
+          "thermalEnd" : "nominal",
+          "thermalStart" : "nominal"
+        },
+        {
+          "idle" : {
+            "lowPower" : false,
+            "otherCores" : 0.2958313909708285,
+            "problems" : [
+
+            ],
+            "thermal" : "nominal",
+            "time" : "2026-10-20T10:03:18Z",
+            "top" : [
+
+            ]
+          },
+          "thermalEnd" : "nominal",
+          "thermalStart" : "nominal"
+        }
+      ],
+      "verdict" : "VOID: a spread is 2% or more; repeat the run",
+      "void" : true
+    }
+  ]
+}
