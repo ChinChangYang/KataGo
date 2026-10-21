@@ -64,7 +64,51 @@ static float halfBitsToFloat(uint16_t h) {
   return x;
 }
 
-static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const string& name, vector<float>& buf) {
+//An "@BIN8G@" block's numFloats weights, restored to 32 bits in the model file's order: a convolution's (y, x, ic, oc)
+//or a matrix's (ic, oc), outChannels output channels. Each output channel's weights run in groups of 64 in that order,
+//the channel's last group shorter where its count is not a multiple of 64. The block is every group's scale, then
+//every group's bias, float32 little-endian, by output channel then group, then the weights q as uint8 by output
+//channel; a weight is q * scale + bias in float32.
+static void readGroupedBytes(istream& in, size_t numFloats, size_t outChannels, const string& name, vector<float>& buf) {
+  const size_t groupSize = 64;
+  if(outChannels == 0 || numFloats % outChannels != 0)
+    throw StringError(name + ": an @BIN8G@ block where no convolution's or matrix's weights are");
+  size_t channelSize = numFloats / outChannels;
+  size_t groupsPerChannel = (channelSize + groupSize - 1) / groupSize;
+  vector<float> scales(outChannels * groupsPerChannel);
+  vector<float> biases(outChannels * groupsPerChannel);
+  vector<uint8_t> q(numFloats);
+  in.read((char*)scales.data(), scales.size()*sizeof(float));
+  in.read((char*)biases.data(), biases.size()*sizeof(float));
+  in.read((char*)q.data(), q.size());
+
+  if(in.fail())
+    throw StringError(name + ": did not find the expected number of floats in binary float block");
+
+#if BYTE_ORDER == BIG_ENDIAN
+  for(vector<float>* floats : {&scales, &biases}) {
+    char* bytes = (char*)floats->data();
+    for(size_t i = 0; i<floats->size(); i++) {
+      //Reverse byte order for big endian
+      std::swap(bytes[i*4 + 0], bytes[i*4 + 3]);
+      std::swap(bytes[i*4 + 1], bytes[i*4 + 2]);
+    }
+  }
+#endif
+  for(size_t oc = 0; oc < outChannels; oc++) {
+    for(size_t i = 0; i < channelSize; i++) {
+      size_t group = oc * groupsPerChannel + i / groupSize;
+      //The product rounded to float before the sum, in two statements as the writer restores a weight: one
+      //expression may become a fused multiply-add, which rounds once
+      float scaled = (float)q[oc * channelSize + i] * scales[group];
+      buf[i * outChannels + oc] = scaled + biases[group];
+    }
+  }
+}
+
+static void readFloats(
+  istream& in, size_t numFloats, bool binaryFloats, const string& name, vector<float>& buf, size_t outChannels = 0
+) {
   buf.resize(numFloats);
   if(!binaryFloats) {
     string tmp;
@@ -76,8 +120,11 @@ static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const s
   else {
     //KataGo hacky model format - "@BIN@" followed by the expected number of 32 bit floats, in little-endian binary
     //or "@BIN16@" followed by that many IEEE 754 half floats, in little-endian binary, widened to 32 bits here
+    //or "@BIN8G@" followed by a convolution's or a matrix's weights in 8 bits, in groups of 64 along each of its
+    //outChannels output channels (readGroupedBytes), restored to 32 bits here
     testAssert(sizeof(float) == 4);
     bool halfFloats = false;
+    bool groupedBytes = false;
     {
       string s;
       int numCharsBeforeAt = 0;
@@ -97,10 +144,17 @@ static void readFloats(istream& in, size_t numFloats, bool binaryFloats, const s
         s += (char)in.get();
         halfFloats = true;
       }
-      if(s != (halfFloats ? "BIN16@" : "BIN@"))
+      else if(s == "BIN8") {
+        s += (char)in.get();
+        s += (char)in.get();
+        groupedBytes = true;
+      }
+      if(s != (halfFloats ? "BIN16@" : groupedBytes ? "BIN8G@" : "BIN@"))
         throw StringError(name + ": did not find expected header for binary float block");
     }
-    if(halfFloats) {
+    if(groupedBytes)
+      readGroupedBytes(in, numFloats, outChannels, name, buf);
+    else if(halfFloats) {
       vector<uint16_t> halves(numFloats);
       char* bytes = (char*)halves.data();
       in.read(bytes, numFloats*sizeof(uint16_t));
@@ -193,7 +247,7 @@ ConvLayerDesc::ConvLayerDesc(istream& in, bool binaryFloats) {
   int xStride = 1;
 
   vector<float> floats;
-  readFloats(in, (size_t)convYSize * convXSize * inChannels * outChannels, binaryFloats, name, floats);
+  readFloats(in, (size_t)convYSize * convXSize * inChannels * outChannels, binaryFloats, name, floats, outChannels);
   size_t idx = 0;
   for(int y = 0; y < convYSize; y++) {
     for(int x = 0; x < convXSize; x++) {
@@ -521,7 +575,7 @@ MatMulLayerDesc::MatMulLayerDesc(istream& in, bool binaryFloats) {
   int ocStride = 1;
 
   vector<float> floats;
-  readFloats(in, (size_t)inChannels * outChannels, binaryFloats, name, floats);
+  readFloats(in, (size_t)inChannels * outChannels, binaryFloats, name, floats, outChannels);
   size_t idx = 0;
   for(int ic = 0; ic < inChannels; ic++) {
     for(int oc = 0; oc < outChannels; oc++) {

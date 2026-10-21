@@ -63,7 +63,9 @@ private:
     int readInt();
     float readFloat();
     bool readBool();
-    std::vector<float> readFloats(size_t count, const std::string& name);
+    // outChannels: a convolution's or a matrix's, which an "@BIN8G@" block's groups run along
+    std::vector<float> readFloats(size_t count, const std::string& name, size_t outChannels = 0);
+    std::vector<float> readGroupedBytes(size_t count, size_t outChannels, const std::string& name);
 
     // Layer parsing functions
     ConvLayerDesc parseConvLayer();

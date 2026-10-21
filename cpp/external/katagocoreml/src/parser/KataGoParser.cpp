@@ -200,7 +200,7 @@ bool KataGoParser::readBool() {
     return readInt() != 0;
 }
 
-std::vector<float> KataGoParser::readFloats(size_t count, const std::string& name) {
+std::vector<float> KataGoParser::readFloats(size_t count, const std::string& name, size_t outChannels) {
     // Grow the output only as bytes actually arrive from the stream, never by trusting
     // `count` up front: dimensions are attacker-controlled, and a crafted header (a few
     // KB gzipped) declaring e.g. 10^11 weights would otherwise commit hundreds of GB of
@@ -228,27 +228,34 @@ std::vector<float> KataGoParser::readFloats(size_t count, const std::string& nam
             floats.push_back(readFloat());
     } else {
         // Binary: consume the "@BIN@" marker, then read count*4 raw bytes; or the "@BIN16@"
-        // marker, then count*2 bytes of IEEE 754 half floats, widened to 32 bits.
+        // marker, then count*2 bytes of IEEE 754 half floats, widened to 32 bits; or the "@BIN8G@"
+        // marker, then a convolution's or a matrix's weights in 8 bits (readGroupedBytes).
         char marker[7];
         readExact(reinterpret_cast<uint8_t*>(marker), 5, name);
         bool halfFloats = std::memcmp(marker, "@BIN1", 5) == 0;
-        if(halfFloats)
+        bool groupedBytes = std::memcmp(marker, "@BIN8", 5) == 0;
+        if(halfFloats || groupedBytes)
             readExact(reinterpret_cast<uint8_t*>(marker + 5), 2, name);
-        if(std::memcmp(marker, halfFloats ? "@BIN16@" : "@BIN@", halfFloats ? 7 : 5) != 0)
-            throw std::runtime_error(name + ": expected @BIN@ or @BIN16@ marker for binary float block");
+        const char* expected = halfFloats ? "@BIN16@" : groupedBytes ? "@BIN8G@" : "@BIN@";
+        if(std::memcmp(marker, expected, std::strlen(expected)) != 0)
+            throw std::runtime_error(name + ": expected @BIN@, @BIN16@ or @BIN8G@ marker for binary float block");
 
-        std::vector<uint16_t> halves;
-        while(floats.size() < count) {
-            size_t take = std::min(CHUNK_FLOATS, count - floats.size());
-            size_t done = floats.size();
-            floats.resize(done + take);
-            if(halfFloats) {
-                halves.resize(take);
-                readExact(reinterpret_cast<uint8_t*>(halves.data()), take * 2, name);
-                for(size_t i = 0; i < take; i++)
-                    floats[done + i] = halfBitsToFloat(halves[i]);
-            } else {
-                readExact(reinterpret_cast<uint8_t*>(floats.data() + done), take * 4, name);
+        if(groupedBytes) {
+            floats = readGroupedBytes(count, outChannels, name);
+        } else {
+            std::vector<uint16_t> halves;
+            while(floats.size() < count) {
+                size_t take = std::min(CHUNK_FLOATS, count - floats.size());
+                size_t done = floats.size();
+                floats.resize(done + take);
+                if(halfFloats) {
+                    halves.resize(take);
+                    readExact(reinterpret_cast<uint8_t*>(halves.data()), take * 2, name);
+                    for(size_t i = 0; i < take; i++)
+                        floats[done + i] = halfBitsToFloat(halves[i]);
+                } else {
+                    readExact(reinterpret_cast<uint8_t*>(floats.data() + done), take * 4, name);
+                }
             }
         }
     }
@@ -262,6 +269,50 @@ std::vector<float> KataGoParser::readFloats(size_t count, const std::string& nam
         }
     }
 
+    return floats;
+}
+
+// An "@BIN8G@" block's `count` weights, restored to 32 bits in the model file's order: a convolution's
+// [y, x, ic, oc] or a matrix's [ic, oc], `outChannels` output channels. Each output channel's weights run
+// in groups of 64 in that order, the channel's last group shorter where its count is not a multiple of 64.
+// The block is every group's scale, then every group's bias (float32, little-endian, by output channel
+// then group), then the weights q as uint8 by output channel; a weight is q * scale + bias in float32.
+// As readFloats does, it grows its buffers only as bytes arrive.
+std::vector<float> KataGoParser::readGroupedBytes(size_t count, size_t outChannels, const std::string& name) {
+    constexpr size_t GROUP_SIZE = 64;
+    constexpr size_t CHUNK = size_t(1) << 20;
+    if(outChannels == 0 || count % outChannels != 0)
+        throw std::runtime_error(name + ": an @BIN8G@ block where no convolution's or matrix's weights are");
+    size_t channelSize = count / outChannels;
+    size_t groupsPerChannel = (channelSize + GROUP_SIZE - 1) / GROUP_SIZE;
+    size_t numGroups = outChannels * groupsPerChannel;   // at most count
+
+    auto readChunked = [&](auto& out, size_t n) {
+        using Item = typename std::decay_t<decltype(out)>::value_type;
+        while(out.size() < n) {
+            size_t take = std::min(CHUNK, n - out.size());
+            size_t done = out.size();
+            out.resize(done + take);
+            readExact(reinterpret_cast<uint8_t*>(out.data() + done), take * sizeof(Item), name);
+        }
+    };
+    std::vector<float> scales;
+    std::vector<float> biases;
+    std::vector<uint8_t> q;
+    readChunked(scales, numGroups);
+    readChunked(biases, numGroups);
+    readChunked(q, count);
+
+    std::vector<float> floats(count);
+    for(size_t oc = 0; oc < outChannels; oc++) {
+        for(size_t i = 0; i < channelSize; i++) {
+            size_t group = oc * groupsPerChannel + i / GROUP_SIZE;
+            // The product rounded to float before the sum, in two statements as the writer restores a
+            // weight: one expression may become a fused multiply-add, which rounds once.
+            float scaled = static_cast<float>(q[oc * channelSize + i]) * scales[group];
+            floats[i * outChannels + oc] = scaled + biases[group];
+        }
+    }
     return floats;
 }
 
@@ -311,7 +362,7 @@ ConvLayerDesc KataGoParser::parseConvLayer() {
             checkedMul(static_cast<size_t>(layer.conv_y_size), static_cast<size_t>(layer.conv_x_size)),
             static_cast<size_t>(layer.in_channels)),
         static_cast<size_t>(layer.out_channels));
-    std::vector<float> weights_flat = readFloats(num_weights, layer.name);
+    std::vector<float> weights_flat = readFloats(num_weights, layer.name, static_cast<size_t>(layer.out_channels));
 
     // Transpose from [y, x, ic, oc] to [oc, ic, y, x]
     layer.weights.resize(num_weights);
@@ -429,7 +480,7 @@ MatMulLayerDesc KataGoParser::parseMatMulLayer() {
 
     // Weights in [ic, oc] order
     size_t num_weights = static_cast<size_t>(layer.in_channels) * layer.out_channels;
-    layer.weights = readFloats(num_weights, layer.name);
+    layer.weights = readFloats(num_weights, layer.name, static_cast<size_t>(layer.out_channels));
 
     return layer;
 }
