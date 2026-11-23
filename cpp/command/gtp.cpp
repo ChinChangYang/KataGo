@@ -367,6 +367,10 @@ struct GTPEngine {
   vector<Move> moveHistory;
 
   vector<double> recentWinLossValues;
+  //Those of recentWinLossValues from each player's own searches. Resignation counts a player's own turns, so that
+  //a search for the other player (the same engine asked to genmove for both) is not one of them.
+  vector<double> recentWinLossValuesBlack;
+  vector<double> recentWinLossValuesWhite;
   double lastSearchFactor;
   double desiredDynamicPDAForWhite;
   std::unique_ptr<PatternBonusTable> patternBonusTable;
@@ -419,6 +423,8 @@ struct GTPEngine {
      initialPla(P_BLACK),
      moveHistory(),
      recentWinLossValues(),
+     recentWinLossValuesBlack(),
+     recentWinLossValuesWhite(),
      lastSearchFactor(1.0),
      desiredDynamicPDAForWhite(0.0),
      patternBonusTable(std::move(pbTable)),
@@ -579,6 +585,8 @@ struct GTPEngine {
     initialPla = newInitialPla;
     moveHistory = newMoveHistory;
     recentWinLossValues.clear();
+    recentWinLossValuesBlack.clear();
+    recentWinLossValuesWhite.clear();
     updateDynamicPDA();
   }
 
@@ -1238,10 +1246,12 @@ struct GTPEngine {
 
     //Record data for resignation or adjusting handicap behavior ------------------------
     recentWinLossValues.push_back(winLossValue);
+    vector<double>& ownWinLossValues = pla == P_BLACK ? recentWinLossValuesBlack : recentWinLossValuesWhite;
+    ownWinLossValues.push_back(winLossValue);
 
     //Decide whether we should resign---------------------
     bool resigned = gargs.allowResignation && shouldResign(
-      search->getRootBoard(),search->getRootHist(),pla,recentWinLossValues,lead,
+      search->getRootBoard(),search->getRootHist(),pla,ownWinLossValues,lead,
       gargs.resignThreshold,gargs.resignConsecTurns,gargs.resignMinScoreDifference,gargs.resignMinMovesPerBoardArea
     );
 
