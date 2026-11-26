@@ -146,11 +146,16 @@ The app uses KataGo's GTP extensions including:
 
 - **`ios-dev` is the release branch.** Every push to it makes Xcode Cloud build and ship the apps to TestFlight, so it receives work only when the user releases. `pre-push` refuses a push to it unless `KATAGO_RELEASE=1` is set, and only the user sets it.
 - **Develop on `feature/*` branches cut from `ios-dev`.** Xcode Cloud ignores them, so they can be pushed when asked. `/implement-spec` integration branches and `prototype/*` branches work the same way. PR bases and `/code-review` / `/pr` fixed points are `ios-dev`, even where a tool or skill defaults to `master`.
+- **Review before `ios-dev`.** Work reaches `ios-dev` once `/code-review` against `origin/ios-dev` has run on it and its findings are settled.
 - **Never merge `ios-dev` into `master`.** Merges flow one way, `origin/master` → `ios-dev`.
 
 ### Guardrails
 
 Run `scripts/git-hooks/install.sh` once per clone, and again after changing `scripts/git-hooks/` (then run its `selftest.sh`). `pre-push` is the authoritative hook: it refuses ios-dev history on `master`, gates pushes to `ios-dev` behind `KATAGO_RELEASE=1`, and scans every commit you publish for CJK. `pre-commit` and `commit-msg` only warn early.
+
+### Coding standards
+
+`CODING_STANDARDS.md` at the repo root, read at review. A design ruling from the user that a reviewer must enforce is written there, with its date.
 
 ### Issue tracker
 
