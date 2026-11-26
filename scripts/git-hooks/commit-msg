@@ -1,0 +1,50 @@
+#!/usr/bin/perl
+# Managed by scripts/git-hooks/install.sh
+# English only, early warning: rejects a commit message with CJK. This hook
+# cannot see every option that decides what git keeps (--cleanup=, a user-set
+# GIT_EDITOR), so it always skips comment lines and git's scissors block, and
+# never blocks on a guess. pre-push judges the message git actually recorded.
+# Bypass a genuine exception with: git commit --no-verify
+use strict;
+use warnings;
+use FindBin;
+use lib $FindBin::RealBin;
+use KataGoCJK;
+
+my $file = shift or die "commit-msg: no message file\n";
+open(my $fh, '<:raw', $file) or die "commit-msg: cannot read $file: $!\n";
+my @raw = <$fh>;
+close $fh;
+
+sub config {
+    my ($key) = @_;
+    my $value = `git config --get $key`;
+    return '' unless defined $value;
+    chomp $value;
+    return $value;
+}
+
+# The comment marker is whichever comment key git read last; "auto" may pick
+# any of these characters.
+my @comment = ('#');
+my @keys = `git config --get-regexp '^core\\.comment(char|string)\$'`;
+if (@keys) {
+    (my $value = $keys[-1]) =~ s/^\S+ //;
+    chomp $value;
+    ($value) = KataGoCJK::decode_line($value);
+    @comment = $value eq 'auto' ? split(//, '#;@!$%^&|:') : ($value);
+}
+
+my $encoding = config('i18n.commitEncoding');
+my @found;
+for my $bytes (@raw) {
+    (my $line = $bytes) =~ s/\r?\n\z//;
+    my ($text, $valid) = KataGoCJK::decode_as($encoding, $line);
+    last if grep { $text =~ /^\Q$_\E -{24} >8 -{24}\z/ } @comment;
+    next if grep { index($text, $_) == 0 } @comment;
+    my $why = KataGoCJK::problem($text, $valid) or next;
+    push @found, ['(message)', $text, $why];
+}
+
+exit 0 unless KataGoCJK::report('commit-msg: the message breaks the English-only rule:', @found);
+exit 1;

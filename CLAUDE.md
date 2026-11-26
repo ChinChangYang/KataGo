@@ -78,7 +78,7 @@ There is **no** `.mlpackage` to download: the CoreML model is generated on the f
 
 **C++ Engine (`cpp/`)**: The core KataGo engine. The Apple app compiles the **MLX** backend (`USE_MLX_BACKEND`):
 - `neuralnet/mlxbackend.cpp` - the backend the app compiles; dispatches each eval to either Apple's Neural Engine (CoreML) or the GPU (MLX) based on the selected device. Winograd autotuning lives in `mlxwinotuner.{cpp,h}` / `mlxwinograd.h`.
-- CoreML model conversion, loading, and caching are handled Swift-side: `CoreMLComputeHandleLoader.swift` (in the iOS app target `KataGo iOS/` and the macOS app target `KataGo Anytime Mac/`) and `CoreMLModelCache.swift` (in the `CoreMLCacheKit` target of the `KataGoUICore` package) — there is no `coremlbackend.cpp`.
+- CoreML conversion is C++ (`cpp/external/katagocoreml/`): `src/builder/MILBuilder.cpp` builds the MIL program from a `.bin.gz` (Mish is lowered in `addMishOps`). Swift drives it and loads the result in `CoreMLComputeHandleLoader.swift` (in the iOS app target `KataGo iOS/` and the macOS app target `KataGo Anytime Mac/`), and `CoreMLModelCache.swift` (in the `CoreMLCacheKit` target of the `KataGoUICore` package) caches compiled models — there is no `coremlbackend.cpp`.
 - `neuralnet/metalbackend.{cpp,swift}` - legacy Metal backend, superseded by MLX and not active in the app (the app defines `USE_MLX_BACKEND`, not `USE_METAL_BACKEND`).
 - Standard upstream backends: CUDA, OpenCL, Eigen (CPU), TensorRT.
 
@@ -139,3 +139,32 @@ The app uses KataGo's GTP extensions including:
 - visionOS 26+
 - tvOS 26+ — **never a bare multi-option `Picker`**: the default style squeezes every option into one horizontal segment row and truncates the labels (11 rulesets clipped to 3 characters, 259 ranks illegible); use drill-down rows instead. Nothing on a tvOS screen may truncate or wrap — if explanatory prose does not fit one line, cut it.
 - watchOS 26+ (standalone read-only game library, synced over iCloud; no connection to the iPhone)
+
+## Agent skills
+
+### Branches
+
+- **`ios-dev` is the release branch.** Every push to it makes Xcode Cloud build and ship the apps to TestFlight, so it receives work only when the user releases. `pre-push` refuses a push to it unless `KATAGO_RELEASE=1` is set, and only the user sets it.
+- **Develop on `feature/*` branches cut from `ios-dev`.** Xcode Cloud ignores them, so they can be pushed when asked. `/implement-spec` integration branches and `prototype/*` branches work the same way. PR bases and `/code-review` / `/pr` fixed points are `ios-dev`, even where a tool or skill defaults to `master`.
+- **Review before `ios-dev`.** Work reaches `ios-dev` once `/code-review` against `origin/ios-dev` has run on it and its findings are settled.
+- **Never merge `ios-dev` into `master`.** Merges flow one way, `origin/master` → `ios-dev`.
+
+### Guardrails
+
+Run `scripts/git-hooks/install.sh` once per clone, and again after changing `scripts/git-hooks/` (then run its `selftest.sh`). `pre-push` is the authoritative hook: it refuses ios-dev history on `master`, gates pushes to `ios-dev` behind `KATAGO_RELEASE=1`, and scans for CJK every commit you made that the push publishes (a commit someone else made, such as upstream's, passes). `pre-commit` and `commit-msg` only warn early.
+
+### Coding standards
+
+`CODING_STANDARDS.md` at the repo root, read at review. A design ruling from the user that a reviewer must enforce is written there, with its date.
+
+### Issue tracker
+
+GitHub Issues on the fork `ChinChangYang/KataGo` (never upstream `lightvector/KataGo`), via `gh`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default role labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context. The glossary is `CONTEXT.md` at the repo root: read and write it wherever a skill says `GLOSSARY.md`, and never create a `GLOSSARY.md`. ADRs are in `docs/adr/`. See `docs/agents/domain.md`.

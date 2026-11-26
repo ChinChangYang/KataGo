@@ -1,0 +1,35 @@
+#!/usr/bin/perl
+# Managed by scripts/git-hooks/install.sh
+# English only, early warning: rejects staged added lines and new paths that
+# contain CJK or are not UTF-8. Vendored trees are skipped, and in a merge the
+# text a merged head brought in passes. git runs no pre-commit for cherry-pick,
+# revert or am; pre-push judges every recorded commit, so nothing slips past.
+# Bypass a genuine exception with: git commit --no-verify
+use strict;
+use warnings;
+use FindBin;
+use lib $FindBin::RealBin;
+use KataGoCJK;
+
+my @hits = eval {
+    my $git_dir = KataGoCJK::command_output('git', 'rev-parse', '--git-dir');
+    chomp $git_dir;
+    my @heads;
+    if (open(my $fh, '<', "$git_dir/MERGE_HEAD")) {
+        @heads = grep { /\S/ } map { (split ' ')[0] // '' } <$fh>;
+    }
+    KataGoCJK::staged_problems(@heads);
+};
+if ($@) {
+    print STDERR "pre-commit: could not scan the staged changes: $@";
+    exit 1;
+}
+# git lfs update --force replaces pre-push without a word; say so here.
+my $push_hook = "$FindBin::RealBin/pre-push";
+if (-e "$FindBin::RealBin/KataGoCJK.pm" && open(my $ph, '<', $push_hook)) {
+    my $tagged = grep { /^# Managed by scripts\/git-hooks\/install\.sh$/ } <$ph>;
+    print STDERR "pre-commit: warning: $push_hook is not the guardrail hook; re-run scripts/git-hooks/install.sh.\n" unless $tagged;
+}
+
+exit 0 unless KataGoCJK::report('pre-commit: staged additions break the English-only rule:', @hits);
+exit 1;
