@@ -21,14 +21,39 @@ struct InfoView: View {
     // (this view unmounts while the board is full screen).
     @Binding var selectedTab: InfoTabs
     @FocusState<Bool>.Binding var commentIsFocused: Bool
+    @Environment(GobanState.self) private var gobanState
+    /// Optional so the previews, which mount no session, still build a pane.
+    @Environment(GameSession.self) private var session: GameSession?
+    /// The record's move count, read off the projector's replay whenever the
+    /// record's SGF changes — never in `body`, which must not run a replay.
+    /// Nil until read, and for a record that cannot be parsed.
+    @State private var moveCount: Int?
+
+    private var offersStartCard: Bool {
+        FreshBoard.isFresh(moveCount: moveCount,
+                           config: gameRecord.concreteConfig,
+                           gobanState: gobanState)
+    }
 
     var body: some View {
         ZStack {
             VStack {
                 Group {
                     if selectedTab == .chart {
-                        LinePlotView(gameRecord: gameRecord)
-                            .padding()
+                        if offersStartCard {
+                            // A fresh board has no chart to draw; offer a
+                            // game where the empty axes would be.
+                            PlayKataGoCard()
+                                // A card, not a banner: on an iPad the
+                                // pane is as wide as the board.
+                                .frame(maxWidth: 520)
+                                .padding(.horizontal)
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .transition(.opacity.combined(with: .scale(scale: 0.96)))
+                        } else {
+                            LinePlotView(gameRecord: gameRecord)
+                                .padding()
+                        }
                     } else {
                         CommentView(gameRecord: gameRecord)
                             .padding(.horizontal)
@@ -61,6 +86,10 @@ struct InfoView: View {
                 )
                 .foregroundStyle(.primary)
             }
+        }
+        .animation(.snappy, value: offersStartCard)
+        .onChange(of: gameRecord.sgf, initial: true) { _, sgf in
+            moveCount = session?.recordPosition.withReplay(for: sgf) { $0.moveCount }
         }
     }
 

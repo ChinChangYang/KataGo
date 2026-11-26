@@ -847,6 +847,12 @@ public class TopUIState {
 
     public var confirmingDeletion = false
 
+    /// Presents the "Play KataGo" New Game sheet. Here rather than on any one
+    /// view because three places ask for it — the ⋯ menu, the start card a
+    /// fresh board shows in place of its empty chart, and the "Select a game"
+    /// empty state — while one host (`GameSplitView`) presents it. iOS only.
+    public var presentingNewGame = false
+
     /// True while the game list is in multi-select mode (circles shown per row).
     public var isSelecting = false
 

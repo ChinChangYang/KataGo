@@ -29,9 +29,18 @@ struct PlusMenuView: View {
 
     var body: some View {
         Menu {
-            // Create actions: a fresh board, or a copy of the selected game
-            // (Clone keeps its Whole Game / Current Position dialog below).
+            // Create actions: a game against KataGo, a fresh board, or a copy
+            // of the selected game (Clone keeps its Whole Game / Current
+            // Position dialog below).
             Menu {
+                // First: the entries below make a board, this one makes a
+                // game. The sheet is hosted by `GameSplitView`; this only asks.
+                Button {
+                    topUIState.presentingNewGame = true
+                } label: {
+                    Label("Play KataGo…", systemImage: "circle.lefthalf.filled")
+                }
+
                 Button {
                     withAnimation {
                         let newGameRecord = GameRecord.createGameRecord(maxBoardLength: maxBoardLength)

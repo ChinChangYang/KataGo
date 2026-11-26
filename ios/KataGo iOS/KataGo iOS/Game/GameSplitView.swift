@@ -132,6 +132,13 @@ struct GameSplitView: View {
             }) { pending in
                 photoImportSheet(for: pending)
             }
+            .sheet(isPresented: $topUIState.presentingNewGame) {
+                NavigationStack {
+                    NewGameSheet(maxBoardLength: maxBoardLength) { form, showsHints in
+                        startNewGame(form, showsHints: showsHints)
+                    }
+                }
+            }
 #if os(iOS)
             .fullScreenCover(isPresented: $topUIState.capturingBoardPhoto) {
                 BoardCameraView(
@@ -165,6 +172,40 @@ struct GameSplitView: View {
                                    source: .camera)
             }
 #endif
+    }
+
+    /// Creates the game the New Game sheet described and opens it, ready to
+    /// be played: KataGo on its side at the chosen rank, the person on theirs.
+    ///
+    /// Record work only — the SGF is the form's, the board is replayed from
+    /// it, and the engine is told by the game switch like any other. So a game
+    /// can be started while the net is still loading; the status line over the
+    /// new board reports the launch, and the opponent moves when it lands.
+    private func startNewGame(_ form: TVNewGameForm, showsHints: Bool) {
+        guard let sgf = form.sgf else { return }
+        // Named by the rank alone ("vs KataGo 5k"): the style year a rank
+        // starts at is on the player label, and a title is read at a glance.
+        let name = form.rankKind == RankCatalog.aiProfile
+            ? "vs KataGo"
+            : "vs KataGo \(form.rankKind)"
+        let record = GameRecord.createGameRecord(sgf: sgf, name: name)
+        form.apply(to: record.concreteConfig)
+        modelContext.insert(record)
+
+        // A game made to be played opens unlocked. `loadGame` unlocks only the
+        // 19x19 default SGF by itself, so a 9x9 or a handicap game would land
+        // locked and every stone would go to a scratch branch.
+        gobanState.unlockEditingOnReload = true
+        // The engine on, whatever the sparkle was left at: `shouldGenMove`
+        // needs `.run`, and a cleared sparkle would leave the opponent silent.
+        // The eye is the display, and hints are the person's call.
+        gobanState.analysisStatus = .run
+        gobanState.eyeStatus = showsHints ? .opened : .closed
+
+        topUIState.presentingNewGame = false
+        withAnimation {
+            navigationContext.selectedGameRecord = record
+        }
     }
 
     /// Hosts the shared `PhotoImportSheet` for a picked board image. On import

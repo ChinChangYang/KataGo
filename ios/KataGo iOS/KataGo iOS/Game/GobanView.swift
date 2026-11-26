@@ -29,6 +29,7 @@ struct GobanView: View {
     @Binding var isEditorPresented: Bool
     @Environment(NavigationContext.self) var navigationContext
     @Environment(GobanState.self) var gobanState
+    @Environment(TopUIState.self) var topUIState
     @Environment(\.horizontalSizeClass) var horizontalSizeClass: UserInterfaceSizeClass?
     @State var toolbarUuid = UUID()
     var maxBoardLength: Int
@@ -84,13 +85,23 @@ struct GobanView: View {
                         }
                     }
             } else {
-                ContentUnavailableView("Select a game", systemImage: "sidebar.left")
-                    .toolbar {
-                        ToolbarItem {
-                            PlusMenuView(gameRecord: nil, maxBoardLength: maxBoardLength)
-                                .id(toolbarUuid)
-                        }
+                // No game is the moment to offer one, not only to point at
+                // the sidebar.
+                ContentUnavailableView {
+                    Label("Select a game", systemImage: "sidebar.left")
+                } actions: {
+                    Button("Play KataGo") {
+                        topUIState.presentingNewGame = true
                     }
+                    .buttonStyle(.glassProminent)
+                    .accessibilityIdentifier("EmptyState.playKataGo")
+                }
+                .toolbar {
+                    ToolbarItem {
+                        PlusMenuView(gameRecord: nil, maxBoardLength: maxBoardLength)
+                            .id(toolbarUuid)
+                    }
+                }
             }
         }
         .onChange(of: horizontalSizeClass) { _, _ in

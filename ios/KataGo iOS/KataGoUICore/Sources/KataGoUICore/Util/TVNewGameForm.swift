@@ -1,9 +1,10 @@
 import Foundation
 import KataGoGameStore
 
-/// Pure state + validation for the tvOS "Play KataGo" New Game form. Lives
-/// in the shared package so the iOS-simulator unit target covers it; the
-/// tvOS screen is a thin SwiftUI shell over this.
+/// Pure state + validation for the "Play KataGo" New Game form. Lives in the
+/// shared package so the iOS-simulator unit target covers it; the tvOS screen
+/// and the iOS New Game sheet (`NewGameSheet`) are thin SwiftUI shells over
+/// this. The name records where it started, not who may use it.
 public struct TVNewGameForm: Equatable {
     public static let quickSizes = [9, 13, 19]
     /// The 11 named presets; the granular Custom editor stays iOS/macOS.
