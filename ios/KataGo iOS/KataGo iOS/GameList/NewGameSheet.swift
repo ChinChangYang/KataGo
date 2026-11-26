@@ -99,8 +99,8 @@ struct NewGameSheet: View {
                     .accessibilityIdentifier("NewGame.handicap")
                 }
 
-                // What a hint is rides on the row itself, so the whole sheet
-                // fits an iPhone screen above the Start button.
+                // What a hint is rides on the row itself, not in a footer a
+                // scrolled form would leave behind.
                 Toggle(isOn: $showsHints) {
                     Text("Show hints")
                     Text("KataGo's analysis, drawn on the board")
@@ -122,9 +122,9 @@ struct NewGameSheet: View {
                     .accessibilityIdentifier("NewGame.cancel")
             }
         }
-        // A bar, not a bare inset: the form scrolls under it on a short
-        // screen, and the bar's edge effect is what keeps a row passing
-        // behind the button from reading as a second label on it.
+        // A bar, not a bare inset: the form is taller than the screen and
+        // scrolls under it, and the bar's edge effect is what keeps a row
+        // passing behind the button from reading as a second label on it.
         .safeAreaBar(edge: .bottom) {
             Button(action: start) {
                 Text("Start Game")
@@ -136,8 +136,16 @@ struct NewGameSheet: View {
             .controlSize(.large)
             .disabled(!form.canStart)
             .padding(.horizontal, 20)
+            .padding(.top, 10)
             .padding(.bottom, 8)
             .accessibilityIdentifier("NewGame.start")
+            // Opaque to the rows: the form is taller than the screen now, and
+            // a row showing through around the button reads as clutter.
+            .background {
+                Rectangle()
+                    .fill(.bar)
+                    .ignoresSafeArea(edges: .bottom)
+            }
         }
         .onAppear(perform: restoreLastChoices)
         .onChange(of: kind) { _, newKind in
@@ -151,8 +159,12 @@ struct NewGameSheet: View {
     /// against: the two things worth seeing before committing.
     private var hero: some View {
         VStack(spacing: 14) {
+            // The board at the full width the sheet has, never scaled down to
+            // make the form fit one screen: the form scrolls instead.
             boardPreview
-                .frame(width: 150, height: 150)
+                .aspectRatio(CGFloat(form.boardWidth) / CGFloat(form.boardHeight),
+                             contentMode: .fit)
+                .frame(maxWidth: .infinity)
                 .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 .shadow(color: .black.opacity(0.25), radius: 12, y: 6)
                 .padding(.top, 4)

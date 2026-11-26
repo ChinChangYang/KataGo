@@ -41,22 +41,17 @@ final class NewGameSheetUITests: PortraitUITestCase {
         let sheetBar = app.navigationBars["Play KataGo"]
         XCTAssertTrue(sheetBar.waitForExistence(timeout: 10), "The New Game sheet did not open")
 
-        // Black for the person, whatever an earlier run stored.
-        let black = app.buttons["Black"].firstMatch
-        XCTAssertTrue(reveal(black, in: app, by: { app.swipeUp() }, maxSwipes: 3),
-                      "The colour picker never came on screen")
-        black.tap()
-
-        let nine = app.buttons["9×9"].firstMatch
-        XCTAssertTrue(reveal(nine, in: app, by: { app.swipeUp() }, maxSwipes: 3),
-                      "The 9×9 board choice never came on screen")
-        nine.tap()
+        // The sheet opens on the board it will start, at the full width the
+        // sheet has: the board is never scaled down to fit the form on one
+        // screen. The form scrolls instead.
+        let start = app.buttons["NewGame.start"]
+        XCTAssertTrue(start.waitForExistence(timeout: 10), "Start Game is not shown")
 
         // Move the strength slider, then read back the rung it landed on: a
         // slider drag is not exact, so the expectation follows the sheet.
         let slider = app.sliders["NewGame.strength"]
-        XCTAssertTrue(reveal(slider, in: app, by: { app.swipeDown() }, maxSwipes: 3),
-                      "The strength slider never came on screen")
+        XCTAssertTrue(waitForOnScreen(slider, in: app, timeout: 10),
+                      "The strength slider is not on the sheet's first screen")
         slider.adjust(toNormalizedSliderPosition: 0.6)
         let title = app.staticTexts["NewGame.rankTitle"]
         XCTAssertTrue(title.waitForExistence(timeout: 5), "The sheet shows no rank title")
@@ -64,7 +59,18 @@ final class NewGameSheetUITests: PortraitUITestCase {
                                             "Unreadable rank title '\(title.label)'")
         attachScreenshot(app, named: "NewGameSheet")
 
-        let start = app.buttons["NewGame.start"]
+        // The choices are below the board: scroll each clear of the Start
+        // bar before tapping it. Black for the person, whatever an earlier
+        // run stored.
+        let black = app.buttons["Black"].firstMatch
+        XCTAssertTrue(scroll(black, above: start, in: app), "The colour picker never cleared the Start bar")
+        black.tap()
+
+        let nine = app.buttons["9×9"].firstMatch
+        XCTAssertTrue(scroll(nine, above: start, in: app), "The 9×9 choice never cleared the Start bar")
+        nine.tap()
+        attachScreenshot(app, named: "NewGameSheetScrolled")
+
         XCTAssertTrue(tapWhenSteady(start, in: app, timeout: 10), "Start Game is not on screen")
         XCTAssertTrue(sheetBar.waitForNonExistence(timeout: 10),
                       "The New Game sheet stayed up after Start Game")
@@ -136,6 +142,26 @@ final class NewGameSheetUITests: PortraitUITestCase {
         case "dan": return "\(parts[0])d 2016"
         default: return nil
         }
+    }
+
+    /// Swipes the sheet up until `element` sits wholly above `bar`, the
+    /// pinned Start button. "On screen" is not enough here: a row behind the
+    /// bar is on screen, and a tap on it would land on Start Game.
+    @MainActor
+    private func scroll(_ element: XCUIElement,
+                        above bar: XCUIElement,
+                        in app: XCUIApplication,
+                        maxSwipes: Int = 4) -> Bool {
+        func isClear() -> Bool {
+            waitForOnScreen(element, in: app, timeout: 3)
+                && element.frame.maxY < bar.frame.minY
+        }
+        var swipes = 0
+        while !isClear() && swipes < maxSwipes {
+            app.swipeUp()
+            swipes += 1
+        }
+        return isClear()
     }
 
     @MainActor
