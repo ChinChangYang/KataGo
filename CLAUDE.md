@@ -151,7 +151,7 @@ The app uses KataGo's GTP extensions including:
 
 ### Guardrails
 
-Run `scripts/git-hooks/install.sh` once per clone, and again after changing `scripts/git-hooks/` (then run its `selftest.sh`). `pre-push` is the authoritative hook: it refuses ios-dev history on `master`, gates pushes to `ios-dev` behind `KATAGO_RELEASE=1`, and scans every commit you publish for CJK. `pre-commit` and `commit-msg` only warn early.
+Run `scripts/git-hooks/install.sh` once per clone, and again after changing `scripts/git-hooks/` (then run its `selftest.sh`). `pre-push` is the authoritative hook: it refuses ios-dev history on `master`, gates pushes to `ios-dev` behind `KATAGO_RELEASE=1`, and scans for CJK every commit you made that the push publishes (a commit someone else made, such as upstream's, passes). `pre-commit` and `commit-msg` only warn early.
 
 ### Coding standards
 

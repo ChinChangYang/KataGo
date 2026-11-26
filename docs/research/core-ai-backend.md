@@ -17,11 +17,15 @@ rests on something other than a published Apple page:
 
 ## 1. TL;DR
 
-**Verdict (2026-10-20): no-go.** The gate this note fed rejected a Core AI backend. On the iPad A17 Pro, Core AI
-reached 92% of CoreML/NE's throughput for single batch-1 evaluations and 101% with two in flight. Inside the engine
-that came to about 95% on steady positions, below the 98% bar. See
-[Go or no-go for the Core AI backend?](https://github.com/ChinChangYang/KataGo/issues/39) for the evidence and the
-conditions for a fresh effort.
+**Verdict (2026-10-20): no-go, on iOS and macOS.** The gate this note fed rejected a Core AI backend. The iPad
+A17 Pro decided speed, by a rule fixed in advance: below 98% of CoreML/NE's throughput with a single evaluation in
+flight is a no-go. Core AI reached 89 to 90% there in the two arms whose spread counts (92% in the fastest arm,
+whose 2.3% spread is over the 2% rule) and 101% with two in flight. It costs about 0.4 ms more per call, inside
+its own runtime, and no change on our side can recover that. No in-engine visits/s run was valid; the void one
+read about 95% on steady positions, which fits. On the Mac, speed was not established and the macOS mux stays as
+it is. See [Go or no-go for the Core AI backend?](https://github.com/ChinChangYang/KataGo/issues/39) for the
+evidence and the conditions for a fresh effort. The rest of this note stands as written before the verdict: where
+it calls a rerun owed or a decision open, that issue settled it.
 
 1. **What it is.** Core AI is Apple's new framework for running neural networks on device, in all five 27 OSes
    [D-CoreAI][SDK]. Apple calls it "the inference framework powering on-device Apple Intelligence" [W324] and says

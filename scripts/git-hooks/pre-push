@@ -11,12 +11,12 @@
 #    so they pass on purpose. Shallow clones and grafts hide history, so a
 #    push to master from one is refused; replace refs are ignored.
 # 2. English only. Every pushed commit the push target does not have yet (by
-#    its own remote-tracking refs and the old tip), and that you committed, is scanned: the message as recorded, the lines it adds
-#    against every parent, the paths it adds, and new lines of UTF-16 files.
-#    Annotated tag messages and branch names are scanned too, and a tag of a
-#    tree or blob is refused. This catches what the commit hooks never see:
-#    cherry-pick, revert, am and --cleanup.
-#
+#    its own remote-tracking refs and the old tip), and that you committed, is
+#    scanned: the message as recorded, the lines it adds against every parent,
+#    the paths it adds, and new lines of UTF-16 files. Annotated tag messages
+#    and branch names are scanned too, and a tag of a tree or blob is refused.
+#    This catches what the commit hooks never see: cherry-pick, revert, am and
+#    --cleanup.
 # 3. ios-dev is the release branch: every push to it makes Xcode Cloud build
 #    and ship the apps to TestFlight. A push to it, deletion included, is
 #    refused unless KATAGO_RELEASE=1 is set, which only the user sets, for a
