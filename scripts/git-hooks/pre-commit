@@ -18,7 +18,7 @@ my @hits = eval {
     if (open(my $fh, '<', "$git_dir/MERGE_HEAD")) {
         @heads = grep { /\S/ } map { (split ' ')[0] // '' } <$fh>;
     }
-    KataGoCJK::staged_problems(@heads);
+    KataGoCJK::staged_hits(@heads);
 };
 if ($@) {
     print STDERR "pre-commit: could not scan the staged changes: $@";

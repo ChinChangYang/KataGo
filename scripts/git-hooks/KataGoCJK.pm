@@ -47,7 +47,7 @@ sub why_refused {
     my ($text, $valid) = @_;
     return 'CJK' if $text =~ $CJK_CHAR;
     return 'not UTF-8' unless $valid;
-    return undef;
+    return;
 }
 
 # A hit is what the hooks report: { where, text, why }.
@@ -57,11 +57,11 @@ sub hit {
 }
 
 # The hit for raw bytes found at $where (in $encoding, UTF-8 by default), or
-# undef when they pass.
-sub refused_bytes {
+# nothing when they pass.
+sub hit_in_bytes {
     my ($where, $bytes, $encoding) = @_;
     my ($text, $valid) = decode_as($encoding, $bytes);
-    my $why = why_refused($text, $valid) or return undef;
+    my $why = why_refused($text, $valid) or return;
     return hit($where, $text, $why);
 }
 
@@ -130,9 +130,8 @@ sub exists_in {
 
 # Lines a unified or combined diff adds, as { path, text, valid, bytes,
 # removed }, where removed refers to the text the same file loses in that
-# diff. In a combined
-# diff a line counts only when it is new against every parent, that is, when
-# all of its prefix columns are '+'.
+# diff. In a combined diff a line counts only when it is new against every
+# parent, that is, when all of its prefix columns are '+'.
 sub added_lines {
     my @cmd = @_;
     my (@out, %removed);
@@ -174,7 +173,7 @@ sub pre_existing {
 # Hits among added lines. A file whose added bytes are more than 1% control
 # characters is binary that git took for text (raw image fixtures, say) and is
 # skipped rather than reported line by line.
-sub line_problems {
+sub line_hits {
     my @lines = @_;
     my (%total, %control);
     for my $line (@lines) {
@@ -235,7 +234,7 @@ sub utf16_lines {
 # Hits in UTF-16 blobs: lines none of the old versions has. Each change is
 # { new, path, old => [object names] }, where new and old are object names, so
 # a rename compares with its source.
-sub utf16_problems {
+sub utf16_hits {
     my @hits;
     for my $change (@_) {
         my @lines = utf16_lines($change->{new}) or next;
@@ -246,11 +245,13 @@ sub utf16_problems {
     return @hits;
 }
 
-# The UTF-16 change for a changed blob: compared with the same path in each
-# of @revs, and with its source path too when it was renamed or copied.
+# The UTF-16 change for a changed blob ({ oid, src, path }, as raw_changes
+# gives it): compared with the same path in each of @revs, and with its
+# source path too when it was renamed or copied.
 sub utf16_change {
-    my ($new, $path, $src, @revs) = @_;
-    return { new => $new, path => $path,
+    my ($blob, @revs) = @_;
+    my ($path, $src) = @$blob{qw(path src)};
+    return { new => $blob->{oid}, path => $path,
              old => [map { ("$_:$path", ($src ne $path ? "$_:$src" : ())) } @revs] };
 }
 
@@ -284,11 +285,11 @@ sub upstream_text {
 }
 
 # Hits for paths that break the rule and that none of @revs already has.
-sub new_path_problems {
+sub new_path_hits {
     my ($paths, @revs) = @_;
     my @hits;
     for my $path (@$paths) {
-        my $hit = refused_bytes('(path)', $path) or next;
+        my $hit = hit_in_bytes('(path)', $path) or next;
         push @hits, $hit unless grep { exists_in($_, $path) } @revs;
     }
     return @hits;
@@ -296,41 +297,42 @@ sub new_path_problems {
 
 # Hits in the staged changes. In a merge, text that a merged head brings in
 # passes.
-sub staged_problems {
+sub staged_hits {
     my @heads = @_;
     my $has_head = quiet_ok('git', 'rev-parse', '-q', '--verify', 'HEAD^{commit}');
-    my @content = line_problems(added_lines(@GIT, 'diff', '--cached', @DIFF_OPTS, '-U0', '--diff-filter=ACMRT', @PATHS));
-    my @paths = new_path_problems(
+    my @lines = line_hits(added_lines(@GIT, 'diff', '--cached', @DIFF_OPTS, '-U0', '--diff-filter=ACMRT', @PATHS));
+    my @paths = new_path_hits(
         [split /\0/, command_output(@GIT, 'diff', '--cached', @DIFF_OPTS, '--name-only', '-z', '--diff-filter=ACR', @PATHS)],
         @heads);
     my @olds = (($has_head ? ('HEAD') : ()), @heads);
-    push @content, utf16_problems(map { utf16_change($_->{oid}, $_->{path}, $_->{src}, @olds) }
+    my @utf16 = utf16_hits(map { utf16_change($_, @olds) }
         raw_changes(@GIT, 'diff', '--cached', '--raw', '-z', '-M', '-l5000', '--diff-filter=ACMRT', @PATHS));
     if (@heads) {
         my $upstream = upstream_text($has_head ? 'HEAD' : null_tree(), @heads);
-        @content = grep { !$upstream->{$_->{text}} } @content;
+        @lines = grep { !$upstream->{$_->{text}} } @lines;
+        @utf16 = grep { !$upstream->{$_->{text}} } @utf16;
     }
-    return (@content, @paths);
+    return (@lines, @paths, @utf16);
 }
 
 # Hits in one recorded commit: its message as git stores it, the lines it adds
 # against every parent, and the paths it adds.
-sub commit_problems {
+sub commit_hits {
     my ($sha) = @_;
     my (undef, @parents) = split ' ', command_output('git', 'rev-list', '--parents', '-n', '1', $sha);
     my $message = command_output(@GIT, '-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-1', '--format=%B', $sha);
-    my @hits = grep { defined } map { refused_bytes('(message)', $_) } split /\n/, $message;
-    my @content = line_problems(added_lines(@GIT, 'show', '--format=', @DIFF_OPTS, '-U0', '--diff-merges=dense-combined', $sha, @PATHS));
+    my @hits = map { hit_in_bytes('(message)', $_) } split /\n/, $message;
+    my @content = line_hits(added_lines(@GIT, 'show', '--format=', @DIFF_OPTS, '-U0', '--diff-merges=dense-combined', $sha, @PATHS));
     my @changed = split /\0/, command_output(@GIT, 'diff-tree', '-r', '-z', '--root', '--no-commit-id', '--name-only', '--no-renames', (@parents > 1 ? ('-c') : ()), $sha, @PATHS);
-    push @hits, new_path_problems(\@changed, @parents);
+    push @hits, new_path_hits(\@changed, @parents);
     if (@parents > 1) {
-        push @content, utf16_problems(map { utf16_change("$sha:$_", $_, $_, @parents) } @changed);
+        push @content, utf16_hits(map { utf16_change({ oid => "$sha:$_", src => $_, path => $_ }, @parents) } @changed);
         if (@content) {
             my $upstream = upstream_text(@parents);
             @content = grep { !$upstream->{$_->{text}} } @content;
         }
     } else {
-        push @content, utf16_problems(map { utf16_change($_->{oid}, $_->{path}, $_->{src}, @parents) }
+        push @content, utf16_hits(map { utf16_change($_, @parents) }
             raw_changes('git', 'diff-tree', '-r', '-z', '--root', '--no-commit-id', '--raw', '-M', '-l5000', '--diff-filter=ACMRT', $sha, @PATHS));
     }
     return (@hits, @content);

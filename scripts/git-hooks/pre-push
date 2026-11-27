@@ -72,8 +72,8 @@ sub master_problem {
     return undef;
 }
 
-# Problems in the messages of a tag chain; returns the object it peels to.
-sub tag_problems {
+# Hits in the messages of a tag chain; returns the object it peels to.
+sub tag_hits {
     my ($oid, $ref) = @_;
     while (object_type($oid) eq 'tag') {
         my $body = KataGoCJK::command_output('git', 'cat-file', 'tag', $oid);
@@ -81,7 +81,7 @@ sub tag_problems {
         my ($encoding) = $header =~ /^encoding (.+)$/m;
         for my $line (split /\n/, $message // '') {
             last if $line =~ /^-----BEGIN (?:PGP|SSH) SIGNATURE-----/;
-            my $hit = KataGoCJK::refused_bytes("$ref (tag message)", $line, $encoding) or next;
+            my $hit = KataGoCJK::hit_in_bytes("$ref (tag message)", $line, $encoding) or next;
             push @hits, $hit;
         }
         ($oid) = $header =~ /^object (\S+)$/m;
@@ -112,7 +112,7 @@ my $ok = eval {
         }
         next unless $local_oid =~ /[^0]/;    # a deletion publishes nothing
 
-        if (my $hit = KataGoCJK::refused_bytes('(ref name)', $remote_ref)) {
+        if (my $hit = KataGoCJK::hit_in_bytes('(ref name)', $remote_ref)) {
             push @hits, $hit;
         }
 
@@ -121,7 +121,7 @@ my $ok = eval {
             fail("cannot read $local_oid for $local_ref.");
             next;
         }
-        my $peeled = $type eq 'tag' ? tag_problems($local_oid, $remote_ref) : $local_oid;
+        my $peeled = $type eq 'tag' ? tag_hits($local_oid, $remote_ref) : $local_oid;
         my $peeled_type = object_type($peeled);
         if ($peeled_type ne 'commit') {
             fail("refusing $remote_ref: it points at a $peeled_type, whose content this hook cannot check.");
@@ -146,7 +146,7 @@ my $ok = eval {
             next if $scanned{$sha}++;
             next if $email ne '' && lc($who) ne lc($email);
             my $short = substr($sha, 0, 9);
-            push @hits, map { +{ %$_, where => "$short $_->{where}" } } KataGoCJK::commit_problems($sha);
+            push @hits, map { KataGoCJK::hit("$short $_->{where}", $_->{text}, $_->{why}) } KataGoCJK::commit_hits($sha);
         }
     }
     1;
