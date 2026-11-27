@@ -89,6 +89,27 @@ git add up.txt
 check "an English edit of an existing CJK line passes pre-commit" 0 git commit -q -m "Edit the upstream line"
 check "upstream's own commit and that edit push" 0 git push -q origin upstream-text
 
+git switch -q -c merged topic
+git merge -q --no-ff --no-commit upstream-text > /dev/null 2>&1
+check "a merge that brings in upstream CJK passes pre-commit" 0 git commit -q -m "Merge upstream-text"
+check "that merge pushes" 0 git push -q origin merged
+
+git switch -q -c paths master
+echo x > "name-$cjk.txt"
+git add "name-$cjk.txt"
+check "pre-commit refuses a CJK path" 1 git commit -q -m "Add a file"
+git commit -q --no-verify -m "Add a file"
+check "pre-push refuses a CJK path committed with --no-verify" 1 git push -q origin paths
+git reset -q --hard master
+
+printf '\377\376\055\116\012\000' > text.strings    # UTF-16LE BOM, U+4E2D, newline
+git add text.strings
+check "pre-commit refuses CJK in a UTF-16 file" 1 git commit -q -m "Add strings"
+git commit -q --no-verify -m "Add strings"
+check "pre-push refuses CJK in a UTF-16 file committed with --no-verify" 1 git push -q origin paths
+git reset -q --hard master
+check "pre-push refuses a CJK branch name" 1 git push -q origin "master:refs/heads/note-$cjk"
+
 git clone -q "$tmp/remote.git" "$tmp/agent"
 git -C "$tmp/agent" config user.email selftest@example.invalid
 git -C "$tmp/agent" config user.name Selftest

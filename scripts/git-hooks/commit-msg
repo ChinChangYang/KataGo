@@ -39,11 +39,11 @@ my $encoding = config('i18n.commitEncoding');
 my @found;
 for my $bytes (@raw) {
     (my $line = $bytes) =~ s/\r?\n\z//;
-    my ($text, $valid) = KataGoCJK::decode_as($encoding, $line);
+    my ($text) = KataGoCJK::decode_as($encoding, $line);
     last if grep { $text =~ /^\Q$_\E -{24} >8 -{24}\z/ } @comment;
     next if grep { index($text, $_) == 0 } @comment;
-    my $why = KataGoCJK::problem($text, $valid) or next;
-    push @found, ['(message)', $text, $why];
+    my $hit = KataGoCJK::refused_bytes('(message)', $line, $encoding) or next;
+    push @found, $hit;
 }
 
 exit 0 unless KataGoCJK::report('commit-msg: the message breaks the English-only rule:', @found);
