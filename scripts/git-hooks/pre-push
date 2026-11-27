@@ -72,8 +72,8 @@ sub master_problem {
     return undef;
 }
 
-# Problems in the messages of a tag chain; returns the object it peels to.
-sub tag_problems {
+# Hits in the messages of a tag chain; returns the object it peels to.
+sub tag_hits {
     my ($oid, $ref) = @_;
     while (object_type($oid) eq 'tag') {
         my $body = KataGoCJK::command_output('git', 'cat-file', 'tag', $oid);
@@ -81,9 +81,8 @@ sub tag_problems {
         my ($encoding) = $header =~ /^encoding (.+)$/m;
         for my $line (split /\n/, $message // '') {
             last if $line =~ /^-----BEGIN (?:PGP|SSH) SIGNATURE-----/;
-            my ($text, $valid) = KataGoCJK::decode_as($encoding, $line);
-            my $why = KataGoCJK::problem($text, $valid) or next;
-            push @hits, ["$ref (tag message)", $text, $why];
+            my $hit = KataGoCJK::hit_in_bytes("$ref (tag message)", $line, $encoding) or next;
+            push @hits, $hit;
         }
         ($oid) = $header =~ /^object (\S+)$/m;
     }
@@ -113,9 +112,8 @@ my $ok = eval {
         }
         next unless $local_oid =~ /[^0]/;    # a deletion publishes nothing
 
-        my ($ref_text, $ref_valid) = KataGoCJK::decode_line($remote_ref);
-        if (my $why = KataGoCJK::problem($ref_text, $ref_valid)) {
-            push @hits, ['(ref name)', $ref_text, $why];
+        if (my $hit = KataGoCJK::hit_in_bytes('(ref name)', $remote_ref)) {
+            push @hits, $hit;
         }
 
         my $type = object_type($local_oid);
@@ -123,7 +121,7 @@ my $ok = eval {
             fail("cannot read $local_oid for $local_ref.");
             next;
         }
-        my $peeled = $type eq 'tag' ? tag_problems($local_oid, $remote_ref) : $local_oid;
+        my $peeled = $type eq 'tag' ? tag_hits($local_oid, $remote_ref) : $local_oid;
         my $peeled_type = object_type($peeled);
         if ($peeled_type ne 'commit') {
             fail("refusing $remote_ref: it points at a $peeled_type, whose content this hook cannot check.");
@@ -138,15 +136,17 @@ my $ok = eval {
             }
         }
 
-        my @known = @target_refs;
-        push @known, $remote_oid if $remote_oid && $remote_oid =~ /[^0]/
+        # What the target already has: its remote-tracking refs and old tip.
+        my @target_has = @target_refs;
+        push @target_has, $remote_oid if $remote_oid && $remote_oid =~ /[^0]/
             && KataGoCJK::quiet_ok('git', 'cat-file', '-e', "$remote_oid^{commit}");
-        for my $line (KataGoCJK::command_lines(@KataGoCJK::GIT, 'log', '--format=%H %ce', $peeled, '--not', @known)) {
+        for my $line (KataGoCJK::command_lines(@KataGoCJK::GIT, 'log', '--format=%H %ce', $peeled, '--not', @target_has)) {
             my ($sha, $committer) = split ' ', $line, 2;
             chomp(my $who = $committer // '');
             next if $scanned{$sha}++;
             next if $email ne '' && lc($who) ne lc($email);
-            push @hits, map { [substr($sha, 0, 9) . " $_->[0]", $_->[1], $_->[2]] } KataGoCJK::commit_problems($sha);
+            my $short = substr($sha, 0, 9);
+            push @hits, map { KataGoCJK::hit("$short $_->{where}", $_->{text}, $_->{why}) } KataGoCJK::commit_hits($sha);
         }
     }
     1;

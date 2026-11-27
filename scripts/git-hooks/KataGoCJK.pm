@@ -16,7 +16,7 @@ delete @ENV{qw(GIT_LITERAL_PATHSPECS GIT_GLOB_PATHSPECS GIT_NOGLOB_PATHSPECS GIT
 # forms, and the supplementary ideograph planes. Explicit ranges cover blocks
 # newer than perl's own Unicode tables. Emoji, circled numbers (Go move
 # diagrams use them) and squared Latin units are not language and pass.
-our $RE = qr/(?![\x{3030}\x{303D}\x{3251}-\x{325F}\x{3297}\x{3299}\x{32B1}-\x{32BF}\x{3371}-\x{33DF}\x{1F201}\x{1F202}\x{1F21A}\x{1F22F}\x{1F232}-\x{1F23A}\x{1F250}\x{1F251}])[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}\p{Bopomofo}\x{2E80}-\x{303F}\x{3190}-\x{31FF}\x{3200}-\x{33FF}\x{9FFD}-\x{9FFF}\x{FE10}-\x{FE1F}\x{FE30}-\x{FE6F}\x{FF00}-\x{FFEF}\x{16FE0}-\x{16FFF}\x{1AFF0}-\x{1B16F}\x{1F200}-\x{1F2FF}\x{20000}-\x{3FFFF}]/;
+our $CJK_CHAR = qr/(?![\x{3030}\x{303D}\x{3251}-\x{325F}\x{3297}\x{3299}\x{32B1}-\x{32BF}\x{3371}-\x{33DF}\x{1F201}\x{1F202}\x{1F21A}\x{1F22F}\x{1F232}-\x{1F23A}\x{1F250}\x{1F251}])[\p{Han}\p{Hiragana}\p{Katakana}\p{Hangul}\p{Bopomofo}\x{2E80}-\x{303F}\x{3190}-\x{31FF}\x{3200}-\x{33FF}\x{9FFD}-\x{9FFF}\x{FE10}-\x{FE1F}\x{FE30}-\x{FE6F}\x{FF00}-\x{FFEF}\x{16FE0}-\x{16FFF}\x{1AFF0}-\x{1B16F}\x{1F200}-\x{1F2FF}\x{20000}-\x{3FFFF}]/;
 
 # Vendored trees keep their upstream text.
 our @PATHS = ('--', '.', ':(exclude)cpp/external', ':(exclude)ios/KataGo iOS/ThirdParty');
@@ -43,11 +43,26 @@ sub decode_as {
 
 # Why a piece of text may not be committed, or undef. Text that is not UTF-8
 # is refused too: it may be CJK in a legacy encoding (Big5, GBK, Shift_JIS).
-sub problem {
+sub why_refused {
     my ($text, $valid) = @_;
-    return 'CJK' if $text =~ $RE;
+    return 'CJK' if $text =~ $CJK_CHAR;
     return 'not UTF-8' unless $valid;
-    return undef;
+    return;
+}
+
+# A hit is what the hooks report: { where, text, why }.
+sub hit {
+    my ($where, $text, $why) = @_;
+    return { where => $where, text => $text, why => $why };
+}
+
+# The hit for raw bytes found at $where (in $encoding, UTF-8 by default), or
+# nothing when they pass.
+sub hit_in_bytes {
+    my ($where, $bytes, $encoding) = @_;
+    my ($text, $valid) = decode_as($encoding, $bytes);
+    my $why = why_refused($text, $valid) or return;
+    return hit($where, $text, $why);
 }
 
 # One readable line: control characters shown as '?', long lines clipped
@@ -56,7 +71,7 @@ sub clip {
     my ($text) = @_;
     $text =~ s/[\x00-\x1F\x7F]/?/g;
     return $text if length($text) <= 120;
-    my $at = $text =~ $RE ? $-[0] : 0;
+    my $at = $text =~ $CJK_CHAR ? $-[0] : 0;
     my $start = $at > 40 ? $at - 40 : 0;
     return ($start ? '...' : '') . substr($text, $start, 120) . '...';
 }
@@ -113,10 +128,10 @@ sub exists_in {
     return $paths_of{$rev}{$path};
 }
 
-# Lines a unified or combined diff adds, as [path, text, valid, bytes, removed],
-# where removed is the text the same file loses in that diff. In a combined
-# diff a line counts only when it is new against every parent, that is, when
-# all of its prefix columns are '+'.
+# Lines a unified or combined diff adds, as { path, text, valid, bytes,
+# removed }, where removed refers to the text the same file loses in that
+# diff. In a combined diff a line counts only when it is new against every
+# parent, that is, when all of its prefix columns are '+'.
 sub added_lines {
     my @cmd = @_;
     my (@out, %removed);
@@ -140,9 +155,9 @@ sub added_lines {
         next unless $prefix eq ('+' x $width);
         my $bytes = substr($raw, $width);
         my ($text, $valid) = decode_line($bytes);
-        push @out, [$file, $text, $valid, $bytes];
+        push @out, { path => $file, text => $text, valid => $valid, bytes => $bytes };
     }
-    push @$_, \$removed{$_->[0]} for @out;
+    $_->{removed} = \$removed{$_->{path}} for @out;
     return @out;
 }
 
@@ -151,28 +166,26 @@ sub added_lines {
 sub pre_existing {
     my ($text, $removed) = @_;
     return 0 unless $removed && defined $$removed;
-    my @runs = $text =~ /((?:$RE)+)/g;
+    my @runs = $text =~ /((?:$CJK_CHAR)+)/g;
     return @runs && !grep { index($$removed, $_) < 0 } @runs;
 }
 
-# Problems among added lines, as [where, text, why]. A file whose added bytes
-# are more than 1% control characters is binary that git took for text (raw
-# image fixtures, say) and is skipped rather than reported line by line.
-sub line_problems {
+# Hits among added lines. A file whose added bytes are more than 1% control
+# characters is binary that git took for text (raw image fixtures, say) and is
+# skipped rather than reported line by line.
+sub line_hits {
     my @lines = @_;
     my (%total, %control);
     for my $line (@lines) {
-        my ($file, undef, undef, $bytes) = @$line;
-        $total{$file} += length($bytes) + 1;
-        $control{$file} += () = $bytes =~ /[\x00-\x08\x0B\x0E-\x1A\x1C-\x1F\x7F]/g;
+        $total{$line->{path}} += length($line->{bytes}) + 1;
+        $control{$line->{path}} += () = $line->{bytes} =~ /[\x00-\x08\x0B\x0E-\x1A\x1C-\x1F\x7F]/g;
     }
     my @hits;
     for my $line (@lines) {
-        my ($file, $text, $valid, undef, $removed) = @$line;
-        next if $control{$file} * 100 > $total{$file};
-        my $why = problem($text, $valid) or next;
-        next if $why eq 'CJK' && pre_existing($text, $removed);
-        push @hits, [$file, $text, $why];
+        next if $control{$line->{path}} * 100 > $total{$line->{path}};
+        my $why = why_refused($line->{text}, $line->{valid}) or next;
+        next if $why eq 'CJK' && pre_existing($line->{text}, $line->{removed});
+        push @hits, hit($line->{path}, $line->{text}, $why);
     }
     return @hits;
 }
@@ -218,21 +231,32 @@ sub utf16_lines {
     return split /\r?\n/, $text;
 }
 
-# Problems in UTF-16 blobs: lines none of the old versions has. Each change is
-# [new object name, old object names...], so a rename compares with its source.
-sub utf16_problems {
+# Hits in UTF-16 blobs: lines none of the old versions has. Each change is
+# { new, path, old => [object names] }, where new and old are object names, so
+# a rename compares with its source.
+sub utf16_hits {
     my @hits;
     for my $change (@_) {
-        my ($new, $where, @old) = @$change;
-        my @lines = utf16_lines($new) or next;
+        my @lines = utf16_lines($change->{new}) or next;
         my %seen;
-        for my $name (@old) { $seen{$_} = 1 for utf16_lines($name) }
-        push @hits, map { ["$where (UTF-16)", $_, 'CJK'] } grep { !$seen{$_} && $_ =~ $RE } @lines;
+        for my $name (@{ $change->{old} }) { $seen{$_} = 1 for utf16_lines($name) }
+        push @hits, map { hit("$change->{path} (UTF-16)", $_, 'CJK') } grep { !$seen{$_} && $_ =~ $CJK_CHAR } @lines;
     }
     return @hits;
 }
 
-# Changed blobs from a --raw -z listing, as [status, new oid, source, path].
+# The UTF-16 change for a changed blob ({ oid, src, path }, as raw_changes
+# gives it): compared with the same path in each of @revs, and with its
+# source path too when it was renamed or copied.
+sub utf16_change {
+    my ($blob, @revs) = @_;
+    my ($path, $src) = @$blob{qw(path src)};
+    return { new => $blob->{oid}, path => $path,
+             old => [map { ("$_:$path", ($src ne $path ? "$_:$src" : ())) } @revs] };
+}
+
+# Changed blobs from a --raw -z listing, as { oid, src, path }: the new object
+# name, the path it came from (itself unless renamed or copied) and its path.
 sub raw_changes {
     my @fields = split /\0/, command_output(@_);
     my @out;
@@ -242,7 +266,7 @@ sub raw_changes {
         my $path = shift @fields;
         my $src = $path;
         $path = shift @fields if $status =~ /^[RC]/;
-        push @out, [$status, $oid, $src, $path];
+        push @out, { oid => $oid, src => $src, path => $path };
     }
     return @out;
 }
@@ -254,66 +278,62 @@ sub upstream_text {
     my %upstream;
     for my $head (@heads) {
         for my $line (added_lines(@GIT, 'diff', @DIFF_OPTS, '-U0', $first, $head, @PATHS)) {
-            $upstream{$line->[1]} = 1 if problem($line->[1], $line->[2]);
+            $upstream{$line->{text}} = 1 if why_refused($line->{text}, $line->{valid});
         }
     }
     return \%upstream;
 }
 
-# Problems in the staged changes, as [where, text, why]. In a merge, text that
-# a merged head brings in passes.
-sub staged_problems {
-    my @heads = @_;
-    my $has_head = quiet_ok('git', 'rev-parse', '-q', '--verify', 'HEAD^{commit}');
-    my @hits = line_problems(added_lines(@GIT, 'diff', '--cached', @DIFF_OPTS, '-U0', '--diff-filter=ACMRT', @PATHS));
-    for my $path (split /\0/, command_output(@GIT, 'diff', '--cached', @DIFF_OPTS, '--name-only', '-z', '--diff-filter=ACR', @PATHS)) {
-        my ($text, $valid) = decode_line($path);
-        my $why = problem($text, $valid) or next;
-        next if grep { exists_in($_, $path) } @heads;
-        push @hits, ['(path)', $text, $why];
-    }
-    my @olds = (($has_head ? ('HEAD') : ()), @heads);
-    push @hits, utf16_problems(map {
-        my ($status, $oid, $src, $path) = @$_;
-        [$oid, $path, map { ("$_:$path", ($src ne $path ? "$_:$src" : ())) } @olds]
-    } raw_changes(@GIT, 'diff', '--cached', '--raw', '-z', '-M', '-l5000', '--diff-filter=ACMRT', @PATHS));
-    if (@heads) {
-        my $upstream = upstream_text($has_head ? 'HEAD' : null_tree(), @heads);
-        @hits = grep { $_->[0] eq '(path)' || !$upstream->{$_->[1]} } @hits;
+# Hits for paths that break the rule and that none of @revs already has.
+sub new_path_hits {
+    my ($paths, @revs) = @_;
+    my @hits;
+    for my $path (@$paths) {
+        my $hit = hit_in_bytes('(path)', $path) or next;
+        push @hits, $hit unless grep { exists_in($_, $path) } @revs;
     }
     return @hits;
 }
 
-# Problems in one recorded commit, as [where, text, why]: its message as git
-# stores it, the lines it adds against every parent, and the paths it adds.
-sub commit_problems {
+# Hits in the staged changes. In a merge, text that a merged head brings in
+# passes.
+sub staged_hits {
+    my @heads = @_;
+    my $has_head = quiet_ok('git', 'rev-parse', '-q', '--verify', 'HEAD^{commit}');
+    my @lines = line_hits(added_lines(@GIT, 'diff', '--cached', @DIFF_OPTS, '-U0', '--diff-filter=ACMRT', @PATHS));
+    my @paths = new_path_hits(
+        [split /\0/, command_output(@GIT, 'diff', '--cached', @DIFF_OPTS, '--name-only', '-z', '--diff-filter=ACR', @PATHS)],
+        @heads);
+    my @olds = (($has_head ? ('HEAD') : ()), @heads);
+    my @utf16 = utf16_hits(map { utf16_change($_, @olds) }
+        raw_changes(@GIT, 'diff', '--cached', '--raw', '-z', '-M', '-l5000', '--diff-filter=ACMRT', @PATHS));
+    if (@heads) {
+        my $upstream = upstream_text($has_head ? 'HEAD' : null_tree(), @heads);
+        @lines = grep { !$upstream->{$_->{text}} } @lines;
+        @utf16 = grep { !$upstream->{$_->{text}} } @utf16;
+    }
+    return (@lines, @paths, @utf16);
+}
+
+# Hits in one recorded commit: its message as git stores it, the lines it adds
+# against every parent, and the paths it adds.
+sub commit_hits {
     my ($sha) = @_;
-    my @hits;
     my (undef, @parents) = split ' ', command_output('git', 'rev-list', '--parents', '-n', '1', $sha);
     my $message = command_output(@GIT, '-c', 'i18n.logOutputEncoding=UTF-8', 'log', '-1', '--format=%B', $sha);
-    for my $line (split /\n/, $message) {
-        my ($text, $valid) = decode_line($line);
-        my $why = problem($text, $valid) or next;
-        push @hits, ['(message)', $text, $why];
-    }
-    my @content = line_problems(added_lines(@GIT, 'show', '--format=', @DIFF_OPTS, '-U0', '--diff-merges=dense-combined', $sha, @PATHS));
+    my @hits = map { hit_in_bytes('(message)', $_) } split /\n/, $message;
+    my @content = line_hits(added_lines(@GIT, 'show', '--format=', @DIFF_OPTS, '-U0', '--diff-merges=dense-combined', $sha, @PATHS));
     my @changed = split /\0/, command_output(@GIT, 'diff-tree', '-r', '-z', '--root', '--no-commit-id', '--name-only', '--no-renames', (@parents > 1 ? ('-c') : ()), $sha, @PATHS);
-    for my $path (@changed) {
-        my ($text, $valid) = decode_line($path);
-        my $why = problem($text, $valid) or next;
-        push @hits, ['(path)', $text, $why] unless grep { exists_in($_, $path) } @parents;
-    }
+    push @hits, new_path_hits(\@changed, @parents);
     if (@parents > 1) {
-        push @content, utf16_problems(map { my $path = $_; ["$sha:$path", $path, map { "$_:$path" } @parents] } @changed);
+        push @content, utf16_hits(map { utf16_change({ oid => "$sha:$_", src => $_, path => $_ }, @parents) } @changed);
         if (@content) {
             my $upstream = upstream_text(@parents);
-            @content = grep { !$upstream->{$_->[1]} } @content;
+            @content = grep { !$upstream->{$_->{text}} } @content;
         }
     } else {
-        push @content, utf16_problems(map {
-            my ($status, $oid, $src, $path) = @$_;
-            [$oid, $path, (@parents ? ("$parents[0]:$path", ($src ne $path ? "$parents[0]:$src" : ())) : ())]
-        } raw_changes('git', 'diff-tree', '-r', '-z', '--root', '--no-commit-id', '--raw', '-M', '-l5000', '--diff-filter=ACMRT', $sha, @PATHS));
+        push @content, utf16_hits(map { utf16_change($_, @parents) }
+            raw_changes('git', 'diff-tree', '-r', '-z', '--root', '--no-commit-id', '--raw', '-M', '-l5000', '--diff-filter=ACMRT', $sha, @PATHS));
     }
     return (@hits, @content);
 }
@@ -326,9 +346,8 @@ sub report {
     print STDERR "$heading\n";
     my $shown = @hits < 20 ? @hits : 20;
     for my $hit (@hits[0 .. $shown - 1]) {
-        my ($where, $text, $why) = @$hit;
-        my ($name) = decode_line($where);
-        print STDERR '  ' . clip($name) . ': ' . clip($text) . "  [$why]\n";
+        my ($name) = decode_line($hit->{where});
+        print STDERR '  ' . clip($name) . ': ' . clip($hit->{text}) . "  [$hit->{why}]\n";
     }
     print STDERR "  ... and " . (@hits - $shown) . " more\n" if @hits > $shown;
     return scalar @hits;
